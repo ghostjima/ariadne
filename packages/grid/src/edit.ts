@@ -1,4 +1,4 @@
-import { canEditColumn, canSetStage, type Role } from "./roles.js";
+import { canEditColumn, type Role } from "./roles.js";
 import {
   ASSIGNEE_COUNT,
   EXTENSION_COUNT,
@@ -15,6 +15,7 @@ import {
   type EnumField,
 } from "./schema.js";
 import { AS_OF_DAY, RulesFlag, type ColumnStore, type NoteValue } from "./store.js";
+import { guardTransition, transitionBetween } from "./workflow.js";
 
 /*
   The rules of an edit. Errors are codes with the numbers a message needs;
@@ -29,6 +30,8 @@ export type EditError =
   | { code: "value-unknown" }
   | { code: "role-cannot-edit"; column: EditColumn }
   | { code: "stage-not-for-role" }
+  | { code: "transition-not-allowed" }
+  | { code: "reason-required" }
   | { code: "reply-needs-outcome" }
   | { code: "refusal-needs-ground" }
   | { code: "ground-other-stream" }
@@ -110,15 +113,17 @@ export function checkField(field: EnumField, value: number, row: RowContext, rol
   }
 }
 
+/* A stage edit is a transition of the table (workflow.ts): one that does
+   not exist from this stage, or belongs to another role, is refused; a
+   return for rework needs a reason, which only the case view asks for */
 function checkStage(value: number, row: RowContext, role: Role): EditError | null {
   if (value === row.stage) return null;
-  if (!canSetStage(role, value)) return { code: "stage-not-for-role" };
-  if (value >= Stage.LegalReview && value <= Stage.Sent) {
-    if (row.outcome === Outcome.Pending) return { code: "reply-needs-outcome" };
-    if (refusalWithoutGround(row.outcome, row.ground)) return { code: "refusal-needs-ground" };
-  }
-  if (value === Stage.Sent && row.stage !== Stage.AwaitingSignature) return { code: "send-needs-signature" };
-  return null;
+  const t = transitionBetween(row.stage, value);
+  if (!t) return value === Stage.Sent ? { code: "send-needs-signature" } : { code: "transition-not-allowed" };
+  if (!t.roles.includes(role)) return { code: "stage-not-for-role" };
+  if (t.needsReason) return { code: "reason-required" };
+  const guard = guardTransition(t, row);
+  return guard && (guard.code === "reply-needs-outcome" || guard.code === "refusal-needs-ground") ? guard : null;
 }
 
 /* Whether a note may be saved; trims first */

@@ -48,12 +48,22 @@ describe("bulk reassignment with undo", () => {
 });
 
 describe("stage changes", () => {
-  it("refuses legal review for drafts without a decision or with a refusal and no ground, and moves the rest", () => {
-    const pending = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Pending, 3);
-    const noGround = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Refused && store.ground[i] === 0, 2);
-    const ready = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Upheld, 3);
+  it("refuses signature for replies under review without a decision or with a refusal and no ground, and moves the rest", () => {
+    const pending = rowsWhere((i) => store.stage[i] === Stage.LegalReview && store.outcome[i] === Outcome.Pending, 3);
+    const noGround = rowsWhere((i) => store.stage[i] === Stage.LegalReview && store.outcome[i] === Outcome.Refused && store.ground[i] === 0, 2);
+    const ready = rowsWhere((i) => store.stage[i] === Stage.LegalReview && store.outcome[i] === Outcome.Upheld, 3);
+    /* The register's replies under review are all decided: make some
+       pending and some refusals without a ground */
+    const undecided = rowsWhere((i) => store.stage[i] === Stage.LegalReview && store.outcome[i] === Outcome.Upheld, 8).slice(3);
+    undecided.slice(0, 3).forEach((i) => (store.outcome[i] = Outcome.Pending));
+    undecided.slice(3).forEach((i) => {
+      store.outcome[i] = Outcome.Refused;
+      store.ground[i] = 0;
+    });
+    pending.push(...undecided.slice(0, 3));
+    noGround.push(...undecided.slice(3));
     expect([pending.length, noGround.length, ready.length].every((n) => n > 0)).toBe(true);
-    const r = history.setField(store, [...pending, ...noGround, ...ready], "stage", Stage.LegalReview, "supervisor", NOW);
+    const r = history.setField(store, [...pending, ...noGround, ...ready], "stage", Stage.AwaitingSignature, "reviewer", NOW);
     expect(Array.from(r.applied)).toEqual(ready);
     expect(r.rejected).toEqual([
       ...pending.map((row) => ({ row, error: { code: "reply-needs-outcome" } })),

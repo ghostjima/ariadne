@@ -65,15 +65,31 @@ describe("role column visibility", () => {
 });
 
 describe("role rules", () => {
-  it("the operator drafts; the signatory signs; the supervisor approves extensions, reassigns and exports", () => {
+  it("the operator drafts and hands over; the reviewer approves or returns; the signatory sends or returns; the supervisor extends, closes, reassigns and exports", () => {
     expect(roleRules("operator").editable).toEqual(["stage", "outcome", "ground", "note"]);
     expect([canBulk("operator"), canExport("operator"), canEditColumn("operator", "extension")]).toEqual([false, false, false]);
-    expect([canSetStage("operator", Stage.AwaitingSignature), canSetStage("operator", Stage.Sent)]).toEqual([true, false]);
+    expect([canSetStage("operator", Stage.LegalReview), canSetStage("operator", Stage.AwaitingSignature), canSetStage("operator", Stage.Sent)]).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect([canSetStage("reviewer", Stage.AwaitingSignature), canSetStage("reviewer", Stage.Drafting), canSetStage("reviewer", Stage.Sent)]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    expect([canBulk("reviewer"), canExport("reviewer"), canEditColumn("reviewer", "outcome"), canEditColumn("reviewer", "extension")]).toEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
     expect([canSetStage("signatory", Stage.Sent), canSetStage("signatory", Stage.Drafting), canSetStage("signatory", Stage.LegalReview)]).toEqual([
       true,
       true,
       false,
     ]);
+    expect([canSetStage("supervisor", Stage.Closed), canSetStage("supervisor", Stage.LegalReview)]).toEqual([true, false]);
     expect([canEditColumn("signatory", "outcome"), canEditColumn("signatory", "note")]).toEqual([false, true]);
     expect([canBulk("supervisor"), canExport("supervisor"), canEditColumn("supervisor", "extension"), canEditColumn("supervisor", "assignee")]).toEqual([
       true,

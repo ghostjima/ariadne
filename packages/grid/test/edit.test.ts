@@ -23,27 +23,36 @@ describe("stage", () => {
     for (const v of ["-1", "7", "не число", "1.5"]) expect(validateEdit("stage", v, draft, "supervisor")).toEqual(unknown);
   });
 
-  it("a reply goes to legal review only once its outcome is decided", () => {
-    expect(validateEdit("stage", String(Stage.LegalReview), draft, "operator")).toEqual({ code: "reply-needs-outcome" });
-    expect(validateEdit("stage", String(Stage.LegalReview), { ...draft, outcome: Outcome.Upheld }, "operator")).toBeNull();
+  it("the operator hands a draft over to legal review, decided or not: the reviewer states the decision", () => {
+    expect(validateEdit("stage", String(Stage.LegalReview), draft, "operator")).toBeNull();
+    expect(validateEdit("stage", String(Stage.LegalReview), draft, "supervisor")).toEqual({ code: "stage-not-for-role" });
+    expect(validateEdit("stage", String(Stage.WaitingForFacts), draft, "operator")).toBeNull();
   });
 
-  it("a refusal needs a legal ground before it goes on", () => {
-    const refused = { ...draft, outcome: Outcome.Refused };
-    expect(validateEdit("stage", String(Stage.LegalReview), refused, "operator")).toEqual({ code: "refusal-needs-ground" });
-    expect(validateEdit("stage", String(Stage.LegalReview), { ...refused, ground: 1 }, "operator")).toBeNull();
-    /* Back to an earlier stage is always allowed */
-    expect(validateEdit("stage", String(Stage.WaitingForFacts), refused, "operator")).toBeNull();
+  it("a reply goes to signature only decided, and a refusal only with its ground; the reviewer approves it", () => {
+    const review = { ...draft, stage: Stage.LegalReview };
+    expect(validateEdit("stage", String(Stage.AwaitingSignature), review, "reviewer")).toEqual({ code: "reply-needs-outcome" });
+    const refused = { ...review, outcome: Outcome.Refused };
+    expect(validateEdit("stage", String(Stage.AwaitingSignature), refused, "reviewer")).toEqual({ code: "refusal-needs-ground" });
+    expect(validateEdit("stage", String(Stage.AwaitingSignature), { ...refused, ground: 1 }, "reviewer")).toBeNull();
+    expect(validateEdit("stage", String(Stage.AwaitingSignature), { ...refused, ground: 1 }, "operator")).toEqual({ code: "stage-not-for-role" });
   });
 
-  it("only a signatory or a supervisor sends, and only a signed reply", () => {
+  it("a return for rework needs a reason, so it is not made from a cell", () => {
+    expect(validateEdit("stage", String(Stage.Drafting), { ...draft, stage: Stage.LegalReview }, "reviewer")).toEqual({ code: "reason-required" });
+    const signing = { ...draft, stage: Stage.AwaitingSignature, outcome: Outcome.Upheld };
+    expect(validateEdit("stage", String(Stage.Drafting), signing, "signatory")).toEqual({ code: "reason-required" });
+  });
+
+  it("only the signatory sends, and only a reply that was with them; a stage with no transition is refused", () => {
     const ready = { ...draft, stage: Stage.AwaitingSignature, outcome: Outcome.Upheld };
     expect(validateEdit("stage", String(Stage.Sent), ready, "operator")).toEqual({ code: "stage-not-for-role" });
     expect(validateEdit("stage", String(Stage.Sent), ready, "signatory")).toBeNull();
     expect(validateEdit("stage", String(Stage.Sent), { ...ready, stage: Stage.LegalReview }, "supervisor")).toEqual({ code: "send-needs-signature" });
-    expect(validateEdit("stage", String(Stage.Drafting), ready, "signatory")).toBeNull();
-    expect(validateEdit("stage", String(Stage.LegalReview), ready, "signatory")).toEqual({ code: "stage-not-for-role" });
+    expect(validateEdit("stage", String(Stage.LegalReview), ready, "signatory")).toEqual({ code: "transition-not-allowed" });
+    expect(validateEdit("stage", String(Stage.Registered), draft, "operator")).toEqual({ code: "transition-not-allowed" });
     expect(validateEdit("stage", String(ready.stage), ready, "signatory")).toBeNull();
+    expect(validateEdit("stage", String(Stage.Closed), { ...ready, stage: Stage.Sent }, "supervisor")).toBeNull();
   });
 });
 

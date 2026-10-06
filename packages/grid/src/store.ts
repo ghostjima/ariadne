@@ -1,5 +1,6 @@
 import { AS_OF, DUE_SOON_WORKING_DAYS, DeadlineClass, Extension, Stage, type EnumField } from "./schema.js";
 import { dayNumber } from "./days.js";
+import type { JournalEntry } from "./workflow.js";
 
 /*
   Columnar store. Every generated field is a typed array of codes, days or
@@ -95,7 +96,28 @@ export type ColumnStore = Columns & {
   loaded: Uint8Array;
   /* notes edited after generation, overriding `note` */
   noteEdits: Map<number, NoteValue>;
+  /* the journal entries made in this page, by row; the history before
+     them is worked out from the generated row (workflow.ts) */
+  journal: Map<number, JournalEntry[]>;
+  /* what a row held as generated, kept at its first change in this page,
+     so its worked-out history stays the generated one */
+  origin: Map<number, RowOrigin>;
 };
+
+/* The fields of a generated row its history is worked out from */
+export type RowOrigin = { stage: number; sentOn: number; extension: number; assignee: number; updatedAt: number };
+
+/* Keeps what a row held as generated, before its first change */
+export function rememberOrigin(store: ColumnStore, row: number): void {
+  if (store.origin.has(row)) return;
+  store.origin.set(row, {
+    stage: store.stage[row] ?? 0,
+    sentOn: store.sentOn[row] ?? -1,
+    extension: store.extension[row] ?? 0,
+    assignee: store.assignee[row] ?? 0,
+    updatedAt: store.updatedAt[row] ?? 0,
+  });
+}
 
 export type Chunk = Columns & { start: number; count: number };
 
@@ -143,7 +165,7 @@ export function allocColumns(size: number): Columns {
 export const COLUMN_KEYS = Object.keys(allocColumns(0)) as (keyof Columns)[];
 
 export function createStore(size: number): ColumnStore {
-  return { ...allocColumns(size), size, loaded: new Uint8Array(size), noteEdits: new Map() };
+  return { ...allocColumns(size), size, loaded: new Uint8Array(size), noteEdits: new Map(), journal: new Map(), origin: new Map() };
 }
 
 /* Copies a chunk into the store at its start offset */
@@ -151,7 +173,11 @@ export function applyChunk(store: ColumnStore, chunk: Chunk): void {
   const { start, count } = chunk;
   for (const key of COLUMN_KEYS) (store[key] as Int32Array).set(chunk[key] as Int32Array, start);
   store.loaded.fill(1, start, start + count);
-  for (let i = start; i < start + count; i++) store.noteEdits.delete(i);
+  for (let i = start; i < start + count; i++) {
+    store.noteEdits.delete(i);
+    store.journal.delete(i);
+    store.origin.delete(i);
+  }
 }
 
 /* Every buffer of a chunk, for a zero-copy postMessage */
