@@ -184,7 +184,7 @@ own output and stops, publishing nothing, when a value cannot be read.
   for the agent, those under
   [its own](apps/agent/README.md#accessibility). Scans outside these
   matrices fail the run too but are not counted.
-- Lighthouse: Lighthouse 12 accessibility, best practices and SEO scores
+- Lighthouse: Lighthouse 13 accessibility, best practices and SEO scores
   for each app's home page served by `vite preview`, the lowest of both
   apps, desktop and mobile. Performance is not shown: on a shared CI
   runner it measures the runner.
