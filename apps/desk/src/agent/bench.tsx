@@ -13,7 +13,7 @@ import { I18nProvider } from "@ghostjima/stoa-react";
 import { createActor } from "xstate";
 import { generatePlan, planMachine, type Decision, type RunEvent } from "@ariadne/runner";
 import "@ghostjima/stoa-tokens/tokens.css";
-import "./styles.css";
+import "../styles.css";
 import { makeFmt } from "./format";
 import { fullRun } from "./fullRun";
 import { LOCALES, strings } from "./i18n";
@@ -127,8 +127,8 @@ function Bench() {
   const steps = useRunSteps(plan);
   const [snapshot] = useState(SNAPSHOT);
   return (
-    <div className="layout">
-      <div className="layout__main">
+    <div className="agent">
+      <div className="agent__work">
         <RunPanel
           x={x}
           steps={steps}
@@ -147,9 +147,9 @@ function Bench() {
           onUndo={() => {}}
           notice={null}
         />
-      </div>
-      <div className="layout__side">
-        <LogPanel x={x} log={ctx.log} steps={steps} />
+        <div className="agent__side">
+          <LogPanel x={x} log={ctx.log} steps={steps} />
+        </div>
       </div>
     </div>
   );

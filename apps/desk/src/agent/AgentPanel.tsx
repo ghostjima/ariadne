@@ -1,35 +1,31 @@
+// The assistant beside the open case: its task, its plan before the run,
+// the run as it happens (Stop always first), the confirmations it stops
+// for, the log, and a summary at the end. The run streams from the desk's
+// Service Worker (service.ts); the consent rule is the engine's. The
+// panel's own keys (R runs, S stops, P pauses) work while it is shown.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useSelector } from "@xstate/react";
 import {
   AlertDialog,
-  AppHeader,
   Button,
   Callout,
-  I18nProvider,
-  LanguageSwitch,
   LiveRegion,
-  PageShell,
   ProgressBar,
   ShortcutsDialog,
-  ThemeSwitch,
-  ToastQueue,
-  ToastRegion,
   groupShortcuts,
   keepFocusInPlace,
-  useLanguagePreference,
   useShortcuts,
-  useThemePreference,
+  type Shortcut,
+  type ToastQueue,
 } from "@ghostjima/stoa-react";
-import { DEFAULT_SEED, type Autonomy, type PlanStateValue } from "@ariadne/runner";
+import type { Autonomy, PlanStateValue } from "@ariadne/runner";
 import { makeFmt } from "./format";
-import { LANGS, LOCALES, isLang, strings, type Lang } from "./i18n";
+import { LOCALES, strings, type Lang } from "./i18n";
 import { mark } from "./marks";
-import { seedFrom, streamParamsFrom } from "./scale";
-import { RunSession } from "./session";
+import type { RunService } from "./service";
+import type { RunSession } from "./session";
 import { summaryText, undoText, type Text } from "./text";
-import { pageTransport, workerTransport } from "./transport";
-import { startWorker, watchWorker, type WorkerError } from "./worker";
 import { useRunSteps, useSession } from "./ui/hooks";
 import { TaskPanel } from "./ui/TaskPanel";
 import { PlanPanel } from "./ui/PlanPanel";
@@ -37,51 +33,30 @@ import { RunPanel } from "./ui/RunPanel";
 import { Decisions } from "./ui/Decisions";
 import { LogPanel, SummaryPanel } from "./ui/SidePanels";
 
-export const THEME_STORE = { storageKey: "ariadne-agent.theme" };
-export const LANGUAGE_STORE = { storageKey: "ariadne-agent.lang" };
-
-const BASE = import.meta.env.BASE_URL;
-
-type ServiceState =
-  | { status: "starting" }
-  | { status: "ready" }
-  | { status: "failed"; error: WorkerError }
-  /** The person chose to run in this tab, without the worker. */
-  | { status: "page" };
-
 function setSeedParam(seed: number) {
   const url = new URL(location.href);
   url.searchParams.set("seed", String(seed));
   history.replaceState(history.state, "", url);
 }
 
-export function Root() {
-  const theme = useThemePreference(THEME_STORE);
-  const language = useLanguagePreference({ languages: LANGS, ...LANGUAGE_STORE });
-  const lang: Lang = isLang(language.language) ? language.language : "en";
-  return (
-    <I18nProvider locale={LOCALES[lang]}>
-      <App lang={lang} onLang={language.setLanguage} themeChoice={theme.choice} onTheme={theme.setChoice} />
-    </I18nProvider>
-  );
-}
-
-type AppProps = {
+export type AgentPanelProps = {
   lang: Lang;
-  onLang: (lang: string) => void;
-  themeChoice: ReturnType<typeof useThemePreference>["choice"];
-  onTheme: ReturnType<typeof useThemePreference>["setChoice"];
+  session: RunSession;
+  service: RunService;
+  toasts: ToastQueue;
+  /** Keys of the view around the panel, listed with its own in the help. */
+  shortcuts: Shortcut[];
+  /** The help dialog is open; "?" and the view's Shortcuts button open it. */
+  helpOpen: boolean;
+  onHelpOpenChange: (open: boolean) => void;
+  /** The panel is in view (not a tab behind the card): its run keys work. */
+  visible: boolean;
 };
 
-export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
+export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen, onHelpOpenChange, visible }: AgentPanelProps) {
   const t = strings[lang];
   const f = makeFmt(LOCALES[lang]);
   const x: Text = useMemo(() => ({ t, f }), [t, f]);
-  const [session] = useState(() => new RunSession({ seed: seedFrom(location.search) ?? DEFAULT_SEED, streamParams: streamParamsFrom(location.search) }));
-  const [toasts] = useState(() => new ToastQueue());
-  const [service, setService] = useState<ServiceState>({ status: "starting" });
-  const [attempt, setAttempt] = useState(0);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [askNewPlan, setAskNewPlan] = useState(false);
   const [announcement, setAnnouncement] = useState("");
 
@@ -91,41 +66,18 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
   const steps = useRunSteps(session.plan);
   const draft = planState === "draft";
   const ended = planState === "finished" || planState === "stopped";
+  const status = service.state.status;
 
-  useEffect(() => {
-    document.title = t.title;
-  }, [t]);
-
-  // The worker: started on load and on each retry.
-  useEffect(() => {
-    if (service.status !== "starting") return;
-    let live = true;
-    void startWorker(BASE)
-      .catch((error: unknown): Awaited<ReturnType<typeof startWorker>> => ({ ok: false, error: "sw_registration_failed", detail: String(error) }))
-      .then((result) => {
-      if (!live) return;
-      if (result.ok) {
-        session.setTransport(workerTransport(`${BASE}api/agent`));
-        setService({ status: "ready" });
-      } else {
-        setService({ status: "failed", error: result.error });
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, [service.status, attempt, session]);
-
-  // A new worker took over this page: the stream moves to it.
   const latestText = useRef(x);
   latestText.current = x;
+
+  // A new worker took over the page: the stream moved to it.
+  const takeovers = useRef(service.takeovers);
   useEffect(() => {
-    if (service.status !== "ready") return;
-    return watchWorker(() => {
-      session.workerChanged();
-      toasts.add({ tone: "info", text: latestText.current.t.service.updated });
-    });
-  }, [service.status, session, toasts]);
+    if (service.takeovers === takeovers.current) return;
+    takeovers.current = service.takeovers;
+    toasts.add({ tone: "info", text: latestText.current.t.service.updated });
+  }, [service.takeovers, toasts]);
 
   // Undo windows and reconnections, as toasts.
   const undoToasts = useRef(new Map<string, { key: string; timer: ReturnType<typeof setTimeout> }>());
@@ -174,6 +126,14 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
       }),
     [session, toasts, undo, closeUndoToast],
   );
+  // The panel goes (another case, the queue): its undo toasts go with it;
+  // the windows stay in the run, and come back with the case.
+  useEffect(
+    () => () => {
+      for (const stepId of [...undoToasts.current.keys()]) closeUndoToast(stepId);
+    },
+    [closeUndoToast],
+  );
 
   // Marks for the measurements: the first event and the stop, once drawn.
   const firstEventMarked = useRef(false);
@@ -210,7 +170,7 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
     }
   }, [planState, ctx.stopRequested, stream.status, steps, t, f]);
 
-  const canRun = draft && ctx.steps.length > 0 && (service.status === "ready" || service.status === "page");
+  const canRun = draft && ctx.steps.length > 0 && (status === "ready" || status === "page");
   const canStop = session.canStop();
   const run = () => {
     if (canRun) session.start();
@@ -237,16 +197,23 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
   };
 
   const help = useShortcuts([
-    { key: "r", description: t.shortcuts.start, group: t.shortcuts.run, onTrigger: run, isDisabled: !canRun },
-    { key: "s", description: t.shortcuts.stop, group: t.shortcuts.run, onTrigger: stop, isDisabled: !canStop },
-    { key: "p", description: t.shortcuts.pauseResume, group: t.shortcuts.run, onTrigger: pauseOrResume, isDisabled: !(stream.status === "paused" || session.canPause()) },
-    { key: "?", description: t.shortcuts.help, group: t.shortcuts.general, onTrigger: () => setHelpOpen(true) },
+    { key: "r", description: t.shortcuts.start, group: t.shortcuts.run, onTrigger: run, isDisabled: !visible || !canRun },
+    { key: "s", description: t.shortcuts.stop, group: t.shortcuts.run, onTrigger: stop, isDisabled: !visible || !canStop },
+    {
+      key: "p",
+      description: t.shortcuts.pauseResume,
+      group: t.shortcuts.run,
+      onTrigger: pauseOrResume,
+      isDisabled: !visible || !(stream.status === "paused" || session.canPause()),
+    },
+    { key: "?", description: t.shortcuts.help, group: t.shortcuts.general, onTrigger: () => onHelpOpenChange(true) },
+    ...shortcuts,
   ]);
 
   const serviceView =
-    service.status === "starting" ? (
+    status === "starting" ? (
       <ProgressBar label={t.service.starting} isIndeterminate />
-    ) : service.status === "failed" ? (
+    ) : service.state.status === "failed" ? (
       <Callout
         tone="negative"
         role="alert"
@@ -257,8 +224,7 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
               variant="primary"
               onPress={(e) => {
                 keepFocusInPlace(e.target);
-                setAttempt((a) => a + 1);
-                setService({ status: "starting" });
+                service.retry();
               }}
             >
               {t.service.retry}
@@ -267,10 +233,7 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
               onPress={(e) => {
                 // Run can be pressed now, and it is the next thing to do.
                 const plan = e.target.closest(".plan");
-                flushSync(() => {
-                  session.setTransport(pageTransport());
-                  setService({ status: "page" });
-                });
+                flushSync(() => service.usePage());
                 plan?.querySelector<HTMLButtonElement>(".plan-bar button")?.focus();
               }}
             >
@@ -279,9 +242,9 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
           </div>
         }
       >
-        {t.service.errors[service.error]}
+        {t.service.errors[service.state.error]}
       </Callout>
-    ) : service.status === "page" ? (
+    ) : status === "page" ? (
       <Callout tone="info" role="none">
         {t.service.pageNote}
       </Callout>
@@ -290,78 +253,60 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
   const decisionOpen = stream.status === "waiting" && !ctx.stopRequested && stream.waiting !== null && !stream.waiting.accepts.includes("retry");
 
   return (
-    <PageShell
-      header={
-        <AppHeader
-          title={t.title}
-          subtitle={t.subtitle}
-          actions={
-            <>
-              <Button variant="ghost" onPress={() => setHelpOpen(true)} shortcut={{ key: "?" }}>
-                {t.shortcutsButton}
-              </Button>
-              <ThemeSwitch value={themeChoice} onChange={onTheme} />
-              <LanguageSwitch languages={LANGS} value={lang} onChange={onLang} />
-            </>
-          }
-        />
-      }
-    >
-      <div className="layout" data-plan-state={planState} data-stream={stream.status}>
-        <div className="layout__main">
-          <TaskPanel
+    <div className="agent" data-plan-state={planState} data-stream={stream.status}>
+      <TaskPanel
+        x={x}
+        seed={ctx.seed}
+        autonomy={ctx.autonomy}
+        editable={draft}
+        onSeed={(seed) => {
+          setSeedParam(seed);
+          session.plan.send({ type: "REGENERATE", seed });
+        }}
+        onAutonomy={(autonomy: Autonomy) => session.plan.send({ type: "SET_AUTONOMY", autonomy })}
+      />
+      <div className="agent__work">
+        {draft ? (
+          <PlanPanel
             x={x}
-            seed={ctx.seed}
+            steps={ctx.steps}
             autonomy={ctx.autonomy}
-            editable={draft}
-            onSeed={(seed) => {
-              setSeedParam(seed);
-              session.plan.send({ type: "REGENERATE", seed });
+            service={serviceView}
+            canRun={canRun}
+            onRun={run}
+            onRestore={() => session.plan.send({ type: "RESTORE" })}
+            onRemove={(id) => session.plan.send({ type: "REMOVE_STEP", id })}
+            onAskFirst={(id, askFirst) => session.plan.send({ type: "SET_ASK_FIRST", id, askFirst })}
+            onReorder={(ids) => {
+              // One REORDER per item out of place: the machine's own event.
+              for (let to = 0; to < ids.length; to += 1) {
+                const current = session.plan.getSnapshot().context.steps.map((s) => s.id);
+                const from = current.indexOf(ids[to] ?? "");
+                if (from >= 0 && from !== to) session.plan.send({ type: "REORDER", from, to });
+              }
             }}
-            onAutonomy={(autonomy: Autonomy) => session.plan.send({ type: "SET_AUTONOMY", autonomy })}
           />
-          {draft ? (
-            <PlanPanel
-              x={x}
-              steps={ctx.steps}
-              autonomy={ctx.autonomy}
-              service={serviceView}
-              canRun={canRun}
-              onRun={run}
-              onRestore={() => session.plan.send({ type: "RESTORE" })}
-              onRemove={(id) => session.plan.send({ type: "REMOVE_STEP", id })}
-              onAskFirst={(id, askFirst) => session.plan.send({ type: "SET_ASK_FIRST", id, askFirst })}
-              onReorder={(ids) => {
-                // One REORDER per item out of place: the machine's own event.
-                for (let to = 0; to < ids.length; to += 1) {
-                  const current = session.plan.getSnapshot().context.steps.map((s) => s.id);
-                  const from = current.indexOf(ids[to] ?? "");
-                  if (from >= 0 && from !== to) session.plan.send({ type: "REORDER", from, to });
-                }
-              }}
-            />
-          ) : (
-            <RunPanel
-              x={x}
-              steps={steps}
-              autonomy={ctx.autonomy}
-              session={stream}
-              stopRequested={session.isStopping()}
-              ended={ended}
-              canStop={canStop}
-              canPause={session.canPause()}
-              onStop={stop}
-              onPause={() => session.pause()}
-              onResume={() => session.resume()}
-              onRetryStream={() => session.retry()}
-              onNewPlan={newPlan}
-              onDecide={(stepId, command) => session.decide(stepId, command)}
-              onUndo={undo}
-              notice={service.status === "page" ? serviceView : null}
-            />
-          )}
-        </div>
-        <div className="layout__side">
+        ) : (
+          <RunPanel
+            x={x}
+            steps={steps}
+            autonomy={ctx.autonomy}
+            session={stream}
+            stopRequested={session.isStopping()}
+            ended={ended}
+            canStop={canStop}
+            canPause={session.canPause()}
+            onStop={stop}
+            onPause={() => session.pause()}
+            onResume={() => session.resume()}
+            onRetryStream={() => session.retry()}
+            onNewPlan={newPlan}
+            onDecide={(stepId, command) => session.decide(stepId, command)}
+            onUndo={undo}
+            notice={status === "page" ? serviceView : null}
+          />
+        )}
+        <div className="agent__side">
           {ended && (
             <SummaryPanel
               x={x}
@@ -378,6 +323,8 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
           <LogPanel x={x} log={ctx.log} steps={steps} />
         </div>
       </div>
+      {/* What the assistant is, said once, under its work. */}
+      <p className="muted">{t.task.scripted}</p>
       <Decisions x={x} steps={steps} waiting={stream.waiting} open={decisionOpen} onDecide={(stepId, command) => session.decide(stepId, command)} />
       <AlertDialog
         isOpen={askNewPlan && ended}
@@ -391,9 +338,8 @@ export function App({ lang, onLang, themeChoice, onTheme }: AppProps) {
         <p>{t.newPlanAsk.open({ n: openWindows, text: f.int(openWindows) })}</p>
         <p>{t.newPlanAsk.ends}</p>
       </AlertDialog>
-      <ShortcutsDialog isOpen={helpOpen} onOpenChange={setHelpOpen} title={t.shortcuts.title} groups={groupShortcuts(help, t.shortcuts.other)} />
-      <ToastRegion queue={toasts} />
+      <ShortcutsDialog isOpen={helpOpen} onOpenChange={onHelpOpenChange} title={t.shortcuts.title} groups={groupShortcuts(help, t.shortcuts.other)} />
       <LiveRegion>{announcement}</LiveRegion>
-    </PageShell>
+    </div>
   );
 }

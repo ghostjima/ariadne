@@ -1,20 +1,26 @@
-// The inline script in index.html sets lang and dir before the bundle
-// arrives. It cannot import the application's lists, so this keeps it in
-// step with them: the same languages, the same stored key and link
-// parameter, the same direction for each.
-import { readFileSync } from "node:fs";
+// Before the bundle arrives, the script vite.config.ts inlines into
+// index.html (Stoa's firstPaintScript over the desk's PREFERENCES) sets
+// lang, dir and the theme. These run that script as the browser would and
+// check it reads the choices the application reads: the link first, then
+// the stored choice under the desk's keys, then Russian and the system
+// theme.
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { LANGUAGE_STORE } from "./App";
-import { LANGS } from "./i18n";
+import { firstPaintScript } from "@ghostjima/stoa-react/first-paint";
+import { LANGUAGES } from "./i18n";
+import { PREFERENCES } from "./preferences";
 
-const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? "";
-
-/** Runs the script with a link query and a stored value; returns lang and dir. */
+/** Runs the script with a link query and a stored value; returns lang,
+ * dir and data-theme. */
 function firstPaint(search: string, stored: Record<string, string> = {}, storage = true) {
-  const root = { lang: "en", dir: "ltr" };
-  runInNewContext(script, {
+  const attributes = new Map<string, string>();
+  const root = {
+    lang: "",
+    dir: "",
+    setAttribute: (name: string, value: string) => attributes.set(name, value),
+    removeAttribute: (name: string) => attributes.delete(name),
+  };
+  runInNewContext(firstPaintScript(PREFERENCES), {
     location: { search },
     URLSearchParams,
     localStorage: storage
@@ -24,29 +30,32 @@ function firstPaint(search: string, stored: Record<string, string> = {}, storage
             throw new Error("storage is blocked");
           },
         },
-    document: { documentElement: root },
+    document: { documentElement: root, head: { appendChild: () => {} }, createElement: () => ({ setAttribute: () => {} }) },
   });
-  return [root.lang, root.dir];
+  return [root.lang, root.dir, attributes.get("data-theme") ?? "system"];
 }
 
 describe("the first-paint script", () => {
-  it("exists", () => {
-    expect(script).toContain("documentElement");
+  it("opens in Russian, the default, left to right, on the system theme", () => {
+    expect(LANGUAGES[0]).toBe("ru");
+    expect(firstPaint("")).toEqual(["ru", "ltr", "system"]);
   });
 
-  it("knows every language of the application, each with its direction", () => {
-    for (const lang of LANGS) expect(firstPaint(`?lang=${lang}`)).toEqual([lang, lang === "ar" ? "rtl" : "ltr"]);
+  it("knows both languages of the desk, and nothing else", () => {
+    for (const lang of LANGUAGES) expect(firstPaint(`?lang=${lang}`)[0]).toBe(lang);
+    expect(firstPaint("?lang=ar")[0]).toBe("ru");
   });
 
-  it("reads the stored choice under the application's key, after the link", () => {
-    const key = LANGUAGE_STORE.storageKey;
-    expect(firstPaint("", { [key]: "ar" })).toEqual(["ar", "rtl"]);
-    expect(firstPaint("?lang=ru", { [key]: "ar" })).toEqual(["ru", "ltr"]);
-    expect(firstPaint("?lang=xx", { [key]: "ar" })).toEqual(["ar", "rtl"]);
+  it("reads the stored choices under the desk's keys, after the link", () => {
+    expect(PREFERENCES.language).toMatchObject({ storageKey: "ariadne.lang" });
+    expect(firstPaint("", { "ariadne.lang": "en", "ariadne.theme": "dark" })).toEqual(["en", "ltr", "dark"]);
+    expect(firstPaint("?lang=ru&theme=light", { "ariadne.lang": "en", "ariadne.theme": "dark" })).toEqual(["ru", "ltr", "light"]);
+    // The keys of the apps before the merge are not read.
+    expect(firstPaint("", { "argus-desk.lang": "en", "ariadne-agent.theme": "dark" })).toEqual(["ru", "ltr", "system"]);
   });
 
-  it("leaves the page as it is for an unknown language or blocked storage", () => {
-    expect(firstPaint("?lang=xx", { [LANGUAGE_STORE.storageKey]: "de" })).toEqual(["en", "ltr"]);
-    expect(firstPaint("", {}, false)).toEqual(["en", "ltr"]);
+  it("falls back to the defaults with storage blocked", () => {
+    expect(firstPaint("", {}, false)).toEqual(["ru", "ltr", "system"]);
+    expect(firstPaint("?lang=en", {}, false)[0]).toBe("en");
   });
 });

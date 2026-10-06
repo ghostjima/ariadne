@@ -2,17 +2,17 @@
 // a forced reload, an update while a run streams, a dropped connection, and
 // a browser where workers are blocked.
 import { expect, test, type Page } from "@playwright/test";
-import { dialog, en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation } from "./helpers";
+import { dialog, en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation, agentUrl } from "./agent-helpers";
 
 const controlled = (page: Page) => page.evaluate(() => navigator.serviceWorker.controller !== null);
 
 /** Answers every pause the agreeing way until the run ends. */
 async function finish(page: Page) {
   for (;;) {
-    if ((await page.locator(".layout").getAttribute("data-plan-state")) === "finished") return;
+    if ((await page.locator(".agent").getAttribute("data-plan-state")) === "finished") return;
     const alert = confirmation(page);
     const retry = page.getByRole("button", { name: en.step.retry, exact: true });
-    await expect(alert.or(retry).or(page.locator('.layout[data-plan-state="finished"]'))).toBeVisible({ timeout: 20_000 });
+    await expect(alert.or(retry).or(page.locator('.agent[data-plan-state="finished"]'))).toBeVisible({ timeout: 20_000 });
     if (await alert.isVisible()) await alert.getByRole("button").last().click();
     else if (await retry.isVisible()) await retry.click();
   }
@@ -30,7 +30,7 @@ async function expectNoRepeats(page: Page) {
 test("first load: the worker takes control without a reload and serves the stream", async ({ page, baseURL }) => {
   // Without the worker the static server answers with the page itself.
   expect((await page.request.get("/api/agent")).headers()["content-type"]).toContain("text/html");
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   expect(await controlled(page)).toBe(true);
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.scope);
@@ -45,7 +45,7 @@ test("first load: the worker takes control without a reload and serves the strea
 });
 
 test("a reload is controlled from the start, and a forced reload is claimed again", async ({ page, context }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.reload();
   expect(await controlled(page)).toBe(true);
@@ -64,7 +64,7 @@ test("a reload is controlled from the start, and a forced reload is claimed agai
 });
 
 test("a new worker deployed during a run takes over, and the run goes on without a gap or a repeat", async ({ page, context, baseURL }) => {
-  await page.goto("/?scale=0.3");
+  await page.goto(agentUrl("scale=0.3"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await expect(runSteps(page).nth(0)).toContainText(/Running|Done/);
@@ -83,7 +83,7 @@ test("a new worker deployed during a run takes over, and the run goes on without
 });
 
 test("a dropped connection resumes after the last event, losing nothing", async ({ page }) => {
-  await page.goto("/?scale=0.05&drop=1");
+  await page.goto(agentUrl("scale=0.05&drop=1"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await expect(page.locator(".stoa-toast").filter({ hasText: en.toast.reconnected })).toBeVisible({ timeout: 15_000 });
@@ -95,7 +95,7 @@ test.describe("where service workers are blocked", () => {
   test.use({ serviceWorkers: "block" });
 
   test("the page says so, and the run can go on in the tab", async ({ page }) => {
-    await page.goto("/?scale=0.05");
+    await page.goto(agentUrl("scale=0.05"));
     const alert = page.getByRole("alert").filter({ hasText: en.service.failedTitle });
     await expect(alert).toBeVisible();
     await expect(alert).toContainText(en.service.errors.sw_registration_failed);

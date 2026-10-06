@@ -1,8 +1,8 @@
 // The task the agent is given: which task, which scenario, and how much it
 // may do without asking. Editable before the run, a plain record during it.
 import { useId } from "react";
-import { ChoiceGroup, NumberField, Panel, Select } from "@ghostjima/stoa-react";
-import { AUTONOMIES, TASK, TASK_CODES, type Autonomy, type TaskCode } from "@ariadne/runner";
+import { ChoiceGroup, NumberField, Panel } from "@ghostjima/stoa-react";
+import { AUTONOMIES, TASK, type Autonomy } from "@ariadne/runner";
 import type { Text } from "../text";
 
 export type TaskPanelProps = {
@@ -20,7 +20,7 @@ export function TaskPanel({ x, seed, autonomy, editable, onSeed, onAutonomy }: T
   const requests = f.int(TASK.requests);
   if (!editable) {
     return (
-      <Panel title={t.task.panel} className="task">
+      <Panel title={t.task.panel} className="task" level={4}>
         <dl className="facts">
           <div>
             <dt>{t.task.task}</dt>
@@ -39,19 +39,15 @@ export function TaskPanel({ x, seed, autonomy, editable, onSeed, onAutonomy }: T
     );
   }
   return (
-    <Panel title={t.task.panel} className="task">
+    <Panel title={t.task.panel} className="task" level={4}>
+      {/* The task is the case's; there is one, so it is said, not chosen. */}
+      <p>{t.taskName[TASK.code](requests)}</p>
       <div className="task__fields">
-        <Select<TaskCode>
-          label={t.task.task}
-          value={TASK.code}
-          onChange={() => {}}
-          options={TASK_CODES.map((code) => ({ id: code, label: t.taskName[code](requests) }))}
-        />
         <NumberField label={t.task.scenario} value={seed} minValue={1} maxValue={9999} step={1} onChange={onSeed} aria-describedby={helpId} />
+        <p id={helpId} className="muted task__help">
+          {t.task.scenarioHelp}
+        </p>
       </div>
-      <p id={helpId} className="muted">
-        {t.task.scenarioHelp}
-      </p>
       <div className="task__autonomy">
         <ChoiceGroup<Autonomy>
           label={t.task.autonomy}
@@ -61,7 +57,6 @@ export function TaskPanel({ x, seed, autonomy, editable, onSeed, onAutonomy }: T
           choices={AUTONOMIES.map((level) => ({ id: level, label: t.autonomy[level] }))}
         />
       </div>
-      <p className="muted">{t.task.scripted}</p>
     </Panel>
   );
 }

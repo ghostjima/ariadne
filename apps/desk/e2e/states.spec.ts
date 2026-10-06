@@ -40,8 +40,8 @@ test("without a worker the desk says so, still loads the rules engine, and filte
   await expect(page.getByTestId("row-count")).toHaveText("37 of 1,200 cases");
   await page.getByRole("columnheader", { name: "Case" }).click();
   await page.getByRole("columnheader", { name: "Case" }).click();
-  await expect(grid(page).locator('[data-cell="0:4"]')).toHaveText("Awaiting signature");
-  await expect(grid(page).locator('[data-cell="0:5"]')).toHaveText(/working days?$|^Due today$/);
+  await expect(grid(page).locator('[data-cell="0:4"]')).toHaveText("!Awaiting signature");
+  await expect(grid(page).locator('[data-cell="0:5"]')).toHaveText(/working days? (left|overdue)$|Due today$/);
   await page.getByText("Performance").click();
   await expect(page.locator(".perf")).toContainText("Main thread");
   await expectNoSeriousViolations(page, "no worker");

@@ -148,26 +148,22 @@ jobs:
           pnpm test 2>&1 | tee "$RUNNER_TEMP/app/unit.log"
       - name: Chromium for the browser tests
         run: pnpm --filter @ariadne/desk exec playwright install --with-deps chromium
-      # Each e2e builds its app and serves it with vite preview on E2E_PORT.
-      - name: e2e, desk, against vite preview of the build
+      # The e2e builds the desk and serves it with vite preview on E2E_PORT.
+      - name: e2e, desk, against vite preview of the build, Service Worker included
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/app/desk-e2e.json
         run: pnpm --filter @ariadne/desk e2e --reporter=list,json
-      - name: e2e, agent, against vite preview of the build, Service Worker included
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/app/agent-e2e.json
-        run: pnpm --filter @ariadne/agent e2e --reporter=list,json
       # Lighthouse 13 (a pinned dev dependency) in Playwright's Chromium,
       # accessibility, best practices and SEO only: performance on a shared
-      # runner measures the runner. Each app's build is served by vite
-      # preview (the agent's with its built Service Worker), measured, and
-      # its server stopped; the build is kept for the bundle badge.
-      - name: Lighthouse, desktop and mobile, against vite preview of each build
+      # runner measures the runner. The desk's build is served by vite
+      # preview (with its built Service Worker), measured, and its server
+      # stopped; the build is kept for the bundle badge.
+      - name: Lighthouse, desktop and mobile, against vite preview of the build
         shell: bash
         run: |
           CHROME_PATH="$(cd apps/desk && node -e "import('@playwright/test').then((m) => console.log(m.chromium.executablePath()))")"
           export CHROME_PATH
-          for app in desk agent; do
+          for app in desk; do
             (cd "apps/$app" && exec node_modules/.bin/vite preview --host 127.0.0.1 --port "$LIGHTHOUSE_PORT" --strictPort) &
             server=$!
             for _ in $(seq 1 60); do
@@ -230,13 +226,9 @@ jobs:
           node scripts/badges.mjs --out "$RUNNER_TEMP/badges"
           --unit "$RUNNER_TEMP/measured/app/unit.log"
           --e2e "desk=$RUNNER_TEMP/measured/app/desk-e2e.json"
-          --e2e "agent=$RUNNER_TEMP/measured/app/agent-e2e.json"
           --lighthouse "desk:desktop=$RUNNER_TEMP/measured/app/lighthouse-desk-desktop.json"
           --lighthouse "desk:mobile=$RUNNER_TEMP/measured/app/lighthouse-desk-mobile.json"
-          --lighthouse "agent:desktop=$RUNNER_TEMP/measured/app/lighthouse-agent-desktop.json"
-          --lighthouse "agent:mobile=$RUNNER_TEMP/measured/app/lighthouse-agent-mobile.json"
           --dist "desk=$RUNNER_TEMP/measured/app/desk-dist"
-          --dist "agent=$RUNNER_TEMP/measured/app/agent-dist"
           --rules-tests "$RUNNER_TEMP/measured/rust-tests/rules-tests.txt"
           --rules-wasm "$RUNNER_TEMP/measured/wasm/ariadne_rules_bg.wasm"
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'

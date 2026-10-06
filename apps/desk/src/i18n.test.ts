@@ -18,8 +18,8 @@ function texts(v: unknown): string[] {
 }
 
 describe("language tables", () => {
-  it("are English and Russian, with the same keys and the same kinds of value", () => {
-    expect(LANGUAGES).toEqual(["en", "ru"]);
+  it("are Russian, first and the default, and English, with the same keys and the same kinds of value", () => {
+    expect(LANGUAGES).toEqual(["ru", "en"]);
     expect(shape(strings.ru).sort()).toEqual(shape(strings.en).sort());
   });
 
@@ -44,10 +44,12 @@ describe("language tables", () => {
     expect(ru.shownOf("3", "1 200", 3)).toBe("3 обращения из 1 200");
     expect(ru.shownOf("11", "1 200", 11)).toBe("11 обращений из 1 200");
     expect(ru.shownOf("21", "1 200", 21)).toBe("21 обращение из 1 200");
-    expect(ru.workingDaysLeft("2", 2)).toBe("2 рабочих дня");
-    expect(ru.overdueBy("5", 5)).toBe("просрочено на 5 рабочих дней");
-    expect(strings.en.shownOf("1", "1,200", 1)).toBe("1 of 1,200 case");
-    expect(strings.en.workingDaysLeft("1", 1)).toBe("1 working day");
+    expect(ru.case.count("1 сент. 2026 г.", "15", "working_days", 15)).toBe("1 сент. 2026 г. + 15 рабочих дней");
+    expect(ru.case.count("1 сент. 2026 г.", "1", "working_days", 1)).toBe("1 сент. 2026 г. + 1 рабочий день");
+    expect(ru.bulkAssignTitle("3", 3)).toBe("Переназначить 3 обращения");
+    expect(strings.en.shownOf("1", "1,200", 1)).toBe("1 of 1,200 cases");
+    expect(strings.en.shownOf("1", "1", 1)).toBe("1 of 1 case");
+    expect(strings.en.case.count("Sep 1, 2026", "30", "calendar_days_to_working_day", 30)).toBe("Sep 1, 2026 + 30 calendar days, then the next working day");
   });
 
   it("the Russian table uses Latin letters only for the product name, CSV and the file name", () => {

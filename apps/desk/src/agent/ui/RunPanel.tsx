@@ -186,7 +186,7 @@ export function RunPanel(props: RunPanelProps) {
   });
 
   return (
-    <Panel title={t.run.panel} className="run">
+    <Panel title={t.run.panel} className="run" level={4}>
       <div ref={barRef} className="run-bar">
         <Toolbar label={t.run.controls}>
           <Button variant="danger" onPress={stop} isDisabled={!canStop} shortcut={{ key: "s" }}>

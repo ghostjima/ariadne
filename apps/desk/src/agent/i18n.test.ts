@@ -31,7 +31,8 @@ import {
 } from "@ariadne/runner";
 import { makeFmt } from "./format";
 import { fullRun } from "./fullRun";
-import { LANGS, LOCALES, strings, type Lang } from "./i18n";
+import { LANGUAGES as LANGS } from "../i18n";
+import { LOCALES, strings, type Lang } from "./i18n";
 import { STREAM_ERRORS } from "./transport";
 import { draftLines, errorText, logLine, objectLine, stepTitle, summaryText, undoText, type Text } from "./text";
 import { WORKER_ERRORS } from "./worker";
@@ -55,10 +56,9 @@ function leaves(v: unknown, path = ""): [string, string][] {
 const text = (lang: Lang): Text => ({ t: strings[lang], f: makeFmt(LOCALES[lang]) });
 
 describe("language tables", () => {
-  it("English, Russian and Arabic have the same keys, with the same kinds of value", () => {
+  it("Russian and English have the same keys, with the same kinds of value", () => {
     const en = shape(strings.en).sort();
     expect(shape(strings.ru).sort()).toEqual(en);
-    expect(shape(strings.ar).sort()).toEqual(en);
   });
 
   it("no string is empty", () => {
@@ -137,9 +137,9 @@ function runSentences(lang: Lang, seed: number): string[] {
 }
 
 describe("sentences from the engine's data", () => {
-  it("have no Latin letters in Arabic or Russian (Russian keeps the tax number's abbreviation)", () => {
+  it("have no Latin letters in Russian (it keeps the tax number's abbreviation)", () => {
     for (const seed of [1, 7, 42, 999])
-      for (const lang of ["ar", "ru"] as const)
+      for (const lang of ["ru"] as const)
         for (const sentence of runSentences(lang, seed)) expect(sentence.match(/[A-Za-z]+/g), `${lang}: ${sentence}`).toBeNull();
   });
 
@@ -147,17 +147,11 @@ describe("sentences from the engine's data", () => {
     for (const lang of LANGS) for (const sentence of runSentences(lang, 7)) expect(sentence, `${lang}: ${sentence}`).not.toMatch(/\.\./);
   });
 
-  it("use Arabic-Indic digits in Arabic and Latin digits elsewhere", () => {
-    for (const sentence of runSentences("ar", 7)) expect(sentence, sentence).not.toMatch(/[0-9]/);
-    expect(runSentences("en", 7).join(" ")).toMatch(/[0-9]/);
-  });
-
   it("read as expected in each language", () => {
     const steps = generatePlan(7);
     const third = steps[2]!;
     expect(stepTitle(text("en"), third)).toBe("Ask Cedar Office Supply for documents on request 1043");
     expect(stepTitle(text("ru"), third)).toBe("Запросить у «Кедр-Офис» документы по заявке 1043");
-    expect(stepTitle(text("ar"), third)).toBe("طلب مستندات من الأرز للوازم المكتبية للطلب ١٠٤٣");
     expect(draftLines(text("en"), third.draft)).toEqual([
       "Letter to Cedar Office Supply about request 1043.",
       "Please send a registry extract no older than 30 days, the company card, and a copy of the licence by Sep 12, 2026.",
@@ -165,6 +159,5 @@ describe("sentences from the engine's data", () => {
     expect(draftLines(text("ru"), third.draft)[1]).toBe("До 12 сент. 2026 г. просим прислать выписку из реестра не старше 30 дней, карточку компании и копию лицензии.");
     const error = steps[3]!.error!;
     expect(errorText(text("en"), error)).toBe("The contracts service did not answer within 5 s.");
-    expect(errorText(text("ar"), error)).toBe("لم تستجب خدمة العقود خلال ٥ ث.");
   });
 });

@@ -11,18 +11,22 @@
     "typecheck": "tsc -b",
     "test": "vitest run --exclude 'e2e/**'",
     "e2e": "playwright test",
-    "measure": "node scripts/measure.mjs"
+    "measure": "node scripts/measure.mjs",
+    "measure:agent": "node scripts/measure-agent.mjs"
   },
   "dependencies": {
     "@ariadne/grid": "workspace:*",
     "@ariadne/rules": "workspace:*",
+    "@ariadne/runner": "workspace:*",
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans": "5.3.0",
     "@ghostjima/stoa-react": "link:../../../stoa/packages/react",
     "@ghostjima/stoa-tokens": "link:../../../stoa/packages/tokens",
+    "@xstate/react": "6.1.0",
     "react": "19.3.0",
     "react-aria-components": "1.21.1",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "xstate": "5.32.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

@@ -1,5 +1,5 @@
-// Every word of the interface, in English, Russian and Arabic, with the same
-// keys in all three (i18n.test.ts checks). The engine sends codes and
+// Every word of the assistant panel, in Russian and English, with the same
+// keys in both (i18n.test.ts checks). The engine sends codes and
 // numbers only; each code has its words here, typed as a Record over the
 // engine's own list, so a code without words does not compile. Functions
 // take numbers and dates already formatted (format.ts), so the digits are
@@ -30,25 +30,16 @@ import type { StreamStatus } from "./session";
 import type { StreamError } from "./transport";
 import type { WorkerError } from "./worker";
 
-export type Lang = "en" | "ru" | "ar";
-export const LANGS: Lang[] = ["en", "ru", "ar"];
-/** The locale each language gives React Aria, Stoa and Intl. Arabic with
- * Arabic-Indic digits. */
-export const LOCALES: Record<Lang, string> = { en: "en-US", ru: "ru-RU", ar: "ar-u-nu-arab" };
+import { LOCALES, type Lang } from "../i18n";
 
-export const isLang = (value: string): value is Lang => (LANGS as string[]).includes(value);
+export { LOCALES };
+export type { Lang };
 
 const ruRules = new Intl.PluralRules("ru-RU");
-const arRules = new Intl.PluralRules("ar");
 /** Russian plural: one (1, 21), few (2-4, 22-24), many (5-20, 25...). */
 const ru = (n: number, one: string, few: string, many: string) => {
   const rule = ruRules.select(n);
   return rule === "one" ? one : rule === "few" ? few : many;
-};
-/** Arabic plural: one, two, few (3-10), many (11-99), and the rest. */
-const ar = (n: number, forms: { one: string; two: string; few: string; many: string; other: string }) => {
-  const rule = arRules.select(n);
-  return rule === "one" ? forms.one : rule === "two" ? forms.two : rule === "few" ? forms.few : rule === "many" ? forms.many : forms.other;
 };
 
 /** Numbers come in twice: the value (for a plural) and its text in the
@@ -254,8 +245,8 @@ export type Strings = {
 };
 
 const en: Strings = {
-  title: "Ariadne Agent",
-  subtitle: "Stop it at any step",
+  title: "Assistant",
+  subtitle: "It proposes, you decide, and you can stop it at any step",
   suppliers: [
     "Northwind Metals",
     "Harbour Logistics",
@@ -563,8 +554,8 @@ const en: Strings = {
 };
 
 const ruStrings: Strings = {
-  title: "Ariadne Агент",
-  subtitle: "Остановка на любом шаге",
+  title: "Ассистент",
+  subtitle: "Предлагает он, решаете вы, и его можно остановить на любом шаге",
   suppliers: [
     "«Северметалл»",
     "«Гавань-Логистик»",
@@ -871,314 +862,4 @@ const ruStrings: Strings = {
   },
 };
 
-const arStrings: Strings = {
-  title: "Ariadne الوكيل",
-  subtitle: "إيقاف عند أي خطوة",
-  suppliers: [
-    "معادن الشمال",
-    "لوجستيات المرفأ",
-    "الأرز للوازم المكتبية",
-    "الحجر الأزرق للتغليف",
-    "خط الطول للكهرباء",
-    "الصفصاف للنسيج",
-    "القمة للمثبتات",
-    "مطبعة ضفة النهر",
-    "الصوان للعدد",
-    "أغذية البحيرة",
-    "البستان للكيماويات",
-  ],
-  shortcutsButton: "الاختصارات",
-  shortcuts: {
-    title: "اختصارات لوحة المفاتيح",
-    run: "التشغيل",
-    general: "عام",
-    start: "تشغيل الخطة",
-    stop: "إيقاف التشغيل",
-    pauseResume: "إيقاف مؤقت أو متابعة",
-    help: "عرض الاختصارات",
-    other: "أخرى",
-  },
-  service: {
-    starting: "جارٍ تشغيل خدمة التنفيذ",
-    startingText: "يجري التشغيل من عامل خدمة في هذا المتصفح، وهو قيد البدء.",
-    failedTitle: "لم تبدأ خدمة التنفيذ",
-    errors: {
-      sw_unsupported: "لا يستطيع هذا المتصفح تشغيل عمّال الخدمة في هذه الصفحة. قد تعطّلها نافذة التصفح الخاص أو إعدادات الخصوصية.",
-      sw_registration_failed: "تعذّر تسجيل عامل الخدمة.",
-      sw_not_controlling: "بدأ عامل الخدمة لكنه لم يتولَّ هذه الصفحة.",
-    },
-    retry: "حاول مجددًا",
-    usePage: "التشغيل في هذا التبويب بدلًا من ذلك",
-    pageNote: "يجري التشغيل داخل هذا التبويب، دون عامل الخدمة.",
-    updated: "حُدّثت خدمة التنفيذ. يتابع التشغيل من حيث كان.",
-  },
-  task: {
-    panel: "المهمة",
-    task: "المهمة",
-    scenario: "رقم السيناريو",
-    scenarioHelp: "يعطي كل رقم مجموعة مختلفة من الطلبات، وهي نفسها في كل مرة.",
-    autonomy: "الاستقلالية",
-    scripted: "الوكيل نص مكتوب مسبقًا: السيناريو نفسه والقرارات نفسها تعطي دائمًا التشغيل نفسه. الغرض عرض أدوات التحكم، لا جودة الإجابات.",
-  },
-  plan: {
-    panel: "الخطة",
-    list: "خطوات الخطة",
-    summary: (steps, asks) => `الخطوات: ${steps}. ستسأل قبل التنفيذ: ${asks}.`,
-    askFirst: "اسأل أولًا",
-    askFirstHelp: "انتظر تأكيدك قبل هذه الخطوة.",
-    alwaysAsks: "الخطوات عالية المخاطرة تسأل دائمًا",
-    ignoredAtLevel: "لا يُستخدم في مستوى الاستقلالية هذا",
-    confidence: (value) => `الثقة ${value}`,
-    conflictTitle: "خطوات متعارضة",
-    run: "شغّل الخطة",
-    restore: "استعد الخطة",
-    emptyTitle: "الخطة فارغة",
-    emptyText: "أُزيلت كل الخطوات. استعد الخطة لتشغيلها.",
-  },
-  run: {
-    panel: "التشغيل",
-    controls: "أدوات التحكم في التشغيل",
-    list: "خطوات التشغيل",
-    stop: "إيقاف",
-    pause: "إيقاف مؤقت",
-    resume: "متابعة",
-    newPlan: "خطة جديدة",
-    progress: (done, total) => `عولجت ${done} من ${total}`,
-    status: {
-      idle: "لم يبدأ",
-      connecting: "جارٍ الاتصال",
-      streaming: "قيد التنفيذ",
-      paused: "متوقف مؤقتًا",
-      waiting: "بانتظارك",
-      reconnecting: "جارٍ إعادة الاتصال",
-      failed: "انقطع الاتصال",
-      ended: "انتهى",
-    },
-    stoppingTitle: "جارٍ الإيقاف",
-    stoppingText: "تكتمل الخطوة الجارية ولا تبدأ خطوة جديدة: قطع إجراء في منتصفه أسوأ من إتمامه.",
-    pausedText: "توقف مؤقت بين حدثين. لا يُنفَّذ شيء ولا يُرسَل شيء حتى تتابع.",
-    reconnectingText: (event) => `انقطع الاتصال. المتابعة بعد الحدث ${event}.`,
-    failedTitle: "توقف التشغيل عن تلقي الأحداث",
-    retry: "أعد الاتصال",
-    waitingTitle: "قرارك مطلوب",
-  },
-  step: {
-    awaiting: "بانتظار تأكيدك.",
-    deviationAwaiting: "يطلب الوكيل تغيير هذه الخطوة.",
-    phaseStart: "البدء",
-    attempt: (n) => `المحاولة ${n}`,
-    undo: "تراجع",
-    undoWindow: (n) => `مهلة التراجع عن الخطوة ${n}`,
-    undoLeft: (left, total) => `بقي ${left} من ${total}`,
-    undoPermanent: "تغيير داخلي: يمكن التراجع عنه في أي وقت.",
-    irreversible: (time) => `نهائي منذ ${time}: انتهت مهلة التراجع.`,
-    undoneAt: (time, text) => `تم التراجع في ${time}. ${text}`,
-    retry: "أعد المحاولة",
-    skip: "تخطَّ الخطوة",
-    stopRun: "أوقف التشغيل",
-    errorTitle: (attempt) => `فشلت في المحاولة ${attempt}`,
-    nothingChanged: "لم يُرسَل شيء ولم يتغيّر شيء.",
-    willAsk: "ستسأل أولًا",
-  },
-  confirm: {
-    title: (n, title) => `الخطوة ${n}: ${title}`,
-    intro: "لم يُرسَل شيء ولم يتغيّر شيء بعد.",
-    changes: "ما الذي سيتغيّر",
-    stopHint: "لإيقاف التشغيل كله بدلًا من ذلك، اضغط",
-    escapeSkips: "يتخطى هذه الخطوة، كما يفعل زر «تخطَّ الخطوة».",
-    skip: "تخطَّ الخطوة",
-    confirm: { email: "أرسل الرسالة", decision: "ارفض الطلب", change: "طبّق التغيير" },
-  },
-  deviation: {
-    title: (n) => `الخطوة ${n}: يطلب الوكيل تغيير الخطة`,
-    instead: (title, risk) => `بدلًا من ذلك: ${title} (${risk}).`,
-    allow: "اسمح بالتغيير",
-    deny: "أبقِ الخطة",
-    escapeKeeps: "يُبقي الخطة كما هي، كما يفعل زر «أبقِ الخطة».",
-  },
-  newPlanAsk: {
-    title: "أتبدأ خطة جديدة؟",
-    open: (steps) =>
-      `لا يزال التراجع ممكنًا عن ${ar(steps.n, { one: "خطوة واحدة", two: "خطوتين", few: `${steps.text} خطوات`, many: `${steps.text} خطوة`, other: `${steps.text} خطوة` })} من هذا التشغيل.`,
-    ends: "الخطة الجديدة تُنهي نوافذ التراجع هذه، وما تمّ يبقى كما هو.",
-    keep: "أبقِ هذا التشغيل",
-    confirm: "ابدأ خطة جديدة",
-  },
-  toast: {
-    undoable: (summary, time) => `${summary} يمكن التراجع حتى ${time}.`,
-    undone: (text) => `تم التراجع. ${text}`,
-    reconnected: "عاد الاتصال. لم يُفقد أي حدث.",
-  },
-  log: {
-    panel: "سجل الأحداث",
-    label: "الأحداث والقرارات",
-    emptyTitle: "لا أحداث بعد",
-    emptyText: "تظهر هنا الأحداث وقراراتك عند تشغيل الخطة.",
-    agent: "الوكيل",
-    you: "أنت",
-    approved: (steps, autonomy, asks) => `اعتُمدت الخطة: الخطوات ${steps}، «${autonomy}»، ستسأل أولًا: ${asks}.`,
-    planStarted: (steps) => `بدأ التشغيل: الخطوات ${steps}.`,
-    stepStarted: (n, title) => `بدأت الخطوة ${n}: ${title}.`,
-    deviation: (n) => `الخطوة ${n}: يطلب الوكيل تغيير الخطة.`,
-    deviated: (n, title) => `تغيّرت الخطوة ${n}: ${title}.`,
-    awaiting: (n) => `الخطوة ${n} بانتظار التأكيد.`,
-    running: (n, attempt) => (attempt.n > 1 ? `الخطوة ${n} قيد التنفيذ، المحاولة ${attempt.text}.` : `الخطوة ${n} قيد التنفيذ.`),
-    finished: (n, summary) => `تمت الخطوة ${n}. ${summary}`,
-    skipped: (n, reason) => `تُخطّيت الخطوة ${n}: ${reason}.`,
-    failed: (n, error) => `فشلت الخطوة ${n}. ${error}`,
-    planFinished: "انتهى التشغيل.",
-    planStopped: (n) => (n ? `أُوقف التشغيل بعد الخطوة ${n}.` : "أُوقف التشغيل قبل إتمام أي خطوة."),
-    decision: {
-      confirm: (n) => `أكّدت الخطوة ${n}.`,
-      skip: (n) => `تخطّيت الخطوة ${n}.`,
-      retry: (n) => `طلبت إعادة محاولة الخطوة ${n}.`,
-      allow: (n) => `سمحت بتغيير الخطوة ${n}.`,
-      deny: (n) => `أبقيت الخطوة ${n} كما في الخطة.`,
-    },
-    stopRequested: "طلبت الإيقاف.",
-    undo: (n, text) => `تراجعت عن الخطوة ${n}. ${text}`,
-  },
-  summary: {
-    panel: "الملخص",
-    label: "ملخص التشغيل",
-    finished: "انتهى التشغيل.",
-    stopped: (n) => (n ? `أُوقف التشغيل بعد الخطوة ${n}.` : "أُوقف التشغيل قبل إتمام أي خطوة."),
-    done: "تمت",
-    skipped: "تُخطّيت",
-    undone: "تم التراجع عنها",
-    asked: "سألتك",
-    errors: "الأخطاء",
-    duration: "المدة",
-    seconds: "ث",
-    events: "الأحداث",
-    basisRun: "من أول حدث إلى آخره",
-  },
-  announce: {
-    started: "بدأ التشغيل.",
-    stopping: "الإيقاف بعد الخطوة الجارية.",
-    stopped: "أُوقف التشغيل.",
-    finished: (done, total) => `انتهى التشغيل: تمت ${done} من ${total}.`,
-    paused: "توقف مؤقت.",
-    resumed: "تمت المتابعة.",
-    waiting: (n) => `الخطوة ${n} بانتظار قرارك.`,
-    failed: (n) => `فشلت الخطوة ${n}.`,
-    reconnecting: "انقطع الاتصال، جارٍ إعادة الاتصال.",
-    streamFailed: "توقف التشغيل عن تلقي الأحداث.",
-  },
-  actionType: { check: "تدقيق", extend: "تمديد", reject_duplicate: "رفض طلب مكرر", request_documents: "طلب مستندات" },
-  risk: { low: "مخاطرة منخفضة", medium: "مخاطرة متوسطة", high: "مخاطرة عالية" },
-  autonomy: { ask_all: "اسأل في كل مرة", high_only: "اسأل في الخطوات المعلَّمة", ask_none: "اسأل عند الضرورة فقط" },
-  autonomyHelp: {
-    ask_all: "تنتظر كل خطوة تأكيدك.",
-    high_only: "تنتظرك الخطوات المعلَّمة بـ«اسأل أولًا»، والخطوات عالية المخاطرة تنتظرك دائمًا.",
-    ask_none: "لا تنتظرك إلا الخطوات عالية المخاطرة، ولا تُستخدم العلامات.",
-  },
-  command: { confirm: "أكّد", skip: "تخطَّ", retry: "أعد المحاولة", allow: "اسمح", deny: "ارفض", stop: "أوقف" },
-  phase: {
-    matching_registry: "المطابقة مع السجل",
-    reviewing_supplier_history: "مراجعة سجل المورّد",
-    preparing_amendment: "إعداد ملحق العقد",
-    recording_new_term: "تسجيل المدة الجديدة",
-    changing_request_status: "تغيير حالة الطلب",
-    notifying_supplier: "إشعار المورّد",
-    composing_letter: "صياغة الرسالة",
-    sending_letter: "إرسال الرسالة",
-  },
-  skipReason: {
-    skipped_by_user: "تخطّيتها أنت",
-    skipped_after_error: "تُخطّيت بعد خطأ",
-    stopped_by_user: "أُوقف التشغيل",
-  },
-  stepStatus: {
-    waiting: "في الانتظار",
-    running: "قيد التنفيذ",
-    done: "تمت",
-    awaiting: "بانتظار قرار",
-    skipped: "تُخطّيت",
-    undone: "تم التراجع",
-    error: "خطأ",
-  },
-  objectKind: { request: "الطلب", contract: "العقد", letter: "الرسالة" },
-  requestStatus: {
-    under_review: "قيد المراجعة",
-    checked: "مدقَّق",
-    checked_by_archive: "مدقَّق بمستندات الأرشيف",
-    approved: "مقبول",
-    rejected_duplicate: "مرفوض لأنه مكرر",
-    documents_requested: "طُلبت مستنداته",
-  },
-  letterStatus: { not_sent: "لم تُرسَل", sent: "أُرسلت" },
-  document: { registry_extract: "مستخرج من السجل", company_card: "بطاقة الشركة", license_copy: "نسخة من الترخيص" },
-  documentAge: (document, days) =>
-    `${document} لا يزيد عمره على ${ar(days.n, { one: "يوم واحد", two: "يومين", few: `${days.text} أيام`, many: `${days.text} يومًا`, other: `${days.text} يوم` })}`,
-  matchField: { tax_id: "الرقم الضريبي", subject: "الموضوع", amount: "المبلغ" },
-  draftKind: { email: "رسالة", decision: "قرار", change: "تغيير" },
-  serviceName: { contracts: "خدمة العقود" },
-  streamError: {
-    missing_plan: "لم يتضمن طلب التشغيل أي خطة.",
-    invalid_plan: "تعذّرت قراءة الخطة في طلب التشغيل.",
-    invalid_decisions: "تعذّرت قراءة القرارات في طلب التشغيل.",
-    empty_plan: "لا خطوات في الخطة.",
-    too_many_steps: "في الخطة خطوات أكثر مما في السيناريو.",
-    unknown_step: "تذكر الخطة خطوة ليست في السيناريو.",
-    method_not_allowed: "لا تجيب خدمة التنفيذ إلا عن طلبات القراءة.",
-    stream_lost: "انقطع الاتصال بخدمة التنفيذ.",
-  },
-  taskName: { triage_supplier_requests: (requests) => `فرز طلبات الموردين الواردة: ${requests}` },
-  stepTitle: {
-    check: (r, s) => `تدقيق الطلب ${r} من ${s}`,
-    extend: (c, s) => `تمديد العقد ${c} مع ${s}`,
-    reject_duplicate: (r, s) => `رفض الطلب ${r} من ${s} لأنه مكرر`,
-    request_documents: (r, s) => `طلب مستندات من ${s} للطلب ${r}`,
-    check_by_archive: (r) => `تدقيق الطلب ${r} بمستندات الأرشيف`,
-  },
-  draft: {
-    check_request: (r, s, external) => [
-      `وضع علامة «مدقَّق» على الطلب ${r} من ${s}.`,
-      external ? "يصل هذا إلى خارج المؤسسة." : "لا يخرج شيء من المؤسسة.",
-    ],
-    extend_contract: (c, s, months, before, after, termsChanged) => [
-      `تمديد العقد ${c} مع ${s} ${ar(months.n, { one: "شهرًا واحدًا", two: "شهرين", few: `${months.text} أشهر`, many: `${months.text} شهرًا`, other: `${months.text} شهر` })}: ساري حتى ${after} بدلًا من ${before}.`,
-      termsChanged ? "تتغيّر الشروط." : "تبقى الشروط كما هي.",
-    ],
-    reject_duplicate: (r, s, d, date, fields, notify) => [
-      `رفض الطلب ${r} من ${s} لأنه مكرر للطلب ${d} المؤرخ ${date}.`,
-      `تطابق: ${fields}.`,
-      notify ? "يُشعَر المورّد." : "لا يُشعَر المورّد.",
-    ],
-    request_documents: (r, s, documents, due) => [`رسالة إلى ${s} بشأن الطلب ${r}.`, `يُرجى إرسال ${documents} قبل ${due}.`],
-    check_by_archive: (r, a, uploaded, sendsLetter) => [
-      `تدقيق الطلب ${r} بالمستندات المرفوعة في ${uploaded} مع الطلب ${a}.`,
-      sendsLetter ? "تُرسَل رسالة." : "لا تُرسَل أي رسالة.",
-    ],
-  },
-  object: {
-    request: (r, before, after) => `الطلب ${r}: ${before} ← ${after}`,
-    contract: (c, before, after) => `العقد ${c}: ساري حتى ${before} ← ${after}`,
-    letter: (s, r, before, after) => `الرسالة إلى ${s} بشأن الطلب ${r}: ${before} ← ${after}`,
-  },
-  summaryText: {
-    request_checked: (r, match) => `دُقّق الطلب ${r}؛ ${match ? "وهو مطابق للسجل" : "وهو غير مطابق للسجل"}.`,
-    contract_extended: (c, until, r) => `مُدّد العقد ${c} حتى ${until}؛ وقُبل الطلب ${r}.`,
-    request_rejected_duplicate: (r, d, notified) => `رُفض الطلب ${r} لأنه مكرر للطلب ${d}؛ ${notified ? "وأُشعر المورّد" : "ولم يُشعَر المورّد"}.`,
-    documents_requested: (s, r) => `أُرسلت رسالة إلى ${s} بشأن الطلب ${r}.`,
-    request_checked_by_archive: (r, sent) => `دُقّق الطلب ${r} بمستندات الأرشيف؛ ${sent ? "وأُرسلت رسالة" : "ولم تُرسَل أي رسالة"}.`,
-  },
-  undoText: {
-    unmark_checked: (r) => `عاد الطلب ${r} قيد المراجعة.`,
-    restore_contract_term: (c, until, r) => `عاد العقد ${c} ساريًا حتى ${until}؛ وعاد الطلب ${r} قيد المراجعة.`,
-    return_to_queue: (r, recalled) => `عاد الطلب ${r} إلى قائمة الانتظار${recalled ? "؛ وسُحب الإشعار" : ""}.`,
-    recall_letter: (s, r) => `سُحبت الرسالة إلى ${s} بشأن الطلب ${r}.`,
-    unmark_checked_by_archive: (r) => `عاد الطلب ${r} قيد المراجعة.`,
-  },
-  errorText: { service_timeout: (service, seconds) => `لم تستجب ${service} خلال ${seconds} ث.` },
-  deviationReason: {
-    fresh_documents_in_archive: (a, uploaded) => `رُفعت مستندات حديثة لهذا المورّد في ${uploaded} مع الطلب ${a}.`,
-  },
-  deviationProposal: { check_by_archive: "تدقيق الطلب بتلك المستندات بدلًا من مراسلة المورّد." },
-  conflict: {
-    extend_and_reject_duplicate: (a, b, r) => `الخطوتان ${a} و${b} تتعلقان بالطلب ${r} نفسه: إحداهما تقبله والأخرى ترفضه لأنه مكرر.`,
-  },
-};
-
-export const strings: Record<Lang, Strings> = { en, ru: ruStrings, ar: arStrings };
+export const strings: Record<Lang, Strings> = { en, ru: ruStrings };

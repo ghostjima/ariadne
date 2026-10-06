@@ -2,11 +2,11 @@
 // plan, running it, the confirmations, Stop, Pause, the undo window, the
 // agent's request to change a step, the shortcuts and the log.
 import { expect, test, type Page } from "@playwright/test";
-import { strings } from "../src/i18n";
-import { dialog, en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation } from "./helpers";
+import { strings } from "../src/agent/i18n";
+import { dialog, en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation, agentUrl } from "./agent-helpers";
 
 test("the plan is edited with the keyboard: moved, marked, removed, emptied and restored", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(agentUrl());
   await ready(page);
   const plan = page.getByRole("grid", { name: en.plan.list });
   const rows = plan.getByRole("row");
@@ -47,7 +47,7 @@ test("the plan is edited with the keyboard: moved, marked, removed, emptied and 
 });
 
 test("a run by keyboard: R runs, confirmations focus the safe action, a failed step focuses Retry, S stops", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.keyboard.press("r");
 
@@ -90,7 +90,7 @@ test("a run by keyboard: R runs, confirmations focus the safe action, a failed s
     await expect(runSteps(page).nth(i)).toContainText("the run was stopped");
     await expect(runSteps(page).nth(i)).not.toContainText(en.step.willAsk);
   }
-  await expect(page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText(en.announce.stopped);
+  await expect(page.locator('.agent [role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText(en.announce.stopped);
   const log = await logLines(page);
   expect(log.filter((l) => l.includes("You skipped step 3."))).toHaveLength(1);
   expect(log.filter((l) => l.includes("You asked to retry step 4."))).toHaveLength(1);
@@ -99,7 +99,7 @@ test("a run by keyboard: R runs, confirmations focus the safe action, a failed s
 });
 
 test("Stop while a step runs: that step finishes, no new step starts", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(agentUrl());
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -123,7 +123,7 @@ test("Stop while a step runs: that step finishes, no new step starts", async ({ 
 /** A run with slow steps (so the stop takes a while), stopped while its
  * first step runs. */
 async function stopWhileRunning(page: Page) {
-  await page.goto("/?scale=4");
+  await page.goto(agentUrl("scale=4"));
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -146,7 +146,7 @@ test("Pause is off while the run stops: a paused stop would never end", async ({
   // Read at one instant, while the stop is still under way (a slow step).
   const now = () =>
     page.evaluate((label) => {
-      const layout = document.querySelector(".layout")!;
+      const layout = document.querySelector(".agent")!;
       const pause = [...document.querySelectorAll<HTMLButtonElement>(".run-bar button")].find((b) => b.textContent?.startsWith(label));
       return { plan: layout.getAttribute("data-plan-state"), stream: layout.getAttribute("data-stream"), pauseDisabled: pause?.disabled };
     }, en.run.pause);
@@ -157,7 +157,7 @@ test("Pause is off while the run stops: a paused stop would never end", async ({
 });
 
 test("Pause holds the run between events; Resume goes on from the next one", async ({ page }) => {
-  await page.goto("/?scale=0.5");
+  await page.goto(agentUrl("scale=0.5"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await expect.poll(async () => (await logLines(page)).length).toBeGreaterThanOrEqual(3);
@@ -178,7 +178,7 @@ test("Pause holds the run between events; Resume goes on from the next one", asy
 });
 
 test("the undo window: a toast with Undo, a countdown, then final", async ({ page }) => {
-  await page.goto("/?scale=0.05&undoWindow=4");
+  await page.goto(agentUrl("scale=0.05&undoWindow=4"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   let alert = await dialog(page);
@@ -209,7 +209,7 @@ test("the undo window: a toast with Undo, a countdown, then final", async ({ pag
 });
 
 test("a confirmation says what Escape does there, and Escape does it", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   let alert = await dialog(page);
@@ -226,7 +226,7 @@ test("a confirmation says what Escape does there, and Escape does it", async ({ 
 });
 
 test("one undo toast at a time: the newest window's; the older ones stay in the step list", async ({ page }) => {
-  await page.goto("/?scale=0.02");
+  await page.goto(agentUrl("scale=0.02"));
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -234,7 +234,7 @@ test("one undo toast at a time: the newest window's; the older ones stay in the 
   let most = 0;
   for (;;) {
     most = Math.max(most, await undoToasts.count());
-    if ((await page.locator(".layout").getAttribute("data-plan-state")) === "finished") break;
+    if ((await page.locator(".agent").getAttribute("data-plan-state")) === "finished") break;
     const alert = confirmation(page);
     const retry = page.getByRole("button", { name: en.step.retry, exact: true });
     if (await alert.isVisible()) await alert.getByRole("button").last().click();
@@ -258,7 +258,7 @@ test("one undo toast at a time: the newest window's; the older ones stay in the 
 });
 
 test("the agent asks to change a step: Allow replaces it", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
@@ -275,16 +275,16 @@ test("the agent asks to change a step: Allow replaces it", async ({ page }) => {
 });
 
 test("a whole run to the end gives a summary", async ({ page }) => {
-  await page.goto("/?scale=0.02");
+  await page.goto(agentUrl("scale=0.02"));
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
   for (;;) {
-    const state = await page.locator(".layout").getAttribute("data-plan-state");
+    const state = await page.locator(".agent").getAttribute("data-plan-state");
     if (state === "finished") break;
     const alert = confirmation(page);
     const retry = page.getByRole("button", { name: en.step.retry, exact: true });
-    await expect(alert.or(retry).or(page.locator('.layout[data-plan-state="finished"]'))).toBeVisible({ timeout: 15_000 });
+    await expect(alert.or(retry).or(page.locator('.agent[data-plan-state="finished"]'))).toBeVisible({ timeout: 15_000 });
     if (await alert.isVisible()) await alert.getByRole("button").last().click();
     else if (await retry.isVisible()) await retry.click();
   }
@@ -292,7 +292,7 @@ test("a whole run to the end gives a summary", async ({ page }) => {
   await expect(summary).toContainText(en.summary.finished);
   await expect(summary.getByRole("term")).toHaveText([en.summary.done, en.summary.skipped, en.summary.undone, en.summary.asked, en.summary.errors, en.summary.duration, en.summary.events]);
   await expect(summary.getByRole("definition").first()).toHaveText("12");
-  await expect(page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText("Run finished: 12 of 12 steps done.");
+  await expect(page.locator('.agent [role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText("Run finished: 12 of 12 steps done.");
   // New plan: the letters' undo windows are still open, so it asks first;
   // then back to the editor, with a fresh plan.
   await page.getByRole("button", { name: en.run.newPlan }).click();
@@ -311,7 +311,7 @@ async function sendLetterAndStop(page: Page) {
 }
 
 test("New plan asks before it ends undo windows that are still open", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await sendLetterAndStop(page);
   await page.getByRole("button", { name: en.run.newPlan }).click();
@@ -332,7 +332,7 @@ test("New plan asks before it ends undo windows that are still open", async ({ p
 });
 
 test("New plan goes straight to a new plan when no undo window is open", async ({ page }) => {
-  await page.goto("/?scale=0.05&undoWindow=1");
+  await page.goto(agentUrl("scale=0.05&undoWindow=1"));
   await ready(page);
   await sendLetterAndStop(page);
   await expect(runSteps(page).nth(2)).toContainText("Final since");
@@ -342,7 +342,7 @@ test("New plan goes straight to a new plan when no undo window is open", async (
 });
 
 test("the shortcuts dialog lists every shortcut with its keys", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(agentUrl());
   await ready(page);
   await page.keyboard.press("?");
   const help = page.getByRole("dialog", { name: en.shortcuts.title });
@@ -362,7 +362,7 @@ test("the shortcuts dialog lists every shortcut with its keys", async ({ page })
 });
 
 test("a button with a key names it for assistive technology and draws it after its label", async ({ page }) => {
-  await page.goto("/?scale=4");
+  await page.goto(agentUrl("scale=4"));
   await ready(page);
   const keyed = async (name: string, key: string) => {
     const button = page.getByRole("button", { name, exact: true });
@@ -379,7 +379,7 @@ test("a button with a key names it for assistive technology and draws it after i
 
 test("the log is copied as text", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await expect(page.getByText(en.log.emptyTitle)).toBeVisible();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -394,7 +394,7 @@ test("the log is copied as text", async ({ page, context }) => {
 });
 
 test("the log follows its newest line while the run goes on", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -403,11 +403,11 @@ test("the log follows its newest line while the run goes on", async ({ page }) =
   // At each point the run waits, the newest line is in view.
   let waits = 0;
   for (;;) {
-    if ((await page.locator(".layout").getAttribute("data-plan-state")) === "finished") break;
+    if ((await page.locator(".agent").getAttribute("data-plan-state")) === "finished") break;
     const alert = confirmation(page);
     const retry = page.getByRole("button", { name: en.step.retry, exact: true });
-    await expect(alert.or(retry).or(page.locator('.layout[data-plan-state="finished"]'))).toBeVisible({ timeout: 15_000 });
-    if ((await page.locator(".layout").getAttribute("data-plan-state")) === "finished") break;
+    await expect(alert.or(retry).or(page.locator('.agent[data-plan-state="finished"]'))).toBeVisible({ timeout: 15_000 });
+    if ((await page.locator(".agent").getAttribute("data-plan-state")) === "finished") break;
     expect((await read()).atEnd).toBe(true);
     waits += 1;
     if (await alert.isVisible()) await alert.getByRole("button").last().click();
@@ -418,9 +418,9 @@ test("the log follows its newest line while the run goes on", async ({ page }) =
   expect((await logLines(page)).at(-1)).toContain("Run finished");
 });
 
-test("an Arabic log keeps each line's time and level at the left, without invisible bidi marks", async ({ page }) => {
-  const t = strings.ar;
-  await page.goto("/?lang=ar&scale=0.05");
+test("a log keeps each line's time, level and message in that order, without invisible bidi marks", async ({ page }) => {
+  const t = strings.ru;
+  await page.goto(agentUrl("lang=ru&scale=0.05"));
   await ready(page, t.plan.run);
   await page.getByRole("button", { name: t.plan.run }).click();
   await dialog(page);
@@ -431,7 +431,7 @@ test("an Arabic log keeps each line's time and level at the left, without invisi
   expect(await page.locator(".log .stoa-code__scroll").evaluate((el) => /[\u2066-\u2069]/.test(el.textContent ?? ""))).toBe(false);
   for (const line of await lines.all()) {
     const [time, level, message] = await Promise.all(
-      [".stoa-code__time", ".stoa-code__level", ".stoa-code__message"].map((part) => line.locator(part).evaluate((el) => el.getBoundingClientRect().left)),
+      [".stoa-code__time", ".stoa-code__level", ".stoa-code__message"].map((part) => line.locator(part).evaluate((el) => el.getClientRects()[0]!.left)),
     );
     expect(time).toBeLessThan(level!);
     expect(level).toBeLessThan(message!);
@@ -440,7 +440,7 @@ test("an Arabic log keeps each line's time and level at the left, without invisi
 
 test("under reduced motion the undo countdown still counts, without animating", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/?scale=0.05&undoWindow=6");
+  await page.goto(agentUrl("scale=0.05&undoWindow=6"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.confirm.email }).click();

@@ -69,7 +69,7 @@ export function PlanPanel({ x, steps, autonomy, service, canRun, onRun, onRestor
   });
 
   return (
-    <Panel title={t.plan.panel} className="plan">
+    <Panel title={t.plan.panel} className="plan" level={4}>
       {steps.length === 0 ? (
         <EmptyState
           title={t.plan.emptyTitle}

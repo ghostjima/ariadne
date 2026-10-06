@@ -4,11 +4,12 @@
 // (applicants, stages, column headers, complaint texts) comes from the
 // engine's language modules, @ariadne/grid/pools/{en,ru}.
 
-export type Lang = "en" | "ru";
-export const LANGUAGES: Lang[] = ["en", "ru"];
+export type Lang = "ru" | "en";
+/** Russian first, and the default; English second. */
+export const LANGUAGES: Lang[] = ["ru", "en"];
 
 /** The locale given to React Aria and Intl for each language. */
-export const LOCALES: Record<Lang, string> = { en: "en-US", ru: "ru-RU" };
+export const LOCALES: Record<Lang, string> = { ru: "ru-RU", en: "en-US" };
 
 export const isLang = (v: string): v is Lang => (LANGUAGES as string[]).includes(v);
 
@@ -54,15 +55,10 @@ export type Strings = {
   roleHidden: (columns: string) => string;
 
   filtersLabel: string;
-  stageGroup: string;
-  streamGroup: string;
-  sourceGroup: string;
-  deadlineGroup: string;
+  groups: { stage: string; deadline: string; stream: string; source: string };
   search: string;
   searchHint: string;
   clearFilters: string;
-  /** The fold of the filter groups on a narrow screen. */
-  filtersSummary: (active: string, n: number) => string;
   shownOf: (shown: string, total: string, n: number) => string;
   countLoading: string;
   /** In brackets after the count. */
@@ -76,25 +72,14 @@ export type Strings = {
   densities: { compact: string; default: string; comfortable: string };
 
   columns: string;
-  columnsTitle: string;
-  columnsShown: string;
-  columnsOrder: string;
-  columnsPinned: string;
-  columnsUnpinned: string;
   narrowHint: string;
-  columnHiddenForRole: string;
-  done: string;
 
-  /** Working days left, as the time-left column writes them. */
-  workingDaysLeft: (count: string, n: number) => string;
-  overdueBy: (count: string, n: number) => string;
-  dueToday: string;
 
-  selected: (count: string) => string;
   bulkLabel: string;
+  bulkAssign: string;
+  bulkAssignTitle: (count: string, n: number) => string;
   bulkAssignee: string;
   apply: string;
-  clearSelection: string;
   bulkNeedsSupervisor: string;
   bulkDone: (assignee: string, count: string, n: number) => string;
   bulkSkipped: (count: string) => string;
@@ -181,6 +166,9 @@ export type Strings = {
     saveView: string;
   };
 
+  /** The open case: its card, and the way back to the queue. */
+  case: CaseStrings;
+
   performance: string;
   perfNote: string;
   firstRows: string;
@@ -196,6 +184,83 @@ export type Strings = {
   medianP95: (p50: string, p95: string) => string;
   samples: (n: string) => string;
   notYet: string;
+};
+
+export type CountUnit = "working_days" | "calendar_days" | "calendar_days_to_working_day" | "next_working_day" | "same_day" | "months";
+
+export type CaseStrings = {
+  open: string;
+  openCase: (id: string) => string;
+  back: string;
+  region: (id: string, name: string) => string;
+  /** On a narrow screen the card and the assistant are two tabs. */
+  panels: string;
+  card: string;
+  notFound: (id: string) => string;
+  shortcuts: string;
+  keysGroup: string;
+  keys: { open: string; back: string };
+  complaint: string;
+  subject: string;
+  text: string;
+  channel: string;
+  received: string;
+  source: string;
+  forwarded: string;
+  applicant: string;
+  name: string;
+  applicantType: string;
+  operation: string;
+  operationKind: string;
+  reference: string;
+  operationDay: string;
+  amount: string;
+  claim: string;
+  claimOmbudsman: string;
+  claimAbove: string;
+  noOperation: string;
+  flags: string;
+  noFlags: string;
+  sign: (number: string) => string;
+  signRefused: (operation: string) => string;
+  signSuspended: (operation: string) => string;
+  signWording: string;
+  signSummary: string;
+  amlDecision: (category: string, basis: string) => string;
+  flagDeadline: Record<string, string>;
+  timeline: string;
+  event: {
+    received: (channel: string) => string;
+    forwarded: string;
+    registered: string;
+    registeredLate: string;
+    registrationNotice: (channel: string) => string;
+    extended: (until: string) => string;
+    replySent: (channel: string) => string;
+    replySentLate: string;
+    copy: string;
+    closed: string;
+    replyDue: string;
+  };
+  related: string;
+  relatedNone: string;
+  relation: { linked: string; links_here: string; same_applicant: string };
+  relatedColumns: { case: string; relation: string; stream: string; stage: string; left: string };
+  deadline: string;
+  derivation: string;
+  step: { received: string; registration: string; reply: string; daysOff: string; extension: string; left: string };
+  count: (from: string, value: string, unit: CountUnit, n: number) => string;
+  daysOffFormula: (calendar: string, working: string) => string;
+  daysOffValue: (total: string, n: number, weekend: string, holidays: string) => string;
+  holidays: (list: string) => string;
+  workingWeekends: (count: string) => string;
+  registeredLateNote: string;
+  extensionTaken: (due: string) => string;
+  extensionPossible: (notice: string) => string;
+  extensionRefused: string;
+  extensionRefusal: Record<string, string>;
+  leftFormula: (from: string, to: string) => string;
+  conservative: string;
 };
 
 const en: Strings = {
@@ -236,43 +301,30 @@ const en: Strings = {
   roleHidden: (columns) => `Hidden for this role: ${columns}.`,
 
   filtersLabel: "Filters",
-  stageGroup: "Stage",
-  streamGroup: "Stream",
-  sourceGroup: "Source",
-  deadlineGroup: "Deadline",
+  groups: { stage: "Stage", deadline: "Deadline", stream: "Stream", source: "Source" },
   search: "Search",
   searchHint: "Case, applicant, subject, operation, assignee or note",
   clearFilters: "Clear filters",
-  filtersSummary: (active, n) => (n === 0 ? "Filters" : `Filters: ${active} on`),
-  shownOf: (shown, total, n) => `${shown} of ${total} ${n === 1 ? "case" : "cases"}`,
+  // The noun agrees with the total: "1 of 1,200 cases".
+  shownOf: (shown, total) => `${shown} of ${total} ${total === "1" ? "case" : "cases"}`,
   countLoading: "Loading cases",
   countPending: (count) => `(${count} still loading)`,
   countFailed: (count) => `(${count} did not load)`,
   updating: "Updating",
-  asOf: (day) => `Deadlines as of ${day}.`,
+  asOf: (day) => `Deadlines as of ${day}`,
 
   density: "Density",
   densities: { compact: "Compact", default: "Regular", comfortable: "Comfortable" },
 
   columns: "Columns",
-  columnsTitle: "Columns",
-  columnsShown: "Shown columns",
-  columnsOrder: "Order",
-  columnsPinned: "Case and applicant stay pinned at the start.",
-  columnsUnpinned: "On a narrow screen no column is pinned, so the grid scrolls sideways to every one.",
   narrowHint: "Scroll the grid sideways for the other columns.",
-  columnHiddenForRole: "Not shown to this role",
-  done: "Done",
 
-  workingDaysLeft: (count, n) => `${count} working ${n === 1 ? "day" : "days"}`,
-  overdueBy: (count, n) => `${count} working ${n === 1 ? "day" : "days"} overdue`,
-  dueToday: "Due today",
 
-  selected: (count) => `Selected: ${count}`,
   bulkLabel: "Bulk change",
+  bulkAssign: "Reassign",
+  bulkAssignTitle: (count, n) => `Reassign ${count} ${n === 1 ? "case" : "cases"}`,
   bulkAssignee: "Assign to",
   apply: "Apply",
-  clearSelection: "Clear selection",
   bulkNeedsSupervisor: "Reassigning cases needs the supervisor role.",
   bulkDone: (assignee, count, n) => `${count} ${n === 1 ? "case" : "cases"} assigned to ${assignee}.`,
   bulkSkipped: (count) => `Skipped ${count}.`,
@@ -359,6 +411,106 @@ const en: Strings = {
     saveView: "Save the view",
   },
 
+  case: {
+    open: "Open case",
+    openCase: (id) => `Open case ${id}`,
+    back: "Back to the queue",
+    region: (id, name) => `${id}, ${name}`,
+    panels: "The case and the assistant",
+    card: "Case",
+    notFound: (id) => `There is no case ${id}.`,
+    shortcuts: "Shortcuts",
+    keysGroup: "Case",
+    keys: { open: "Open the case of the active row", back: "Back to the queue" },
+    complaint: "Complaint",
+    subject: "Subject",
+    text: "As the applicant wrote it",
+    channel: "Channel",
+    received: "Received",
+    source: "Source",
+    forwarded: "Forwarded by the Bank of Russia: every notice and the reply are copied to it on the day they go out.",
+    applicant: "Applicant",
+    name: "Name",
+    applicantType: "Type",
+    operation: "Operation",
+    operationKind: "Kind",
+    reference: "Reference",
+    operationDay: "Day",
+    amount: "Amount",
+    claim: "Money claimed",
+    claimOmbudsman: "Within 123-FZ: the reply term is the financial ombudsman law's, and it cannot be extended.",
+    claimAbove: "Above 500,000 roubles: outside the financial ombudsman's limit, so a complaint under 442-FZ.",
+    noOperation: "No operation",
+    flags: "Flags",
+    noFlags: "No antifraud or anti-money-laundering flag on this case.",
+    sign: (number) => `Sign ${number} of Bank of Russia Order No. OD-2506`,
+    signRefused: (operation) => `${operation}: refused`,
+    signSuspended: (operation) => `${operation}: suspended`,
+    signWording: "The order's wording",
+    signSummary: "In short",
+    amlDecision: (category, basis) => `${category} (${basis})`,
+    flagDeadline: {
+      antifraud_suspension_ends: "The suspension ends",
+      antifraud_confirmation: "Last day for the client to confirm the order",
+      aml_reasons_notice: "The date and the reasons of the decision are due to the client",
+      aml_documents_answer: "The answer to the client's documents is due",
+      high_risk_notice: "The notice of the measures is due",
+      high_risk_commission_application: "Last day for the client to apply to the commission",
+    },
+    timeline: "Channel timeline",
+    event: {
+      received: (channel) => `Received: ${channel}`,
+      forwarded: "forwarded by the Bank of Russia",
+      registered: "Registered",
+      registeredLate: "Registered after the next working day",
+      registrationNotice: (channel) => `Registration notice: ${channel}`,
+      extended: (until) => `Extension notice due; the reply is now due by ${until}`,
+      replySent: (channel) => `Reply sent: ${channel}`,
+      replySentLate: "Reply sent after its last day",
+      copy: "Copy of the reply to the Bank of Russia",
+      closed: "Closed",
+      replyDue: "Reply due",
+    },
+    related: "Linked cases",
+    relatedNone: "No linked case.",
+    relation: { linked: "This case is linked to it", links_here: "Linked to this case", same_applicant: "Same applicant" },
+    relatedColumns: { case: "Case", relation: "Relation", stream: "Stream", stage: "Stage", left: "Time left" },
+    deadline: "Deadline",
+    derivation: "How the reply's last day was worked out",
+    step: {
+      received: "Received",
+      registration: "Registration",
+      reply: "Reply term",
+      daysOff: "Days off in the term",
+      extension: "Extension",
+      left: "Time left",
+    },
+    count: (from, value, unit, n) =>
+      ({
+        working_days: `${from} + ${value} working ${n === 1 ? "day" : "days"}`,
+        calendar_days: `${from} + ${value} calendar ${n === 1 ? "day" : "days"}`,
+        calendar_days_to_working_day: `${from} + ${value} calendar ${n === 1 ? "day" : "days"}, then the next working day`,
+        next_working_day: `the working day after ${from}`,
+        same_day: from,
+        months: `${from} + ${value} ${n === 1 ? "month" : "months"}`,
+      })[unit] ?? `${from} + ${value}`,
+    daysOffFormula: (calendar, working) => `${calendar} − ${working}`,
+    daysOffValue: (total, n, weekend, holidays) => `${total} ${n === 1 ? "day" : "days"} off: weekend days ${weekend}${holidays ? `; ${holidays}` : ""}`,
+    holidays: (list) => `holidays and moved days off ${list}`,
+    workingWeekends: (count) => `${count} Saturday made a working day, counted`,
+    registeredLateNote: "registered late",
+    extensionTaken: (due) => `Extended to ${due}`,
+    extensionPossible: (notice) => `Not asked; possible with a notice by ${notice}`,
+    extensionRefused: "Not allowed",
+    extensionRefusal: {
+      extension_not_allowed: "Not allowed: a money claim under 123-FZ is not extended",
+      extension_ground_not_allowed: "Not allowed on this ground",
+      extension_too_long: "Longer than the law allows",
+    },
+    leftFormula: (from, to) => `working days from ${from} to ${to}`,
+    conservative: "conservative reading",
+  },
+
   performance: "Performance",
   perfNote:
     "Measured in this tab. First rows: from navigation to the first painted frame with rows. Filter and sort: from the input to the repainted grid. Worker round trip: from posting a query to receiving its result. Compute: sorting, search and filtering inside the worker.",
@@ -415,43 +567,29 @@ const ruStrings: Strings = {
   roleHidden: (columns) => `Скрыто для этой роли: ${columns}.`,
 
   filtersLabel: "Фильтры",
-  stageGroup: "Этап",
-  streamGroup: "Поток",
-  sourceGroup: "Источник",
-  deadlineGroup: "Срок",
+  groups: { stage: "Этап", deadline: "Срок", stream: "Поток", source: "Источник" },
   search: "Поиск",
   searchHint: "Номер, заявитель, тема, операция, исполнитель или заметка",
   clearFilters: "Сбросить фильтры",
-  filtersSummary: (active, n) => (n === 0 ? "Фильтры" : `Фильтры: включено ${active}`),
   shownOf: (shown, total, n) => `${shown} ${ru(n, "обращение", "обращения", "обращений")} из ${total}`,
   countLoading: "Загрузка обращений",
   countPending: (count) => `(ещё загружается: ${count})`,
   countFailed: (count) => `(не загружено: ${count})`,
   updating: "Обновление",
-  asOf: (day) => `Сроки на ${day}.`,
+  asOf: (day) => `Сроки на ${day}`,
 
   density: "Плотность",
   densities: { compact: "Плотно", default: "Обычно", comfortable: "Просторно" },
 
   columns: "Столбцы",
-  columnsTitle: "Столбцы",
-  columnsShown: "Показанные столбцы",
-  columnsOrder: "Порядок",
-  columnsPinned: "Номер и заявитель всегда закреплены в начале.",
-  columnsUnpinned: "На узком экране столбцы не закреплены, и таблица прокручивается вбок до любого из них.",
   narrowHint: "Остальные столбцы видны при прокрутке таблицы вбок.",
-  columnHiddenForRole: "Не показывается этой роли",
-  done: "Готово",
 
-  workingDaysLeft: (count, n) => `${count} ${ru(n, "рабочий день", "рабочих дня", "рабочих дней")}`,
-  overdueBy: (count, n) => `просрочено на ${count} ${ru(n, "рабочий день", "рабочих дня", "рабочих дней")}`,
-  dueToday: "Срок сегодня",
 
-  selected: (count) => `Выбрано: ${count}`,
   bulkLabel: "Массовое изменение",
-  bulkAssignee: "Назначить исполнителя",
+  bulkAssign: "Переназначить",
+  bulkAssignTitle: (count, n) => `Переназначить ${count} ${ru(n, "обращение", "обращения", "обращений")}`,
+  bulkAssignee: "Исполнитель",
   apply: "Применить",
-  clearSelection: "Снять выбор",
   bulkNeedsSupervisor: "Переназначать обращения может руководитель.",
   bulkDone: (assignee, count, n) => `${count} ${ru(n, "обращение назначено", "обращения назначены", "обращений назначено")} на исполнителя ${assignee}.`,
   bulkSkipped: (count) => `Пропущено: ${count}.`,
@@ -538,6 +676,106 @@ const ruStrings: Strings = {
     saveView: "Сохранить вид",
   },
 
+  case: {
+    open: "Открыть обращение",
+    openCase: (id) => `Открыть обращение ${id}`,
+    back: "К очереди",
+    region: (id, name) => `${id}, ${name}`,
+    panels: "Обращение и ассистент",
+    card: "Обращение",
+    notFound: (id) => `Обращения ${id} нет.`,
+    shortcuts: "Клавиши",
+    keysGroup: "Обращение",
+    keys: { open: "Открыть обращение активной строки", back: "Вернуться к очереди" },
+    complaint: "Жалоба",
+    subject: "Тема",
+    text: "Как написал заявитель",
+    channel: "Канал",
+    received: "Поступила",
+    source: "Источник",
+    forwarded: "Перенаправлена Банком России: копию каждого уведомления и ответа направляем ему в день отправки заявителю.",
+    applicant: "Заявитель",
+    name: "Имя",
+    applicantType: "Тип",
+    operation: "Операция",
+    operationKind: "Вид",
+    reference: "Номер",
+    operationDay: "Дата",
+    amount: "Сумма",
+    claim: "Требование",
+    claimOmbudsman: "В рамках 123-ФЗ: срок ответа по закону о финансовом уполномоченном, продлить его нельзя.",
+    claimAbove: "Больше 500 000 ₽: за пределом финансового уполномоченного, поэтому жалоба по 442-ФЗ.",
+    noOperation: "Без операции",
+    flags: "Признаки и решения",
+    noFlags: "По этому обращению нет признаков антифрода и решений по 115-ФЗ.",
+    sign: (number) => `Признак ${number} приказа Банка России № ОД-2506`,
+    signRefused: (operation) => `${operation}: отказ`,
+    signSuspended: (operation) => `${operation}: приостановлено`,
+    signWording: "Формулировка приказа",
+    signSummary: "Кратко",
+    amlDecision: (category, basis) => `${category} (${basis})`,
+    flagDeadline: {
+      antifraud_suspension_ends: "Окончание приостановления",
+      antifraud_confirmation: "Последний день, чтобы клиент подтвердил распоряжение",
+      aml_reasons_notice: "Срок сообщить клиенту дату и причины решения",
+      aml_documents_answer: "Срок ответа на документы клиента",
+      high_risk_notice: "Срок уведомить о мерах",
+      high_risk_commission_application: "Последний день, чтобы клиент обратился в комиссию",
+    },
+    timeline: "Каналы и события",
+    event: {
+      received: (channel) => `Поступила: ${channel}`,
+      forwarded: "перенаправлена Банком России",
+      registered: "Зарегистрирована",
+      registeredLate: "Зарегистрирована позже следующего рабочего дня",
+      registrationNotice: (channel) => `Уведомление о регистрации: ${channel}`,
+      extended: (until) => `Уведомление о продлении; ответ теперь до ${until}`,
+      replySent: (channel) => `Ответ отправлен: ${channel}`,
+      replySentLate: "Ответ отправлен после срока",
+      copy: "Копия ответа в Банк России",
+      closed: "Закрыта",
+      replyDue: "Срок ответа",
+    },
+    related: "Связанные обращения",
+    relatedNone: "Связанных обращений нет.",
+    relation: { linked: "С ним связано это обращение", links_here: "Связано с этим обращением", same_applicant: "Тот же заявитель" },
+    relatedColumns: { case: "Номер", relation: "Связь", stream: "Поток", stage: "Этап", left: "Осталось" },
+    deadline: "Срок",
+    derivation: "Как рассчитан последний день ответа",
+    step: {
+      received: "Поступление",
+      registration: "Регистрация",
+      reply: "Срок ответа",
+      daysOff: "Нерабочие дни в сроке",
+      extension: "Продление",
+      left: "Осталось",
+    },
+    count: (from, value, unit, n) =>
+      ({
+        working_days: `${from} + ${value} ${ru(n, "рабочий день", "рабочих дня", "рабочих дней")}`,
+        calendar_days: `${from} + ${value} ${ru(n, "календарный день", "календарных дня", "календарных дней")}`,
+        calendar_days_to_working_day: `${from} + ${value} ${ru(n, "календарный день", "календарных дня", "календарных дней")}, затем ближайший рабочий`,
+        next_working_day: `рабочий день после ${from}`,
+        same_day: from,
+        months: `${from} + ${value} ${ru(n, "месяц", "месяца", "месяцев")}`,
+      })[unit] ?? `${from} + ${value}`,
+    daysOffFormula: (calendar, working) => `${calendar} − ${working}`,
+    daysOffValue: (total, n, weekend, holidays) => `${total} ${ru(n, "нерабочий день", "нерабочих дня", "нерабочих дней")}: выходных ${weekend}${holidays ? `; ${holidays}` : ""}`,
+    holidays: (list) => `праздники и перенесённые выходные ${list}`,
+    workingWeekends: (count) => `рабочих суббот по постановлению: ${count}, учтены`,
+    registeredLateNote: "зарегистрирована с опозданием",
+    extensionTaken: (due) => `Продлён до ${due}`,
+    extensionPossible: (notice) => `Не продлевали; можно, если уведомить до ${notice}`,
+    extensionRefused: "Нельзя",
+    extensionRefusal: {
+      extension_not_allowed: "Нельзя: денежное требование по 123-ФЗ не продлевается",
+      extension_ground_not_allowed: "Нельзя по этому основанию",
+      extension_too_long: "Дольше, чем позволяет закон",
+    },
+    leftFormula: (from, to) => `рабочие дни от ${from} до ${to}`,
+    conservative: "осторожное прочтение",
+  },
+
   performance: "Производительность",
   perfNote:
     "Измерено в этой вкладке. Первые строки: от начала перехода до первого кадра со строками. Фильтр и сортировка: от ввода до перерисованной таблицы. Обмен с потоком: от отправки запроса до получения ответа. Вычисление: сортировка, поиск и фильтрация в фоновом потоке.",
@@ -556,4 +794,4 @@ const ruStrings: Strings = {
   notYet: "пока нет",
 };
 
-export const strings: Record<Lang, Strings> = { en, ru: ruStrings };
+export const strings: Record<Lang, Strings> = { ru: ruStrings, en };

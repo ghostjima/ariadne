@@ -1,16 +1,7 @@
-// The desk's dialogs: an edit conflict, saving a view, and the columns.
+// The desk's dialogs: an edit conflict and saving a view.
 import { useState } from "react";
-import {
-  Button,
-  Callout,
-  Checkbox,
-  CheckboxGroup,
-  Dialog,
-  ReorderableList,
-  Sheet,
-  TextField,
-} from "@ghostjima/stoa-react";
-import { COLUMNS, PINNED_COLUMNS, forbiddenColumns, validateViewName, type Role, type ViewNameError } from "@ariadne/grid";
+import { Button, Callout, Dialog, TextField } from "@ghostjima/stoa-react";
+import { validateViewName, type ViewNameError } from "@ariadne/grid";
 import type { Strings } from "../i18n";
 
 export type ConflictView = {
@@ -151,74 +142,5 @@ function SaveViewForm({ initialName, t, integer, onSave }: { initialName: string
         </Button>
       </div>
     </div>
-  );
-}
-
-export function ColumnsSheet({
-  isOpen,
-  onClose,
-  columns,
-  onChange,
-  role,
-  pinStart,
-  headers,
-  t,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  /** The view's columns in order, pinned ones included. */
-  columns: readonly string[];
-  onChange: (columns: string[]) => void;
-  role: Role;
-  /** Whether ID and client are pinned (not on a narrow screen). */
-  pinStart: boolean;
-  headers: Readonly<Record<string, string>>;
-  t: Strings;
-}) {
-  const pinned = new Set<string>(PINNED_COLUMNS);
-  const forbidden = new Set(forbiddenColumns(role));
-  const chosen = columns.filter((id) => !pinned.has(id));
-  const order = chosen.filter((id) => !forbidden.has(id)).map((id) => ({ id, textValue: headers[id] ?? id }));
-  return (
-    <Sheet
-      isOpen={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      title={t.columnsTitle}
-      actions={(close) => (
-        <Button variant="primary" onPress={close}>
-          {t.done}
-        </Button>
-      )}
-    >
-      <div className="columns-sheet">
-        <p className="muted">{pinStart ? t.columnsPinned : t.columnsUnpinned}</p>
-        <CheckboxGroup
-          label={t.columnsShown}
-          value={chosen}
-          onChange={(next) => {
-            // Keep the existing order and add new columns at the end.
-            const kept = chosen.filter((id) => next.includes(id));
-            const added = next.filter((id) => !kept.includes(id));
-            onChange([...PINNED_COLUMNS, ...kept, ...added]);
-          }}
-        >
-          {COLUMNS.filter((c) => !pinned.has(c.id)).map((c) => (
-            <Checkbox key={c.id} value={c.id} isDisabled={forbidden.has(c.id)} description={forbidden.has(c.id) ? t.columnHiddenForRole : undefined}>
-              {headers[c.id] ?? c.id}
-            </Checkbox>
-          ))}
-        </CheckboxGroup>
-        <h3 className="columns-sheet__heading">{t.columnsOrder}</h3>
-        <ReorderableList
-          label={t.columnsOrder}
-          items={order}
-          onReorder={(items) => {
-            const hidden = chosen.filter((id) => forbidden.has(id));
-            onChange([...PINNED_COLUMNS, ...items.map((i) => i.id), ...hidden]);
-          }}
-          renderItem={(item) => item.textValue}
-        />
-      </div>
-    </Sheet>
   );
 }

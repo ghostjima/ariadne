@@ -1,10 +1,11 @@
-// Measurements for docs/MEASUREMENTS.md, in headless Chromium against the
-// production build served by `vite preview` (port 5197, or MEASURE_PORT). Every number is
-// printed with its sample count, and the run is stamped with the commit,
-// the machine and the browser.
+// Measurements of the assistant for docs/AGENT-MEASUREMENTS.md, in
+// headless Chromium against the production build with the bench page
+// (ARIADNE_BENCH=1) served by `vite preview` (port 5197, or MEASURE_PORT).
+// Every number is printed with its sample count, and the run is stamped
+// with the commit, the machine and the browser.
 //
-//   node scripts/measure.mjs            all measurements
-//   node scripts/measure.mjs --quick    fewer samples, for a smoke run
+//   node scripts/measure-agent.mjs            all measurements
+//   node scripts/measure-agent.mjs --quick    fewer samples, for a smoke run
 import { execSync, spawn } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { cpus, totalmem, release, platform } from "node:os";
@@ -14,6 +15,8 @@ import { chromium } from "@playwright/test";
 const QUICK = process.argv.includes("--quick");
 const PORT = Number(process.env.MEASURE_PORT ?? 5197);
 const BASE = `http://localhost:${PORT}`;
+// The assistant beside an open case, in English, the colleague off.
+const AGENT = `${BASE}/?case=C-001200&panel=assistant&lang=en&colleague=off`;
 const N = QUICK ? 5 : 30;
 const N_LOAD = QUICK ? 5 : 20;
 
@@ -51,7 +54,7 @@ await new Promise((resolve, reject) => {
   const poll = () =>
     fetch(BASE)
       .then((r) => r.text())
-      .then((html) => (html.includes("<title>Ariadne Agent</title>") ? resolve() : reject(new Error(`Port ${PORT} serves another application`))))
+      .then((html) => (html.includes("<title>Ariadne Стол заявок</title>") ? resolve() : reject(new Error(`Port ${PORT} serves another application`))))
       .catch(() => (Date.now() - started > 20_000 ? reject(new Error("preview did not start")) : setTimeout(poll, 200)));
   poll();
 });
@@ -76,7 +79,7 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-    await page.goto(BASE + "/");
+    await page.goto(AGENT);
     await page.waitForFunction(() => performance.getEntriesByName("ariadne:sw-controlled").length > 0, null, { timeout: 15_000 }).catch(async (error) => {
       await page.screenshot({ path: "test-results/measure-first-load.png" });
       throw new Error(`First load ${i} did not get a controlled page: ${errors.join("; ")} (${error})`);
@@ -93,7 +96,7 @@ try {
   {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
-    await page.goto(BASE + "/");
+    await page.goto(AGENT);
     await page.waitForFunction(() => performance.getEntriesByName("ariadne:sw-controlled").length > 0);
     for (let i = 0; i < N_LOAD; i += 1) {
       await page.reload();
@@ -109,13 +112,13 @@ try {
 
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(BASE + "/");
+  await page.goto(AGENT);
   await page.waitForFunction(() => performance.getEntriesByName("ariadne:sw-controlled").length > 0);
   const newPlan = async () => {
     await page.getByRole("button", { name: "New plan" }).click();
-    await page.locator('.layout[data-plan-state="draft"]').waitFor();
+    await page.locator('.agent[data-plan-state="draft"]').waitFor();
   };
-  const stopped = () => page.locator('.layout[data-plan-state="stopped"]').waitFor({ timeout: 20_000 });
+  const stopped = () => page.locator('.agent[data-plan-state="stopped"]').waitFor({ timeout: 20_000 });
 
   // Run to the first event in the DOM, at the engine's normal speed.
   const firstEvent = [];

@@ -1,5 +1,5 @@
 // The Service Worker that streams the run. It is its own bundle, built from
-// src/sw.ts with the engine inlined, and served at a fixed path next to the
+// src/agent/sw.ts with the engine inlined, and served at a fixed path next to the
 // page (`<base>sw.js`): a fixed URL is what lets the browser compare the
 // deployed script with the installed one and update it, and a worker at the
 // base path may control every page under it.
@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { build, type Connect, type Plugin } from "vite";
 
-const ENTRY = fileURLToPath(new URL("./src/sw.ts", import.meta.url));
+const ENTRY = fileURLToPath(new URL("./src/agent/sw.ts", import.meta.url));
 const FILE = "sw.js";
 
 /** The worker as one classic script, with no imports left in it. */

@@ -232,7 +232,7 @@ describe("stream errors", () => {
 
 describe("stream parameters", () => {
   it("passes on only the stream's own parameters from the page URL", () => {
-    expect(streamParamsFrom("?lang=ar&speed=fast&scale=0.1&theme=dark&undoWindow=5&drop=1").toString()).toBe("speed=fast&drop=1&undoWindow=5&scale=0.1");
+    expect(streamParamsFrom("?lang=ru&speed=fast&scale=0.1&theme=dark&undoWindow=5&drop=1").toString()).toBe("speed=fast&drop=1&undoWindow=5&scale=0.1");
   });
   it("reads a time scale and a scenario number only when they make sense", () => {
     expect(timeScaleOf(new URLSearchParams("scale=0"))).toBe(0);

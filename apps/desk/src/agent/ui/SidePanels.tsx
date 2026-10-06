@@ -22,7 +22,7 @@ export function LogPanel({ x, log, steps }: { x: Text; log: LogEntry[]; steps: S
     });
   }, [x, f, log, steps]);
   return (
-    <Panel title={t.log.panel} className="log">
+    <Panel title={t.log.panel} className="log" level={4}>
       {lines.length === 0 ? (
         <EmptyState title={t.log.emptyTitle} description={t.log.emptyText} />
       ) : (
@@ -60,7 +60,7 @@ export function SummaryPanel({ x, steps, log, stopped, stoppedAfter, startedAt, 
     { kind: "metric", label: t.summary.events, value: events },
   ];
   return (
-    <Panel title={t.summary.panel} className="summary">
+    <Panel title={t.summary.panel} className="summary" level={4}>
       <Callout tone={stopped ? "warning" : "positive"} role="none">
         {stopped ? t.summary.stopped(after >= 0 ? f.int(after + 1) : null) : t.summary.finished}
       </Callout>

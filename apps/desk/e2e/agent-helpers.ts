@@ -1,6 +1,6 @@
 import { expect, test as base, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { strings } from "../src/i18n";
+import { strings } from "../src/agent/i18n";
 
 export const en = strings.en;
 
@@ -41,7 +41,22 @@ export async function expectNoSeriousViolations(page: Page, where: string, scan?
   if (scan) test.info().annotations.push({ type: "axe-scan", description: JSON.stringify({ ...scan, state: where }) });
 }
 
-export const layout = (page: Page) => page.locator(".layout");
+export const layout = (page: Page) => page.locator(".agent");
+
+/** The case the assistant's tests open: the last one received, open. */
+export const AGENT_CASE = "C-001200";
+
+/** A link to the desk with that case open and its assistant in view, in
+ * English unless the query names a language, and the simulated colleague
+ * off; `query` adds the stream's parameters (scale, undoWindow, drop). */
+export function agentUrl(query = ""): string {
+  const params = new URLSearchParams(query);
+  if (!params.has("lang")) params.set("lang", "en");
+  params.set("case", AGENT_CASE);
+  params.set("panel", "assistant");
+  params.set("colleague", "off");
+  return `/?${params}`;
+}
 
 export async function expectPlanState(page: Page, state: string, timeout = 30_000) {
   await expect(layout(page)).toHaveAttribute("data-plan-state", state, { timeout });

@@ -1,6 +1,7 @@
-// The desk: views, role, filters and search above the grid, bulk changes on
-// the selection, inline edits with conflict resolution, CSV export, and the
-// keyboard shortcuts. Data work goes through DeskEngine (worker first).
+// The desk: the queue of cases (views, role, filters and search, the grid
+// with its deadlines, bulk reassignment, inline edits with conflict
+// resolution, CSV) and the open case (its card and the assistant beside
+// it). Data work goes through DeskEngine (worker first).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertDialog,
@@ -8,16 +9,16 @@ import {
   Callout,
   ChoiceGroup,
   DataGrid,
-  Disclosure,
+  DataGridColumnChooser,
+  DataGridSelectionBar,
+  Dialog,
   EmptyState,
-  FilterChip,
-  FilterChipGroup,
+  FilterBar,
   LiveRegion,
   ProgressBar,
   Select,
   ShortcutsDialog,
   Tag,
-  TextField,
   ToastQueue,
   ToastRegion,
   Toolbar,
@@ -25,12 +26,15 @@ import {
   isApplePlatform,
   keepFocusInPlace,
   shortcutKeys,
+  useBreakpoint,
   useShortcuts,
   useStoaFormat,
+  type DataGridCell,
   type DataGridColumn,
   type DataGridEdit,
   type DataGridEditTarget,
   type DataGridSort,
+  type FilterGroup,
   type Shortcut,
   type ShortcutGroup,
 } from "@ghostjima/stoa-react";
@@ -38,28 +42,28 @@ import {
   AS_OF_DAY,
   CORPUS_CHUNK,
   CORPUS_ROWS,
+  COLUMNS,
   CSV_LIMIT,
   DEFAULT_SEED,
   DEFAULT_VIEW,
   EMPTY_FILTERS,
   EditHistory,
+  PINNED_COLUMNS,
   PRESET_VIEWS,
   SCALE_CHUNK,
   SCALE_ROWS,
   SELF_ASSIGNEE,
   SELF_SIGNATORY,
   Stage,
-  activeFilterCount,
   applyRemoteEdit,
   beginEdit,
   canBulk,
-  canEditColumn,
   canExport,
   colleagueSchedule,
   criteriaFor,
   detectConflict,
   dueTicks,
-  hasActiveFilters,
+  forbiddenColumns,
   hiddenForRole,
   isPreset,
   normalizeDraft,
@@ -77,14 +81,16 @@ import {
   type EditSession,
   type Role,
   type View,
+  type ViewFilters,
 } from "@ariadne/grid";
+import { useRunService } from "../agent/service";
+import { CaseView } from "../case/CaseView";
 import { DeskEngine, type QueryResult } from "../data/engine";
 import { POOLS } from "../data/query";
 import type { Lang, Strings } from "../i18n";
 import { buildColumns, cellValueText, editErrorText, makeFormats } from "./columns";
 import { countText } from "./counts";
-import { useNarrow } from "./narrow";
-import { ColumnsSheet, ConflictDialog, SaveViewDialog, type ConflictView } from "./dialogs";
+import { ConflictDialog, SaveViewDialog, type ConflictView } from "./dialogs";
 import { afterPaint, record, recordFirstRows } from "./metrics";
 import { PerfPanel } from "./PerfPanel";
 import { readSavedViews, readUrlConfig, setParam, writeSavedViews, type UrlConfig } from "./settings";
@@ -96,6 +102,8 @@ const START_VIEW = PRESET_VIEWS.find((v) => v.name === "open") ?? DEFAULT_VIEW;
 const PRESETS = [START_VIEW, ...PRESET_VIEWS.filter((v) => v !== START_VIEW)];
 const EDITABLE: readonly string[] = ["stage", "outcome", "ground", "extension", "assignee", "note"];
 const isEditColumn = (column: string): column is EditColumn => EDITABLE.includes(column);
+/** The filter groups, in the order shown; a chip's id is "group:code". */
+const GROUPS = ["stage", "deadline", "stream", "source"] as const satisfies readonly (keyof ViewFilters)[];
 
 /** Row keys, one string per store row, made once. */
 let keys: string[] = [];
@@ -113,6 +121,21 @@ function createEngine(config: UrlConfig): DeskEngine {
   });
 }
 
+/** The chips that are on, as FilterBar ids. */
+function chipIds(filters: ViewFilters): string[] {
+  return GROUPS.flatMap((group) => filters[group].map((code) => `${group}:${code}`));
+}
+
+/** FilterBar ids back to the view's filters. */
+function filtersOf(ids: readonly string[]): ViewFilters {
+  const out: ViewFilters = { stage: [], stream: [], source: [], deadline: [] };
+  for (const id of ids) {
+    const [group, code] = id.split(":");
+    if ((GROUPS as readonly string[]).includes(group ?? "")) out[group as keyof ViewFilters].push(Number(code));
+  }
+  return out;
+}
+
 export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const stoa = useStoaFormat();
   const [config] = useState(readUrlConfig);
@@ -122,10 +145,12 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const snap = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
   const history = useRef(new EditHistory());
   const toasts = useMemo(() => new ToastQueue(), []);
+  const service = useRunService();
   const { pools, labels } = POOLS[lang];
   const formats = useMemo(() => makeFormats(lang), [lang]);
   const integer = useCallback((n: number) => formats.integer.format(n), [formats]);
   const decimal = useCallback((n: number) => formats.one.format(n), [formats]);
+  const narrow = useBreakpoint() === "narrow";
 
   const [view, setView] = useState<View>(() => config.view ?? START_VIEW);
   const [dirty, setDirty] = useState(false);
@@ -136,10 +161,15 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
   const [announcement, setAnnouncement] = useState("");
-  const [dialog, setDialog] = useState<"save" | "delete" | "columns" | "shortcuts" | null>(null);
+  const [dialog, setDialog] = useState<"save" | "delete" | "shortcuts" | "assign" | null>(null);
   const [bulkAssignee, setBulkAssignee] = useState(SELF_ASSIGNEE);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [session, setSession] = useState<EditSession | null>(null);
+  // The grid's active cell, kept here so the queue comes back to it from
+  // an open case; it starts where the grid starts it, at the first cell.
+  const [activeCell, setActiveCell] = useState<DataGridCell>({ row: 0, column: 0 });
+  // The open case, by row; from the link (?case=C-000123) on load.
+  const [openCase, setOpenCase] = useState<number | null>(() => (config.caseId ? rowOfId(config.caseId, store.size) : null));
 
   useEffect(() => {
     engine.start();
@@ -161,6 +191,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const shownResult = useRef(result);
   shownResult.current = result;
   const rows = useMemo(() => (result ? Array.from(result.index) : []), [result]);
+  const activeRow = rows[activeCell.row];
 
   // Timings: interaction to the repainted grid, round trip, first rows.
   const pending = useRef<{ kind: "filter" | "sort"; start: number; id: number } | null>(null);
@@ -187,10 +218,9 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   }, [snap.result]);
 
   const ids = useMemo(() => visibleColumns(view, role), [view.columns, role]); // eslint-disable-line react-hooks/exhaustive-deps
-  const narrow = useNarrow();
   const columns = useMemo(
-    () => buildColumns(ids, { store, lang, t, formats, role, pin: !narrow }),
-    [ids, store, lang, t, formats, role, narrow],
+    () => buildColumns(ids, { store, lang, t, stoa, formats, role, pin: !narrow }),
+    [ids, store, lang, t, stoa, formats, role, narrow],
   );
 
   const announce = (text: string) => setAnnouncement(text);
@@ -248,22 +278,42 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
 
   // Filters.
   const filters = view.filters;
-  const setFilters = (patch: Partial<typeof filters>) => {
-    mark("filter");
-    patchView({ filters: { ...filters, ...patch } });
-  };
   const clearFilters = () => {
     mark("filter");
     patchView({ filters: EMPTY_FILTERS, search: "" });
   };
-  const anyFilter = hasActiveFilters(filters) || view.search.trim() !== "";
   const facets = result?.facets;
+  const filterGroups: FilterGroup<string>[] = GROUPS.map((group) => ({
+    id: group,
+    label: t.groups[group],
+    chips: labels[group].map((label, code) => ({ id: `${group}:${code}`, label, count: facets?.[group][code] })),
+  }));
+
+  // The case of the active row, and back.
+  const gridBox = useRef<HTMLDivElement>(null);
+  const focusGrid = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]')?.focus();
+  const returnToGrid = useRef(false);
+  const openCaseOf = (row: number | undefined) => {
+    if (row === undefined) return;
+    setOpenCase(row);
+    setParam("case", rowId(row));
+  };
+  const backToQueue = () => {
+    returnToGrid.current = true;
+    setOpenCase(null);
+    setParam("case", null);
+  };
+  // Back in the queue, the focus goes to the grid's active cell: the row
+  // the case was opened from.
+  useEffect(() => {
+    if (openCase !== null || !returnToGrid.current) return;
+    returnToGrid.current = false;
+    const frame = requestAnimationFrame(focusGrid);
+    return () => cancelAnimationFrame(frame);
+  }, [openCase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edits. An edit session (the value the editor started from) runs from
   // the grid's edit start to its save or cancel.
-  const searchBox = useRef<HTMLDivElement>(null);
-  const gridBox = useRef<HTMLDivElement>(null);
-  const focusGrid = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]')?.focus();
   const sessionRef = useRef<EditSession | null>(null);
   const onEditStart = ({ row, column }: DataGridEditTarget<number>) => {
     if (!isEditColumn(column)) return;
@@ -381,8 +431,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return () => clearInterval(timer);
   }, [config.colleagueSeconds]);
 
-  // Selection and bulk changes. A bulk change applies to the selected rows
-  // that the current view shows.
+  // Selection and bulk reassignment. It applies to the selected rows that
+  // the current view shows.
   const selectedRows = useMemo(() => {
     if (selection.size === 0 || !result) return [];
     const shown = new Uint8Array(store.size);
@@ -412,18 +462,15 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     });
   };
 
-  // The bulk bar closes with its selection; the focus, on its Apply or
-  // Clear selection, goes back to the grid's active cell first.
-  const closeBulk = () => {
-    focusGrid();
-    setSelection(new Set());
-  };
-
   const applyBulk = () => {
+    setDialog(null);
     if (selectedRows.length === 0 || !canBulk(role)) return;
     const res = history.current.setField(store, selectedRows, "assignee", bulkAssignee, role, Date.now());
     const skipped = res.rejected.length;
-    closeBulk();
+    // The selection bar goes with the selection; the focus goes back to
+    // the grid's active cell.
+    setSelection(new Set());
+    requestAnimationFrame(focusGrid);
     if (!res.entry) {
       toasts.add({ tone: "warning", text: t.bulkSkipped(integer(skipped)), timeout: 6000 });
       return;
@@ -450,8 +497,11 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     toasts.add({ tone: "positive", text: total > CSV_LIMIT ? t.exportedCapped(integer(n), integer(total)) : t.exported(integer(n), n), timeout: 6000 });
   };
 
-  // Keyboard.
+  // Keyboard: the queue's keys while the queue is shown; the open case has
+  // its own (the assistant's and Q back to the queue).
+  const searchBox = useRef<HTMLDivElement>(null);
   const app = t.shortcutGroups.app;
+  const queueShown = openCase === null;
   const shortcuts: Shortcut[] = [
     { key: "/", description: t.keys.search, group: app, onTrigger: () => searchBox.current?.querySelector("input")?.focus() },
     { key: "?", description: t.keys.help, group: app, onTrigger: () => setDialog("shortcuts") },
@@ -460,11 +510,12 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     { key: "x", description: t.keys.clear, group: app, onTrigger: clearFilters },
     { key: "s", description: t.keys.saveView, group: app, onTrigger: () => setDialog("save") },
     { key: "c", description: t.keys.colleague, group: app, onTrigger: simulate },
+    { key: "o", description: t.case.keys.open, group: app, onTrigger: () => openCaseOf(activeRow), isDisabled: activeRow === undefined },
   ];
   // Listed only for a role that may export: Stoa draws a disabled line in
   // the shortcuts dialog below the contrast axe asks for.
   if (canExport(role)) shortcuts.push({ key: "e", description: t.keys.export, group: app, onTrigger: () => void exportCsv() });
-  const help = useShortcuts(shortcuts, { enabled: dialog === null && conflict === null });
+  const help = useShortcuts(shortcuts, { enabled: queueShown && dialog === null && conflict === null });
   const apple = isApplePlatform();
   const k = (key: string, modifiers?: Shortcut["modifiers"]) => shortcutKeys({ key, modifiers }, apple, stoa.messages);
   const gridGroups: ShortcutGroup[] = [
@@ -514,6 +565,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
       onEdit: (edit) => latest.current.onEdit(edit),
       onEditStart: (target) => latest.current.onEditStart(target),
       onEditCancel: () => latest.current.endSession(),
+      onActiveCellChange: setActiveCell,
     }),
     [],
   );
@@ -535,48 +587,6 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const hidden = hiddenForRole(view, role);
   const shownCount = result?.index.length ?? 0;
 
-  const chips = (list: readonly string[], counts: Uint32Array | undefined) => list.map((label, i) => ({ id: i, label, count: counts?.[i] }));
-  const chipGroups = (
-    <>
-      <ChipRow>
-        <FilterChipGroup<number>
-          label={t.stageGroup}
-          size="small"
-          chips={chips(labels.stage, facets?.stage)}
-          value={filters.stage}
-          onChange={(stage) => setFilters({ stage })}
-        />
-      </ChipRow>
-      <ChipRow>
-        <FilterChipGroup<number>
-          label={t.deadlineGroup}
-          size="small"
-          chips={chips(labels.deadline, facets?.deadline)}
-          value={filters.deadline}
-          onChange={(deadline) => setFilters({ deadline })}
-        />
-      </ChipRow>
-      <ChipRow>
-        <FilterChipGroup<number>
-          label={t.streamGroup}
-          size="small"
-          chips={chips(labels.stream, facets?.stream)}
-          value={filters.stream}
-          onChange={(stream) => setFilters({ stream })}
-        />
-      </ChipRow>
-      <ChipRow>
-        <FilterChipGroup<number>
-          label={t.sourceGroup}
-          size="small"
-          chips={chips(labels.source, facets?.source)}
-          value={filters.source}
-          onChange={(source) => setFilters({ source })}
-        />
-      </ChipRow>
-    </>
-  );
-
   // The open cases of the register, for the demo's line about the data.
   const openCount = useMemo(() => {
     let n = 0;
@@ -584,187 +594,230 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return n;
   }, [store, snap.load.loadedRows, version]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The columns the chooser offers: every one the role sees, but the two
+  // that stay pinned.
+  const pinned = new Set<string>(PINNED_COLUMNS);
+  const forbidden = new Set(forbiddenColumns(role));
+  const choosable = COLUMNS.filter((c) => !pinned.has(c.id) && !forbidden.has(c.id)).map((c) => ({ id: c.id, header: labels.columns[c.id] ?? c.id }));
+  const chosen = view.columns.filter((id) => !pinned.has(id) && !forbidden.has(id));
+  const chooserOrder = [...chosen, ...choosable.map((c) => c.id).filter((id) => !chosen.includes(id))];
+  const chooserHidden = choosable.map((c) => c.id).filter((id) => !chosen.includes(id));
+  const setChosen = (order: readonly string[], hiddenIds: readonly string[]) => {
+    const kept = view.columns.filter((id) => forbidden.has(id));
+    patchView({ columns: [...PINNED_COLUMNS, ...order.filter((id) => !hiddenIds.includes(id)), ...kept] });
+  };
+
+  const demo = (
+    // What only the demo has: generated data, a simulated colleague and a
+    // role switch instead of a sign-in. Apart from the desk's own
+    // controls, and saying what the colleague does.
+    <section className="desk__demo" aria-label={t.demoTitle}>
+      <p>
+        {t.demoData(integer(store.size), integer(openCount))}{" "}
+        {config.colleagueSeconds === null ? t.demoColleagueOff : t.demoColleague(integer(config.colleagueSeconds))}
+      </p>
+      <ChoiceGroup<Role>
+        label={t.role}
+        size="small"
+        value={role}
+        onChange={changeRole}
+        choices={[
+          { id: "operator", label: t.roles.operator },
+          { id: "signatory", label: t.roles.signatory },
+          { id: "supervisor", label: t.roles.supervisor },
+        ]}
+      />
+      <Button onPress={simulate}>{t.simulateColleague}</Button>
+    </section>
+  );
+
   return (
     <div className="desk">
-      {/* What only the demo has: generated data, a simulated colleague and
-          a role switch instead of a sign-in. Apart from the desk's own
-          controls, and saying what the colleague does. */}
-      <section className="desk__demo" aria-label={t.demoTitle}>
-        <p>
-          {t.demoData(integer(store.size), integer(openCount))}{" "}
-          {config.colleagueSeconds === null ? t.demoColleagueOff : t.demoColleague(integer(config.colleagueSeconds))}
-        </p>
-        <ChoiceGroup<Role>
-          label={t.role}
-          size="small"
-          value={role}
-          onChange={changeRole}
-          choices={[
-            { id: "operator", label: t.roles.operator },
-            { id: "signatory", label: t.roles.signatory },
-            { id: "supervisor", label: t.roles.supervisor },
-          ]}
-        />
-        <Button onPress={simulate}>{t.simulateColleague}</Button>
-      </section>
-
-      <section className="desk__bar" aria-label={t.view}>
-        <div className="desk__row">
-          <div className="desk__view">
-            <Select<string>
-              label={t.view}
-              size="small"
-              options={viewOptions}
-              value={view.name || "-"}
-              onChange={(name) => {
-                const next = allViews.find((v) => v.name === name);
-                if (next) applyView(next);
-              }}
-            />
-            {dirty && <Tag tone="warning" size="small">{t.viewModified}</Tag>}
-          </div>
-          <ChoiceGroup<Density>
-            label={t.density}
-            size="small"
-            value={view.density}
-            onChange={(d) => patchView({ density: d })}
-            choices={[
-              { id: "compact", label: t.densities.compact },
-              { id: "default", label: t.densities.default },
-              { id: "comfortable", label: t.densities.comfortable },
-            ]}
-          />
-        </div>
-        <Toolbar label={t.actionsLabel}>
-          <Button onPress={() => setDialog("save")}>{t.saveView}</Button>
-          <Button variant="ghost" onPress={copyLink}>{t.copyLink}</Button>
-          {isSaved && (
-            <Button variant="ghost" onPress={() => setDialog("delete")}>{t.deleteView}</Button>
-          )}
-          <Button variant="ghost" onPress={() => setDialog("columns")}>{t.columns}</Button>
-          {canExport(role) && (
-            <Button variant="ghost" onPress={() => void exportCsv()} isDisabled={!result || shownCount === 0}>
-              {t.exportCsv}
-            </Button>
-          )}
-          <Button variant="ghost" onPress={() => setDialog("shortcuts")}>{t.shortcuts}</Button>
-        </Toolbar>
-      </section>
-
-      <section className="desk__filters" aria-label={t.filtersLabel}>
-        <div className="desk__search" ref={searchBox}>
-          <TextField
-            label={t.search}
-            value={view.search}
-            placeholder={t.searchHint}
-            onChange={(search) => {
-              mark("filter");
-              patchView({ search });
-            }}
-          />
-        </div>
-        {narrow ? (
-          // On a narrow screen the chip groups fold away above the grid.
-          <Disclosure summary={t.filtersSummary(integer(activeFilterCount(filters)), activeFilterCount(filters))}>
-            {chipGroups}
-          </Disclosure>
-        ) : (
-          chipGroups
-        )}
-        <div className="desk__row desk__status">
-          <p className="desk__count" data-testid="row-count">
-            {countText(t, integer, {
-              shown: result ? shownCount : null,
-              total: store.size,
-              loaded: load.loadedRows,
-              loading: load.loading,
-              failed: load.chunkErrors.reduce((n, e) => n + e.count, 0),
-            })}
-          </p>
-          <span className="muted">{t.asOf(formats.day(AS_OF_DAY))}</span>
-          {snap.busy && result && <span className="muted">{t.updating}</span>}
-          {anyFilter && (
-            <Button variant="ghost" onPress={clearFilters}>
-              {t.clearFilters}
-            </Button>
-          )}
-        </div>
-        {narrow && <p className="muted desk__hint">{t.narrowHint}</p>}
-      </section>
-
-      {role !== "supervisor" && (
-        // What the role works on and may not do; the supervisor may do all.
-        <Callout tone="info" role="none">
-          {role === "operator" ? t.roleNotes.operator(pools.assignees[SELF_ASSIGNEE] ?? "") : t.roleNotes.signatory(pools.signatories[SELF_SIGNATORY] ?? "")}
-          {hidden.length > 0 && ` ${t.roleHidden(hidden.map((id) => labels.columns[id] ?? id).join(", "))}`}
-        </Callout>
-      )}
-      {snap.mode === "main" && (
-        // Announced when the worker fails during the session; a page opened
-        // without one says it as part of the page.
-        <Callout tone="warning" role={config.useWorker ? "alert" : "none"}>
-          {t.workerFallback}
-        </Callout>
-      )}
-      {load.chunkErrors.length > 0 && (
-        <Callout
-          tone="negative"
-          role="alert"
-          title={t.chunkErrorTitle}
-          action={
-            <Button
-              onPress={(e) => {
-                // The notice and its button go once the rows are in.
-                keepFocusInPlace(e.target);
-                load.chunkErrors.forEach((err) => engine.retry(err.index));
-              }}
-            >
-              {t.retry}
-            </Button>
-          }
-        >
-          {load.chunkErrors.map((e) => t.chunkErrorRange(integer(e.start + 1), integer(e.start + e.count))).join(" ")}
-        </Callout>
-      )}
-      {load.loading && <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />}
-
-      {selectedRows.length > 0 && (
-        <section className="desk__bulk" aria-label={t.bulkLabel}>
-          <p className="desk__count">{t.selected(integer(selectedRows.length))}</p>
-          {canBulk(role) ? (
-            <>
-              <Select<number>
-                label={t.bulkAssignee}
-                size="small"
-                options={pools.assignees.map((name, id) => ({ id, label: name }))}
-                value={bulkAssignee}
-                onChange={setBulkAssignee}
-              />
-              <Button variant="primary" onPress={applyBulk}>{t.apply}</Button>
-            </>
-          ) : (
-            <p className="muted">{t.bulkNeedsSupervisor}</p>
-          )}
-          <Button variant="ghost" onPress={closeBulk}>{t.clearSelection}</Button>
-        </section>
-      )}
-
-      <div className="desk__grid" data-density={density} ref={gridBox}>
-        <GridView
-          label={t.gridLabel}
-          rows={rows}
-          columns={columns}
-          sort={sort}
-          selection={selection}
-          highlight={view.search.trim()}
-          loading={loading}
-          emptyState={emptyState}
+      {openCase !== null && openCase >= 0 && openCase < store.size && store.loaded[openCase] === 1 ? (
+        <CaseView
+          store={store}
+          row={openCase}
+          lang={lang}
+          t={t}
           version={version}
-          handlers={gridHandlers}
+          service={service}
+          toasts={toasts}
+          onBack={backToQueue}
+          onOpenCase={openCaseOf}
         />
-      </div>
+      ) : openCase !== null && load.loading ? (
+        <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />
+      ) : (
+        <>
+          {openCase !== null && (
+            <Callout tone="warning" role="alert">
+              {t.case.notFound(config.caseId ?? "")}
+            </Callout>
+          )}
+          {demo}
 
-      <PerfPanel t={t} mode={snap.mode} loaded={load.loadedRows} integer={integer} decimal={decimal} />
+          <section className="desk__bar" aria-label={t.view}>
+            <div className="desk__row">
+              <div className="desk__view">
+                <Select<string>
+                  label={t.view}
+                  size="small"
+                  options={viewOptions}
+                  value={view.name || "-"}
+                  onChange={(name) => {
+                    const next = allViews.find((v) => v.name === name);
+                    if (next) applyView(next);
+                  }}
+                />
+                {dirty && (
+                  <Tag tone="warning" size="small">
+                    {t.viewModified}
+                  </Tag>
+                )}
+              </div>
+              <ChoiceGroup<Density>
+                label={t.density}
+                size="small"
+                value={view.density}
+                onChange={(d) => patchView({ density: d })}
+                choices={[
+                  { id: "compact", label: t.densities.compact },
+                  { id: "default", label: t.densities.default },
+                  { id: "comfortable", label: t.densities.comfortable },
+                ]}
+              />
+            </div>
+            <Toolbar label={t.actionsLabel}>
+              <Button variant="primary" onPress={() => openCaseOf(activeRow)} isDisabled={activeRow === undefined} shortcut={{ key: "o" }}>
+                {activeRow === undefined ? t.case.open : t.case.openCase(rowId(activeRow))}
+              </Button>
+              <Button onPress={() => setDialog("save")}>{t.saveView}</Button>
+              <Button variant="ghost" onPress={copyLink}>
+                {t.copyLink}
+              </Button>
+              {isSaved && (
+                <Button variant="ghost" onPress={() => setDialog("delete")}>
+                  {t.deleteView}
+                </Button>
+              )}
+              <DataGridColumnChooser
+                columns={choosable}
+                order={chooserOrder}
+                hidden={chooserHidden}
+                onOrderChange={(order) => setChosen(order, chooserHidden)}
+                onHiddenChange={(next) => setChosen(chooserOrder, next)}
+                label={t.columns}
+              />
+              {canExport(role) && (
+                <Button variant="ghost" onPress={() => void exportCsv()} isDisabled={!result || shownCount === 0}>
+                  {t.exportCsv}
+                </Button>
+              )}
+              <Button variant="ghost" onPress={() => setDialog("shortcuts")}>
+                {t.shortcuts}
+              </Button>
+            </Toolbar>
+          </section>
+
+          <div className="desk__filters" ref={searchBox}>
+            <FilterBar<string>
+              label={t.filtersLabel}
+              search={{
+                label: t.search,
+                value: view.search,
+                placeholder: t.searchHint,
+                onChange: (search) => {
+                  mark("filter");
+                  patchView({ search });
+                },
+              }}
+              groups={filterGroups}
+              value={chipIds(filters)}
+              onChange={(next) => {
+                mark("filter");
+                patchView({ filters: filtersOf(next) });
+              }}
+              onClear={clearFilters}
+            />
+          </div>
+          <div className="desk__row desk__status">
+            <p className="desk__count" data-testid="row-count">
+              {countText(t, integer, {
+                shown: result ? shownCount : null,
+                total: store.size,
+                loaded: load.loadedRows,
+                loading: load.loading,
+                failed: load.chunkErrors.reduce((n, e) => n + e.count, 0),
+              })}
+            </p>
+            <span className="muted">{t.asOf(formats.day(AS_OF_DAY))}</span>
+            {snap.busy && result && <span className="muted">{t.updating}</span>}
+          </div>
+          {narrow && <p className="muted desk__hint">{t.narrowHint}</p>}
+
+          {role !== "supervisor" && (
+            // What the role works on and may not do; the supervisor may do all.
+            <Callout tone="info" role="none">
+              {role === "operator" ? t.roleNotes.operator(pools.assignees[SELF_ASSIGNEE] ?? "") : t.roleNotes.signatory(pools.signatories[SELF_SIGNATORY] ?? "")}
+              {hidden.length > 0 && ` ${t.roleHidden(hidden.map((id) => labels.columns[id] ?? id).join(", "))}`}
+            </Callout>
+          )}
+          {snap.mode === "main" && (
+            // Announced when the worker fails during the session; a page opened
+            // without one says it as part of the page.
+            <Callout tone="warning" role={config.useWorker ? "alert" : "none"}>
+              {t.workerFallback}
+            </Callout>
+          )}
+          {load.chunkErrors.length > 0 && (
+            <Callout
+              tone="negative"
+              role="alert"
+              title={t.chunkErrorTitle}
+              action={
+                <Button
+                  onPress={(e) => {
+                    // The notice and its button go once the rows are in.
+                    keepFocusInPlace(e.target);
+                    load.chunkErrors.forEach((err) => engine.retry(err.index));
+                  }}
+                >
+                  {t.retry}
+                </Button>
+              }
+            >
+              {load.chunkErrors.map((e) => t.chunkErrorRange(integer(e.start + 1), integer(e.start + e.count))).join(" ")}
+            </Callout>
+          )}
+          {load.loading && <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />}
+
+          <DataGridSelectionBar
+            count={selectedRows.length}
+            label={t.bulkLabel}
+            onClear={() => setSelection(new Set())}
+            actions={canBulk(role) ? [{ id: "assign", label: t.bulkAssign, variant: "primary", onPress: () => setDialog("assign") }] : []}
+          />
+          {selectedRows.length > 0 && !canBulk(role) && <p className="muted desk__bulk-note">{t.bulkNeedsSupervisor}</p>}
+
+          <div className="desk__grid" data-density={density} ref={gridBox}>
+            <GridView
+              label={t.gridLabel}
+              rows={rows}
+              columns={columns}
+              sort={sort}
+              selection={selection}
+              activeCell={activeCell}
+              highlight={view.search.trim()}
+              loading={loading}
+              emptyState={emptyState}
+              version={version}
+              handlers={gridHandlers}
+            />
+          </div>
+
+          <PerfPanel t={t} mode={snap.mode} loaded={load.loadedRows} integer={integer} decimal={decimal} />
+        </>
+      )}
 
       <LiveRegion>{announcement}</LiveRegion>
       <ToastRegion queue={toasts} />
@@ -787,16 +840,23 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
       >
         {t.deleteViewBody}
       </AlertDialog>
-      <ColumnsSheet
-        isOpen={dialog === "columns"}
-        onClose={() => setDialog(null)}
-        columns={view.columns}
-        onChange={(next) => patchView({ columns: next })}
-        role={role}
-        pinStart={!narrow}
-        headers={labels.columns}
-        t={t}
-      />
+      <Dialog
+        isOpen={dialog === "assign"}
+        onOpenChange={(open) => !open && setDialog(null)}
+        title={t.bulkAssignTitle(integer(selectedRows.length), selectedRows.length)}
+        actions={
+          <Button variant="primary" onPress={applyBulk}>
+            {t.apply}
+          </Button>
+        }
+      >
+        <Select<number>
+          label={t.bulkAssignee}
+          options={pools.assignees.map((name, id) => ({ id, label: name }))}
+          value={bulkAssignee}
+          onChange={setBulkAssignee}
+        />
+      </Dialog>
       <ConflictDialog conflict={conflictView} t={t} onKeepTheirs={keepTheirs} onUseMine={useMine} onDismiss={dismissConflict} />
     </div>
   );
@@ -808,6 +868,7 @@ type GridHandlers = {
   onEdit: (edit: DataGridEdit<number>) => void;
   onEditStart: (target: DataGridEditTarget<number>) => void;
   onEditCancel: () => void;
+  onActiveCellChange: (cell: DataGridCell) => void;
 };
 
 type GridViewProps = {
@@ -816,6 +877,7 @@ type GridViewProps = {
   columns: DataGridColumn<number>[];
   sort: DataGridSort | null;
   selection: ReadonlySet<string>;
+  activeCell: DataGridCell;
   highlight: string;
   loading: boolean;
   emptyState: React.ReactNode;
@@ -826,7 +888,7 @@ type GridViewProps = {
 
 /** The DataGrid, drawn again only when one of its inputs changes, not on
  * every change of the desk around it (a chip pressed, a dialog opened). */
-const GridView = memo(function GridView({ label, rows, columns, sort, selection, highlight, loading, emptyState, handlers }: GridViewProps) {
+const GridView = memo(function GridView({ label, rows, columns, sort, selection, activeCell, highlight, loading, emptyState, handlers }: GridViewProps) {
   return (
     <DataGrid<number>
       label={label}
@@ -839,6 +901,8 @@ const GridView = memo(function GridView({ label, rows, columns, sort, selection,
       selectionMode="multiple"
       selectedKeys={selection}
       onSelectionChange={handlers.onSelectionChange}
+      activeCell={activeCell}
+      onActiveCellChange={handlers.onActiveCellChange}
       onEdit={handlers.onEdit}
       onEditStart={handlers.onEditStart}
       onEditCancel={handlers.onEditCancel}
@@ -849,9 +913,3 @@ const GridView = memo(function GridView({ label, rows, columns, sort, selection,
     />
   );
 });
-
-/** A filter group, which shows its own name above its chips, with any
- * chip that goes with it. */
-function ChipRow({ children }: { children: React.ReactNode }) {
-  return <div className="chip-row">{children}</div>;
-}

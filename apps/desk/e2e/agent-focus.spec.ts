@@ -3,7 +3,7 @@
 // would start again at the top of the page. During a run that place is the
 // run's heading, one Tab before Stop.
 import { expect, type Page } from "@playwright/test";
-import { dialog, en, expectPlanState, ready, runSteps, test, throttleCpu } from "./helpers";
+import { dialog, en, expectPlanState, ready, runSteps, test, throttleCpu, agentUrl } from "./agent-helpers";
 
 /** What has the focus, in words; "body" when nothing does. */
 const focused = (page: Page) =>
@@ -49,7 +49,7 @@ async function expectSentToRun(page: Page, what: string, act: () => Promise<void
   });
   await act();
   const first = () => page.evaluate((from) => (window as unknown as { focusLandings: string[] }).focusLandings[from] ?? "nowhere yet", start);
-  await expect.poll(first, { message: what }).toBe(`h2 ${en.run.panel}`);
+  await expect.poll(first, { message: what }).toBe(`h4 ${en.run.panel}`);
 }
 
 /** The confirmation open now, by its own label: the run's next
@@ -61,7 +61,7 @@ async function openConfirmation(page: Page) {
 }
 
 test("after Run the focus is at the run, and Tab goes on to Stop", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   const run = page.getByRole("button", { name: en.plan.run });
   await run.focus();
@@ -76,7 +76,7 @@ test("after Run the focus is at the run, and Tab goes on to Stop", async ({ page
 });
 
 test("a run's decisions keep the focus at the run, from Run to Stop", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   const run = page.getByRole("button", { name: en.plan.run });
   await run.focus();
@@ -109,7 +109,7 @@ test("a run's decisions keep the focus at the run, from Run to Stop", async ({ p
 });
 
 test("Skip and Stop on a failed step keep the focus at the run", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
@@ -120,7 +120,7 @@ test("Skip and Stop on a failed step keep the focus at the run", async ({ page }
   await expect(runSteps(page).nth(3)).toContainText("Skipped");
   // The same failure in a new run: Stop this time. Nothing comes after a
   // stop, so the focus stays at the run.
-  await page.goto("/?scale=0.05&seed=7");
+  await page.goto(agentUrl("scale=0.05&seed=7"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
@@ -130,7 +130,7 @@ test("Skip and Stop on a failed step keep the focus at the run", async ({ page }
 });
 
 test("Stop pressed in the run bar leaves the focus at the run", async ({ page }) => {
-  await page.goto("/?scale=4");
+  await page.goto(agentUrl("scale=4"));
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_none }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
@@ -142,7 +142,7 @@ test("Stop pressed in the run bar leaves the focus at the run", async ({ page })
 });
 
 test("Undo on a step leaves the focus in place", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.confirm.email }).click();
@@ -157,7 +157,7 @@ test("Undo on a step leaves the focus in place", async ({ page }) => {
 });
 
 test("removing the last step gives the focus to Restore", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(agentUrl());
   await ready(page);
   const removes = page.locator(".stoa-reorder__remove");
   while ((await removes.count()) > 1) await removes.first().click();
@@ -168,7 +168,7 @@ test("removing the last step gives the focus to Restore", async ({ page }) => {
 });
 
 test("New plan gives the focus to Run on the new plan", async ({ page }) => {
-  await page.goto("/?scale=0.05&undoWindow=1");
+  await page.goto(agentUrl("scale=0.05&undoWindow=1"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await dialog(page);
@@ -181,7 +181,7 @@ test("New plan gives the focus to Run on the new plan", async ({ page }) => {
 });
 
 test("New plan confirmed in its dialog gives the focus to Run on the new plan", async ({ page }) => {
-  await page.goto("/?scale=0.05");
+  await page.goto(agentUrl("scale=0.05"));
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.confirm.email }).click();
@@ -201,7 +201,7 @@ test("the run service's buttons leave the focus in place when their notice goes"
   const context = await browser.newContext({ serviceWorkers: "block" });
   const page = await context.newPage();
   await throttleCpu(page, cpuThrottle);
-  await page.goto("/");
+  await page.goto(agentUrl());
   await expect(page.getByText(en.service.failedTitle)).toBeVisible();
   await page.getByRole("button", { name: en.service.usePage }).focus();
   await page.keyboard.press("Enter");

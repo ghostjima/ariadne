@@ -6,12 +6,6 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/desk", "exec", "vite", "--host", "127.0.0.1", "--port", "5182", "--strictPort"],
       "port": 5182
-    },
-    {
-      "name": "ariadne-agent",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "apps/agent", "exec", "vite", "--host", "127.0.0.1", "--port", "5183", "--strictPort"],
-      "port": 5183
     }
   ]
 }

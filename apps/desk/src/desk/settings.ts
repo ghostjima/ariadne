@@ -2,13 +2,16 @@
 // the role, demo switches, and the saved views.
 import { ROLES, parseView, parseViews, serializeViews, type Role, type View } from "@ariadne/grid";
 
-export const VIEWS_KEY = "argus-desk.views";
+export const VIEWS_KEY = "ariadne.views";
 
 export type UrlConfig = {
   view: View | null;
   role: Role;
-  /** The scale mode: 50,000 rows instead of the register's realistic size. */
+  /** The scale mode (?rows=50000): 50,000 rows instead of the register's
+   * realistic size. */
   scale: boolean;
+  /** The case to open (?case=C-000123), as written in the link. */
+  caseId: string | null;
   /** Chunk indices that fail once, to show the error state. */
   failChunks: number[];
   /** No worker: generation and queries on the main thread. */
@@ -25,7 +28,8 @@ export function readUrlConfig(search: string = location.search): UrlConfig {
   return {
     view: parseView(params.get("view")),
     role: ROLES.find((r) => r === params.get("role")) ?? "supervisor",
-    scale: params.get("scale") === "50000",
+    scale: params.get("rows") === "50000",
+    caseId: params.get("case"),
     failChunks: fail
       ? fail
           .split(",")

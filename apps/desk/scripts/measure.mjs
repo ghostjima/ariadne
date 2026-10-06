@@ -39,7 +39,7 @@ async function waitForServer() {
 // On all 50,000 cases of the scale mode (the desk opens on the open ones
 // of its realistic register).
 async function openDesk(page, query = "colleague=off") {
-  await page.goto(`${BASE}/?${query}&scale=50000&view=${serializeView(DEFAULT_VIEW)}`);
+  await page.goto(`${BASE}/?${query}&rows=50000&lang=en&view=${serializeView(DEFAULT_VIEW)}`);
   await page.getByTestId("row-count").filter({ hasText: "50,000 of 50,000 cases" }).waitFor({ timeout: 20_000 });
 }
 
@@ -52,13 +52,13 @@ async function clearMeasures(page) {
 }
 
 const measures = (page, name) =>
-  page.evaluate((n) => performance.getEntriesByName(`argus:${n}`).map((e) => e.duration), name);
+  page.evaluate((n) => performance.getEntriesByName(`ariadne:${n}`).map((e) => e.duration), name);
 
 /** Runs an input and waits for its measure: the grid repainted with its result. */
 async function timed(page, name, action) {
   const before = (await measures(page, name)).length;
   await action();
-  await page.waitForFunction(([n, b]) => performance.getEntriesByName(`argus:${n}`).length > b, [name, before]);
+  await page.waitForFunction(([n, b]) => performance.getEntriesByName(`ariadne:${n}`).length > b, [name, before]);
 }
 
 async function main() {
@@ -72,12 +72,12 @@ async function main() {
     const out = {};
 
     // Time to first rows: navigation start to the first painted frame with
-    // rows (the app's argus:first-rows measure), fresh page each run.
+    // rows (the app's ariadne:first-rows measure), fresh page each run.
     const firstRows = [];
     for (let i = 0; i < RUNS; i++) {
       const page = await context.newPage();
       await openDesk(page);
-      await page.waitForFunction(() => performance.getEntriesByName("argus:first-rows").length > 0);
+      await page.waitForFunction(() => performance.getEntriesByName("ariadne:first-rows").length > 0);
       firstRows.push((await measures(page, "first-rows"))[0]);
       await page.close();
     }
@@ -95,7 +95,7 @@ async function main() {
     out.heapAfterGc = await heap();
 
     // Filter latency: status chips toggled on and off (input to repainted
-    // grid, the app's argus:filter measure).
+    // grid, the app's ariadne:filter measure).
     await clearMeasures(page);
     const chips = ["Registered", "Waiting for facts", "Closed", "Overdue", "Block, 161-FZ", "Bank of Russia"];
     for (let i = 0; i < 40; i++) {
