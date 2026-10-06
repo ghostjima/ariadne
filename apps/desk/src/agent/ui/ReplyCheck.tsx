@@ -21,10 +21,13 @@ export function ReplyDraftView({ x, draft }: { x: Text; draft: ReplyDraft }) {
   );
 }
 
-export function ReplyCheck({ x, draft, facts }: { x: Text; draft: ReplyDraft | null; facts: CaseFacts }) {
+/** `text`, when given, is the letter as it stands (a person's edit); the
+ * draft's grounds, options and deadlines are checked as the draft names
+ * them, the sentences on the text. */
+export function ReplyCheck({ x, draft, facts, text }: { x: Text; draft: ReplyDraft | null; facts: CaseFacts; text?: string }) {
   const { t, f } = x;
   if (!draft) return <p className="muted">{t.rubric.noDraft}</p>;
-  const findings = checkReply(draft, replyText(x, draft), facts);
+  const findings = checkReply(draft, text ?? replyText(x, draft), facts);
   if (findings.length === 0)
     return (
       <Callout tone="positive" role="none">

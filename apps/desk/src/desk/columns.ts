@@ -171,9 +171,12 @@ export type ColumnContext = {
   role: Role;
   /** Pin the case and the applicant at the start; off on a narrow screen. */
   pin?: boolean;
+  /** A refusal beyond the engine's edit rules (a reply not signed is not
+   * sent), as its sentence, checked first. */
+  check?: (row: number, field: EnumField, value: number) => string | null;
 };
 
-export function buildColumns(ids: readonly string[], { store, lang, t, stoa, formats, role, pin = true }: ColumnContext): DataGridColumn<number>[] {
+export function buildColumns(ids: readonly string[], { store, lang, t, stoa, formats, role, pin = true, check }: ColumnContext): DataGridColumn<number>[] {
   const { pools, labels } = POOLS[lang];
   const pinned = new Set<string>(pin ? PINNED_COLUMNS : []);
   const columns: DataGridColumn<number>[] = [];
@@ -191,6 +194,8 @@ export function buildColumns(ids: readonly string[], { store, lang, t, stoa, for
             kind: "enum",
             options: list.map((text, value) => ({ id: String(value), label: text })),
             validate: (value, i) => {
+              const refused = check?.(i, field, Number(value)) ?? null;
+              if (refused) return refused;
               const error = checkField(field, Number(value), editContext(store, i), role);
               return error ? editErrorText(t, formats, labels, error) : null;
             },

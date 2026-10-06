@@ -3,6 +3,7 @@
 // Timeline; it uses the same marks as the card's channel timeline.
 import type { Actor, JournalEntry, Role, TextPools } from "@ariadne/grid";
 import type { Strings } from "../i18n";
+import { parseDecisionComment } from "./caseFile";
 import type { WorkflowStrings } from "./i18n";
 
 /** The person a role's index names. */
@@ -46,10 +47,27 @@ export function Journal({ entries, w, t, pools, stages, time }: JournalProps) {
             {e.from !== e.to && <span className="muted">{w.move(stages[e.from] ?? "", stages[e.to] ?? "")}</span>}
             <span className="muted">{actorText(w, t, pools, e.actor)}</span>
             {e.reason && <span>{w.why(w.reasons[e.reason])}</span>}
-            {e.comment && <span className="journal__comment">{w.said(e.comment)}</span>}
+            {e.comment && (e.action === "sign" || e.action === "defer") ? (
+              <DecisionLines w={w} comment={e.comment} />
+            ) : (
+              e.comment && <span className="journal__comment">{w.said(e.comment)}</span>
+            )}
           </div>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** A signature's or a deferral's decision record, as the journal keeps it. */
+function DecisionLines({ w, comment }: { w: WorkflowStrings; comment: string }) {
+  const record = parseDecisionComment(comment);
+  if (!record) return <span className="journal__comment">{w.said(comment)}</span>;
+  return (
+    <>
+      <span>{w.signature.record(w.signature.decisions[record.decision])}</span>
+      {record.concerns && <span className="journal__comment">{w.signature.concernsSaid(record.concerns)}</span>}
+      {record.wrong && <span className="journal__comment">{w.signature.wrongSaid(record.wrong)}</span>}
+    </>
   );
 }

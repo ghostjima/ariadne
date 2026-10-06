@@ -13,3 +13,29 @@
 .journal__comment { white-space: pre-wrap; }
 .case__main { display: grid; gap: var(--stoa-space-4); align-content: start; min-inline-size: 0; }
 .handover { display: grid; gap: var(--stoa-space-1); }
+/* The letter, its changes and the signature. */
+.letter-panel .stoa-panel { display: grid; gap: var(--stoa-space-3); align-content: start; }
+.letter-panel .stoa-panel__title { margin: 0; }
+.letter-panel .stoa-panel__title:focus { outline: none; }
+.letter-panel .stoa-panel__title:focus-visible { outline: var(--stoa-focus-width) solid var(--stoa-color-focus); outline-offset: 2px; }
+.letter-panel p { margin: 0; }
+.letter-panel h4 { margin: 0; font-size: var(--stoa-font-size-md); font-weight: var(--stoa-font-weight-semibold); }
+.letter { margin: 0; display: grid; gap: var(--stoa-space-2); }
+.letter blockquote {
+  margin: 0; padding: var(--stoa-space-3); display: grid; gap: var(--stoa-space-1);
+  border: 1px solid var(--stoa-color-border); border-radius: var(--stoa-radius-md);
+  background: var(--stoa-color-surface); overflow-wrap: anywhere;
+}
+.letter blockquote p { margin: 0; }
+.letter__signatory { font-weight: var(--stoa-font-weight-medium); }
+.diff {
+  padding: var(--stoa-space-3); border: 1px solid var(--stoa-color-border); border-radius: var(--stoa-radius-md);
+  white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6;
+}
+.diff__removed { text-decoration: line-through; color: var(--stoa-color-text); background: var(--stoa-color-down-wash); }
+.diff__added { text-decoration: underline; color: var(--stoa-color-text); background: var(--stoa-color-up-wash); }
+.text-area { display: grid; gap: var(--stoa-space-1); }
+.text-area__input { inline-size: 100%; box-sizing: border-box; min-block-size: 12rem; resize: vertical; font: inherit; line-height: 1.5; }
+.letter-form { display: grid; gap: var(--stoa-space-3); }
+.letter-form__actions { display: flex; flex-wrap: wrap; gap: var(--stoa-space-2); }
+.signature-record { display: grid; gap: var(--stoa-space-1); }
