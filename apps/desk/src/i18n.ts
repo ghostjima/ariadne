@@ -349,7 +349,7 @@ const en: Strings = {
 };
 
 const ruStrings: Strings = {
-  title: "Ariadne: стол заявок",
+  title: "Ariadne Стол заявок",
   subtitle: "Пятьдесят тысяч заявок в одной таблице",
   gridLabel: "Заявки",
 
@@ -513,7 +513,7 @@ const ruStrings: Strings = {
 };
 
 const ar: Strings = {
-  title: "Ariadne: مكتب الطلبات",
+  title: "Ariadne مكتب الطلبات",
   subtitle: "خمسون ألف طلب خدمة في جدول واحد",
   gridLabel: "الطلبات",
 
