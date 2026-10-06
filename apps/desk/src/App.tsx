@@ -1,23 +1,13 @@
 import { useLayoutEffect } from "react";
-import {
-  AppHeader,
-  I18nProvider,
-  LanguageSwitch,
-  PageShell,
-  ThemeSwitch,
-  useLanguagePreference,
-  useThemePreference,
-} from "@ghostjima/stoa-react";
+import { AppHeader, I18nProvider, LanguageSwitch, PageShell, ThemeSwitch, useAppPreferences, useBreakpoint } from "@ghostjima/stoa-react";
 import { Desk } from "./desk/Desk";
 import { LANGUAGES, LOCALES, isLang, strings } from "./i18n";
-
-export const THEME_STORE = { param: "theme", storageKey: "argus-desk.theme" };
-export const LANGUAGE_STORE = { param: "lang", storageKey: "argus-desk.lang" };
+import { PREFERENCES } from "./preferences";
 
 export function App() {
-  const theme = useThemePreference(THEME_STORE);
-  const { language, setLanguage } = useLanguagePreference({ languages: LANGUAGES, ...LANGUAGE_STORE });
-  const lang = isLang(language) ? language : "en";
+  const { language, theme } = useAppPreferences(PREFERENCES);
+  const narrow = useBreakpoint() === "narrow";
+  const lang = isLang(language.language) ? language.language : "ru";
   const t = strings[lang];
 
   useLayoutEffect(() => {
@@ -32,11 +22,13 @@ export function App() {
         header={
           <AppHeader
             title={t.title}
-            subtitle={t.subtitle}
+            // On a phone the subtitle would take the header two more
+            // lines; the title names the desk.
+            subtitle={narrow ? undefined : t.subtitle}
             actions={
               <>
                 <ThemeSwitch value={theme.choice} onChange={theme.setChoice} />
-                <LanguageSwitch languages={LANGUAGES} value={lang} onChange={setLanguage} />
+                <LanguageSwitch languages={LANGUAGES} value={lang} onChange={language.setLanguage} />
               </>
             }
           />

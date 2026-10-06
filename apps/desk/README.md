@@ -3,23 +3,30 @@
 Part of the [Ariadne Desk](../../README.md) repository; the measured
 badges, and what each one counts, are in its README.
 
-A desk for the complaints register of a bank, keyboard first: the cases
-in one grid, each with its legal deadline counted by the rules engine.
+One desk for the complaints and refusals of a bank, keyboard first: the
+queue of cases, each with its legal deadline counted by the rules engine,
+and the open case in one window, with its card and an assistant beside
+it that proposes and stops for a person at every risky step. In Russian
+(the default) and English.
+
+## The queue
 
 - **The register**: 1,200 invented complaints received over four months
   (about 300 a month, a few hundred open), in four streams: complaints
   under 442-FZ, money claims under 123-FZ, blocks under 161-FZ with the
   sign of Order No. OD-2506, refusals under 115-FZ with their category.
-  `?scale=50000` opens the scale mode, the same generator over 50,000
+  `?rows=50000` opens the scale mode, the same generator over 50,000
   rows.
-- **Deadlines**: the reply's last day and the working days left, counted
-  from the day the data is taken (6 October 2026) by ariadne-rules on its
-  production calendar; extended by ten working days where the rules allow
-  it.
-- **Filters with counts**: stage, deadline (overdue, due within 3 working
-  days, later, answered), stream and source chips, each with the number of
-  cases it would show, and a text search over case, applicant, subject,
-  operation, assignee and note, marked in the cells.
+- **The time left** in working days, counted from the day the data is
+  taken (6 October 2026) by ariadne-rules on its production calendar, in
+  the words and with the symbol of Stoa's DeadlineCell: an exclamation
+  mark within 3 working days, a cross once overdue. The stage carries a
+  tone too: a tick once answered, an exclamation mark while a reply waits
+  for its signature.
+- **Filters with counts** in Stoa's FilterBar: stage, deadline (overdue,
+  due within 3 working days, later, answered), stream and source, and a
+  search over case, applicant, subject, operation, assignee and note,
+  marked in the cells; on a phone the groups fold into a sheet.
 - **Views**: open cases (where the desk opens, the least time left first),
   due within 3 working days, overdue, forwarded by the Bank of Russia,
   waiting for facts, awaiting signature and all cases; saved views kept
@@ -27,8 +34,8 @@ in one grid, each with its legal deadline counted by the rules engine.
 - **Roles**: the operator works the cases assigned to them (the stage up
   to signature, the decision, the ground, notes); the signatory signs and
   sends the replies assigned to them, or returns one to drafting; the
-  supervisor sees every case, approves extensions, reassigns cases in
-  bulk and exports.
+  supervisor sees every case, approves extensions, reassigns cases and
+  exports.
 - **Inline edits** of the stage, the decision, the ground, the extension,
   the assignee and the note (Enter, F2 or a double click), checked by the
   engine before they are saved: a refusal needs a legal ground of its own
@@ -36,24 +43,21 @@ in one grid, each with its legal deadline counted by the rules engine.
   only once decided and out only after signature, a money claim under
   123-FZ is never extended, an extension comes no later than the last day
   for its notice, a note has at most 200 characters.
-- **Bulk reassignment** of the selection (Space, Shift with the arrows,
-  Ctrl or Cmd with A), undone from the toast or with Ctrl or Cmd with Z.
+- **Bulk reassignment** from Stoa's DataGridSelectionBar (Space, Shift
+  with the arrows, Ctrl or Cmd with A to select), undone from the toast or
+  with Ctrl or Cmd with Z.
+- **Columns** from Stoa's DataGridColumnChooser: show, hide and reorder;
+  the case and the applicant stay pinned.
 - **Edit conflicts**: a simulated colleague edits cases now and then
   (`?colleague=off` stops it, `?colleague=N` sets the mean interval in
-  seconds, the "Colleague's edit" button or C makes one now). The demo's
-  own controls (the role and the colleague's edit) sit in a strip of
-  their own above the desk. When the colleague changes the cell you are
-  editing, saving opens a dialog with both values and the one you started
-  from.
+  seconds, the "Colleague's edit" button or C makes one now). When the
+  colleague changes the cell you are editing, saving opens a dialog with
+  both values and the one you started from.
 - **CSV export** of the current view, its columns and order, at most
   5,000 rows.
-- **Columns**: show, hide and reorder them; the case and the applicant
-  stay pinned.
-- **Narrow screens** (below 40rem, a phone): no column is pinned, so the
-  grid scrolls sideways to every column, and the filter groups fold into
-  one line above the grid.
-- **Shortcuts**: `?` lists them, `/` goes to the search, G to the grid, X
-  clears the filters, S saves the view, E exports.
+- **Keys**: `?` lists them, `/` goes to the search, G to the grid, O opens
+  the case of the active row, X clears the filters, S saves the view, E
+  exports.
 
 Loading, a partial load failure (`?failChunk=1` fails one 400-row chunk
 once, with a retry), no matches, and running without a worker
@@ -61,82 +65,180 @@ once, with a retry), no matches, and running without a worker
 screen readers. A performance panel at the bottom shows what this tab
 measured.
 
-The header switches the theme (System, Light, Dark; System by default)
-and the language (English and Russian); both are kept in the link
-(`?theme=`, `?lang=`) and for the next visit. The data follows the
-language: the same cases, with names, complaint texts and notes from the
-engine's pool for that language.
+## The open case
 
-## Engine
+O, the toolbar's Open case or a link (`?case=C-000867`) opens a case;
+Q or Back to the queue returns to the row it was opened from, with the
+focus on it. On a wide screen the card and the assistant sit side by
+side; on a narrower one they are two tabs (`?panel=assistant` opens the
+assistant's).
+
+- **The card**: the complaint as the applicant wrote it (shown as the
+  applicant's words, never followed), the applicant, the operation
+  behind it, the flags around the operation (the OD-2506 sign with the
+  order's own Russian wording from ariadne-rules, or the 115-FZ category
+  with its article and item, and the deadlines they bring), the timeline
+  of its channels (receipt, registration and its notice, an extension,
+  the reply and the copy to the Bank of Russia), the cases linked to it
+  or from the same applicant, and the deadline.
+- **The deadline, worked out**: Stoa's DerivationTable, step by step,
+  each with its formula and source: receipt, registration (the next
+  working day), the reply term (15 working days, or 123-FZ's), the days
+  off the term skips on the production calendar, the extension (taken,
+  possible until the last day for its notice, or refused by the rules),
+  and the time left. Every source names its act, article and part, the
+  revision the crate checked it against, and links to the text.
+
+## The assistant
+
+The assistant is [`@ariadne/runner`](../../packages/runner), a
+deterministic engine, not a model: a seeded scenario, a consent rule, and
+a run that replays the same way from the same plan and the same
+decisions. The panel says so. Give it how much it may do without asking;
+read its plan, reorder it, remove steps, mark the ones that must ask
+first; run it and watch every step. Risky steps wait for confirmation
+with a draft of what they will do (high risk always asks: no setting
+lowers that floor), a failed step waits for Retry, Skip or Stop, the
+assistant asks before it leaves the plan, Stop is one key away at every
+moment, and what was done can be undone: internal changes at any time,
+outgoing letters within a window that is counted down on screen. A
+summary closes the run. Each case keeps its own run while the page is
+open.
+
+Keys in the open case: R runs the plan, S stops, P pauses or resumes, Q
+goes back to the queue, ? lists them. In a confirmation the focus is on
+the safe action, so an Enter pressed by habit does not confirm.
+
+### How the run streams
+
+The deployment is static: there is no server. The run streams as
+server-sent events from a Service Worker in the browser
+(`src/agent/sw.ts`, built to `sw.js` at the base path), which answers the
+engine's request shape with `@ariadne/runner/sse`. The page owns the
+approved plan and the decision log; each segment of the run is a request
+with both and the id of the last event the page has, and ends at the
+next decision or at the end of the run.
+
+- The desk starts the worker when it loads. First visit: the worker
+  installs, takes over the page at once (`skipWaiting`, `clients.claim`)
+  and the page waits for it before the first stream. A forced reload
+  loads the page without the worker; the page asks it to claim the page
+  again.
+- A new deployment of the worker takes over the open page as soon as the
+  browser sees it; a stream that is open moves to the new worker and goes
+  on after the last event.
+- A dropped connection is resumed by the page with the engine's `after`
+  parameter. In Chromium the request with which EventSource reconnects
+  through a Service Worker carries no `Last-Event-ID`, so the browser's
+  own reconnection would replay the segment from its start.
+- Where service workers cannot run (a private window, a privacy setting),
+  the panel says so and offers to run the engine inside the tab.
+
+Stop sends a stop decision placed after the last event seen. The engine
+ends the run there: a step that is running finishes (it never cuts an
+action in half) and no new step starts; a step waiting for a decision is
+skipped at once. Pause closes the stream between two events, and Resume
+opens the next segment after the last one.
+
+Link parameters for the stream: `?seed=` (the scenario number),
+`?speed=fast`, `?undoWindow=<seconds>`, `?drop=1` (cut the first segment
+once, to see a reconnection) and `?scale=<factor>` (multiplies every
+delay between events; 0 sends a segment at once).
+
+## Preferences
+
+The header switches the theme (System, Light, Dark; System by default)
+and the language (Russian by default, and English). Both are kept in the
+link (`?theme=`, `?lang=`) and for the next visit (`ariadne.theme`,
+`ariadne.lang`), and set before the first paint by Stoa's
+`firstPaintScript`, which the build inlines into the page from the same
+description `useAppPreferences` reads (`src/preferences.ts`). Saved views
+are kept under `ariadne.views`. The data follows the language: the same
+cases, with names, complaint texts and notes from the engine's pool for
+that language.
+
+## Engines
 
 [`@ariadne/grid`](../../packages/grid) generates the register and does
 the data work: columnar store, filters with facet counts, sorting, search,
 views, role rules, edit validation, undo history, the simulated colleague
-and CSV. Its legal dates come from
-[ariadne-rules](../../crates/ariadne-rules) through
-[`@ariadne/rules`](../../packages/rules), the WebAssembly build of the
-Rust engine, which the worker loads before it generates a row.
-Generation, filtering, sorting, search and CSV run in a Web Worker: the
-desk worker answers the engine's own `generate` and `retry` requests with
-its chunk producer (so the engine's `DatasetLoader` drives it), keeps a
-copy of every chunk it sends, and answers queries over that copy. Edits
-are made on the page's store through the engine's `EditHistory` and
-copied to the worker. Without a worker the same code, the rules module
-included, runs on the main thread.
+and CSV. Its legal dates come from [ariadne-rules](../../crates/ariadne-rules)
+through [`@ariadne/rules`](../../packages/rules), the WebAssembly build of
+the Rust engine: the desk worker loads it before it generates a row, and
+the page loads it for the case card. Generation, filtering, sorting,
+search and CSV run in a Web Worker; edits are made on the page's store
+through the engine's `EditHistory` and copied to the worker. Without a
+worker the same code runs on the main thread.
 
 The interface is React and TypeScript on the
-[Stoa](https://github.com/ghostjima/stoa) design system; the grid is
-Stoa's DataGrid (virtualised, pinned columns, sort, selection,
-active cell, inline editors). Everything runs in the browser.
+[Stoa](https://github.com/ghostjima/stoa) design system: DataGrid with
+its tones, DataGridColumnChooser, DataGridSelectionBar, FilterBar,
+Countdown, DeadlineCell's words, DerivationTable, Table, Tabs, and the
+preferences, formatter and breakpoint helpers. Two pieces are the desk's
+own and candidates for Stoa: the case timeline (a dated list of what
+happened, oldest first) and the case view's header bar.
 
 ## Accessibility, as far as the tests go
 
 The end-to-end tests (Playwright, Chromium) run axe-core 4.13.0 and find
 no serious or critical violation in Russian and English, each in the
-light and the dark theme, on: the loaded desk, a selection with the bulk
+light and the dark theme, on: the loaded queue, a selection with its
 bar, an editor showing an error, the shortcuts, save-view and columns
 dialogs, no matches, loading, a partial load failure with the operator
-role; and on the conflict dialog with a toast in Russian, dark. They also
-check: the main tasks by keyboard (grid moves, sorting from a header,
-editing and the rules' refusals, selecting rows, undo, the app
-shortcuts) and editing with the mouse (a double click opens the editor);
-where the focus goes after a bulk change, a Retry, the conflict dialog
-and deleting a view (never to the page's body), and that Escape in the
-conflict dialog keeps the typed value; `lang` set before the
-application's script runs; no sideways page scroll at 1280 and 375 px in
-both languages, and at 375 px every column reachable and editable, with
-an axe scan in each language; the header staying put while the page
-scrolls under it, and the page's and the grid's scrollbars drawn in
-Stoa's tokens. Screen readers were not tested by hand.
+role, the open case with its card and assistant, and, in the assistant,
+the plan, a confirmation, a failed step with the undo countdown, a
+stopped run with its summary and toasts, New plan asking before it ends
+an open undo window, an empty plan, the run service starting, and the
+run service failed; and on the conflict dialog with a toast in Russian,
+dark.
+
+They also check: the main tasks by keyboard (grid moves, sorting from a
+header, editing and the rules' refusals, selecting rows, undo, opening a
+case and going back, the app shortcuts; in the assistant, editing the
+plan, running, confirming and skipping, retrying a failed step, stopping
+from a confirmation, pausing and resuming) and editing with the mouse;
+where the focus goes after a bulk change, a Retry, the conflict dialog,
+deleting a view, opening and closing a case, and after every decision in
+a run (never to the page's body; the assistant's focus tests run a
+second time with the page's CPU slowed six times, as on a slow CI
+runner); `lang` and the theme set before the application's script runs;
+no sideways page scroll at 1280 and 375 px in both languages, every grid
+column reachable and editable at 375 px, and Run on the first screen of
+the assistant at 1280x800 and 375x812; the header staying put while the
+page scrolls under it, and the scrollbars drawn in Stoa's tokens. Status
+changes are announced politely and only at the run's turns. Under
+reduced motion the undo countdown still counts, without animating.
+Screen readers were not tested by hand.
 
 ## Measurements
 
-Taken on commit `7da277e` of the Valkyra-Labs/argus-desk repository, on
-the register this desk replaced (50,000 sales requests by 30 columns), and
-kept as a record: they are not current for the complaints register until
-taken again. Apple M4 Pro, Chromium 153 headless, production build: first
-rows on screen about 120 ms from navigation; a filter chip about 32 ms
-from input to the repainted grid (p95 under 34 ms), a typed search about
-15 ms, a sort about 35 ms; worker round trip p50 13 ms with 1.3 ms of
-compute. Method, both runs and limits:
-[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md).
+Taken in the source repositories, before the complaints register and
+before the merge, and kept as a record: they are not current until taken
+again. The queue's, on commit `7da277e` of Valkyra-Labs/argus-desk with
+50,000 sales requests: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). The
+assistant's run, from the agent app before it became this panel:
+[docs/AGENT-MEASUREMENTS.md](docs/AGENT-MEASUREMENTS.md). The scripts
+that take them again are `pnpm measure` (the queue, in the scale mode)
+and `pnpm measure:agent`.
 
 ## Development
 
 Stoa is linked from a sibling checkout: clone
 [ghostjima/stoa](https://github.com/ghostjima/stoa) next to this
 repository and build it (`pnpm install --frozen-lockfile && pnpm build`).
-At this repository's root, `pnpm install --frozen-lockfile && pnpm build`
-builds the engine and the apps; then, from this folder:
+At this repository's root, build the rules crate's WebAssembly module and
+then the packages and the app (see the root README); then, from this
+folder:
 
 ```bash
 pnpm dev                          # http://localhost:5182
 pnpm test && pnpm e2e             # e2e builds and serves on port 4178
-pnpm build && pnpm measure        # the measurement record
 ```
 
 `pnpm e2e` builds the app every time and tests the build through
-`vite preview` on 4178; `E2E_PORT` moves it to another port, as CI does:
+`vite preview` on 4178, Service Worker included; `E2E_PORT` moves it to
+another port, as CI does, and `E2E_CPU_THROTTLE` sets the slowed CPU's
+rate for the focus tests' second run:
 
 ```bash
 E2E_PORT=4181 pnpm e2e

@@ -29,7 +29,7 @@ export function afterPaint(then: () => void): void {
 }
 
 export function record(name: Exclude<MetricName, "first-rows">, ms: number, start?: number): void {
-  if (start !== undefined) performance.measure(`argus:${name}`, { start, duration: ms });
+  if (start !== undefined) performance.measure(`ariadne:${name}`, { start, duration: ms });
   const list = [...state.samples[name], ms].slice(-MAX_SAMPLES);
   state = { ...state, samples: { ...state.samples, [name]: list } };
   emit();
@@ -41,7 +41,7 @@ export function recordFirstRows(): void {
   afterPaint(() => {
     if (state.firstRowsMs !== null) return;
     const end = performance.now();
-    performance.measure("argus:first-rows", { start: 0, end });
+    performance.measure("ariadne:first-rows", { start: 0, end });
     state = { ...state, firstRowsMs: end };
     emit();
   });

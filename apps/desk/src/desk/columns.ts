@@ -27,29 +27,49 @@ import {
   type Labels,
   type Role,
 } from "@ariadne/grid";
-import type { DataGridColumn } from "@ghostjima/stoa-react";
+import { deadlineState, deadlineText, stoaFormatters, type DataGridColumn, type StatusTone, type StoaFormat } from "@ghostjima/stoa-react";
 import { LOCALES, type Lang, type Strings } from "../i18n";
 import { POOLS } from "../data/query";
+
+/** A case is close to its deadline at this many working days left. */
+export const DUE_SOON = 3;
 
 export type Formats = {
   /** A day number (days since 1970-01-01) */
   day: (day: number) => string;
-  dateTime: Intl.DateTimeFormat;
-  money: Intl.NumberFormat;
+  /** Epoch milliseconds, in Moscow time, the register's */
+  dateTime: (ms: number) => string;
+  /** Whole roubles */
+  money: (roubles: number) => string;
   integer: Intl.NumberFormat;
   one: Intl.NumberFormat;
 };
 
+/** The desk's formats in a language, on Stoa's formatters (a minus sign,
+ * no break inside a value) where they have one. */
 export function makeFormats(lang: Lang): Formats {
   const locale = LOCALES[lang];
-  const date = new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+  const stoa = stoaFormatters(locale, { timeZone: "Europe/Moscow" });
   return {
-    day: (day) => date.format(day * 86_400_000),
-    dateTime: new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }),
-    money: new Intl.NumberFormat(locale, { style: "currency", currency: "RUB", maximumFractionDigits: 0 }),
+    day: (day) => stoa.date(day * 86_400_000),
+    dateTime: (ms) => stoa.dateTime(ms),
+    money: (roubles) => stoa.money(roubles, { fractionDigits: 0 }),
     integer: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
     one: new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
   };
+}
+
+/** A stage's tone in the grid: answered ones done, the ones waiting for a
+ * signature called out; the rest without a symbol. */
+export function stageTone(stage: number): StatusTone | null {
+  if (stage >= 5) return "positive";
+  return stage === 4 ? "warning" : null;
+}
+
+/** A deadline's tone: close, or passed. */
+export function deadlineTone(left: number): StatusTone | null {
+  const state = deadlineState(left, DUE_SOON);
+  return state === "overdue" ? "negative" : state === "warning" ? "warning" : null;
 }
 
 /** Width in CSS pixels by column id. */
@@ -64,7 +84,7 @@ const WIDTHS: Record<string, number> = {
   channel: 184,
   received: 152,
   registered: 136,
-  left: 200,
+  left: 264,
   due: 136,
   extension: 200,
   stage: 192,
@@ -137,23 +157,19 @@ export function cellValueText(value: CellValue, lang: Lang, t: Strings): string 
   return fieldLabels(lang, value.col)[value.value] ?? "";
 }
 
-/** Working days left as the time-left column writes them. */
-export function leftText(t: Strings, formats: Formats, left: number): string {
-  if (left === 0) return t.dueToday;
-  return left > 0 ? t.workingDaysLeft(formats.integer.format(left), left) : t.overdueBy(formats.integer.format(-left), -left);
-}
-
 export type ColumnContext = {
   store: ColumnStore;
   lang: Lang;
   t: Strings;
+  /** Stoa's words for the locale: the deadline's, as DeadlineCell writes it */
+  stoa: StoaFormat;
   formats: Formats;
   role: Role;
   /** Pin the case and the applicant at the start; off on a narrow screen. */
   pin?: boolean;
 };
 
-export function buildColumns(ids: readonly string[], { store, lang, t, formats, role, pin = true }: ColumnContext): DataGridColumn<number>[] {
+export function buildColumns(ids: readonly string[], { store, lang, t, stoa, formats, role, pin = true }: ColumnContext): DataGridColumn<number>[] {
   const { pools, labels } = POOLS[lang];
   const pinned = new Set<string>(pin ? PINNED_COLUMNS : []);
   const columns: DataGridColumn<number>[] = [];
@@ -218,7 +234,7 @@ export function buildColumns(ids: readonly string[], { store, lang, t, formats, 
         columns.push({
           ...base,
           accessor: (i) => moscowMs(store.received[i] ?? 0, store.receivedMinute[i] ?? 0),
-          format: (v) => formats.dateTime.format(Number(v)),
+          format: (v) => formats.dateTime(Number(v)),
           mono: false,
         });
         break;
@@ -237,14 +253,20 @@ export function buildColumns(ids: readonly string[], { store, lang, t, formats, 
         });
         break;
       case "left":
+        // DeadlineCell's words and its symbol in its colour (a cell of the
+        // grid is text, so the grid draws the tone); an answered case has
+        // no time left to count.
         columns.push({
           ...base,
           accessor: (i) => ((store.stage[i] ?? 0) >= 5 ? "" : workingDaysLeft(store, i)),
-          format: (v) => (v === "" ? "" : leftText(t, formats, Number(v))),
+          format: (v) => (v === "" ? "" : deadlineText(stoa, Number(v), "workingDays")),
+          tone: (v) => (v === "" ? null : deadlineTone(Number(v))),
           mono: false,
         });
         break;
       case "stage":
+        columns.push({ ...enumColumn(base, id), tone: (v) => stageTone(Number(v)) });
+        break;
       case "outcome":
       case "ground":
       case "extension":
@@ -269,7 +291,7 @@ export function buildColumns(ids: readonly string[], { store, lang, t, formats, 
       case "opAmount":
       case "claim": {
         const data = id === "opAmount" ? store.opAmount : store.claim;
-        columns.push({ ...base, accessor: (i) => data[i] ?? 0, format: (v) => (Number(v) === 0 ? "" : formats.money.format(Number(v))) });
+        columns.push({ ...base, accessor: (i) => data[i] ?? 0, format: (v) => (Number(v) === 0 ? "" : formats.money(Number(v))) });
         break;
       }
       case "note":

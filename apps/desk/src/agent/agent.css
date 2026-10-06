@@ -1,0 +1,52 @@
+/* The assistant beside the open case. */
+.agent { display: grid; gap: var(--stoa-space-4); align-content: start; min-inline-size: 0; container-type: inline-size; }
+.agent p { margin: 0; }
+.agent .actions { display: flex; flex-wrap: wrap; gap: var(--stoa-space-2); align-items: center; }
+
+/* The task across the whole panel; under it the plan (or the run) and the
+   log, side by side, half each, once the panel has room for both; the log
+   reaches as low as the plan even while it is empty. */
+.agent__work { display: grid; gap: var(--stoa-space-4); grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+.agent__side { display: grid; gap: var(--stoa-space-4); grid-template-rows: auto 1fr; min-inline-size: 0; }
+.agent__side > .log:only-child { grid-row: 1 / -1; }
+@container (min-width: 46rem) {
+  .agent__work { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.agent .stoa-panel { display: grid; gap: var(--stoa-space-3); align-content: start; }
+.agent .stoa-panel__title { margin: 0; }
+.agent .log { block-size: 100%; grid-template-rows: auto 1fr; }
+.agent .log .stoa-empty-state { align-self: stretch; }
+/* The run's heading holds the focus after a decision (RunPanel); drawn as
+   Stoa draws focus. */
+.agent .run > .stoa-panel__title:focus { outline: none; }
+.agent .run > .stoa-panel__title:focus-visible { outline: var(--stoa-focus-width) solid var(--stoa-color-focus); outline-offset: 2px; }
+
+.agent .task__fields { display: flex; flex-wrap: wrap; gap: var(--stoa-space-2) var(--stoa-space-4); align-items: end; }
+.agent .task__help { flex: 1 1 14rem; align-self: center; }
+.agent .task__autonomy { display: grid; gap: var(--stoa-space-2); }
+.agent .facts { display: flex; flex-wrap: wrap; gap: var(--stoa-space-2) var(--stoa-space-6); margin: 0; }
+.agent .facts dt { color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm); }
+.agent .facts dd { margin: 0; }
+
+.agent .facts-line {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-1) var(--stoa-space-3);
+  color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm);
+}
+.agent .step-text { color: var(--stoa-color-text); }
+
+/* Run, and the run's controls, at the top of their panel; they stay in
+   view while the steps scroll under them. */
+.agent .run-bar, .agent .plan-bar {
+  position: sticky; inset-block-start: 0; z-index: 1;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-2) var(--stoa-space-4);
+  margin-inline: calc(-1 * var(--stoa-space-3)); padding: var(--stoa-space-2) var(--stoa-space-3);
+  background: var(--stoa-color-surface);
+  border-block-end: 1px solid var(--stoa-color-border);
+}
+.agent .run-bar__progress { font-size: var(--stoa-font-size-sm); color: var(--stoa-color-text-muted); }
+
+/* The confirmations are portalled out of the panel. */
+.draft-kind { color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm); }
+.draft-heading { font-weight: var(--stoa-font-weight-semibold); }
+.draft-objects { margin: 0; padding-inline-start: var(--stoa-space-6); }
+.stoa-dialog__body { display: grid; gap: var(--stoa-space-2); }

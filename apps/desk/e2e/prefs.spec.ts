@@ -1,6 +1,7 @@
-// Theme (System, Light, Dark) and language (EN, RU), and their persistence.
+// Theme (System, Light, Dark) and language (RU, the default, and EN), and
+// their persistence under the desk's keys.
 import { expect, test } from "@playwright/test";
-import { open } from "./helpers";
+import { ALL_CASES, open } from "./helpers";
 
 test("the theme follows the system until one is chosen", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
@@ -33,55 +34,40 @@ test("a chosen theme survives a reload and the next visit; System and ?theme=sys
   const url = new URL(page.url());
   expect(url.searchParams.get("theme")).toBe("dark");
   expect(url.searchParams.get("from")).toBe("link");
-  expect(await page.evaluate(() => localStorage.getItem("argus-desk.theme"))).toBe("dark");
+  expect(await page.evaluate(() => localStorage.getItem("ariadne.theme"))).toBe("dark");
   await page.reload();
   await expect(html).toHaveAttribute("data-theme", "dark");
   await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
   // Without the parameter, the choice comes from the last visit.
-  await page.goto("/?lang=ru&colleague=off");
+  await page.goto("/?colleague=off");
   await expect(html).toHaveAttribute("data-theme", "dark");
   await expect(page.getByRole("radio", { name: "Тёмная" })).toBeChecked();
   // A link's theme wins over the remembered one, and asks for the system.
-  await page.goto("/?theme=system&colleague=off");
+  await page.goto("/?theme=system&colleague=off&lang=en");
   await expect(html).not.toHaveAttribute("data-theme");
-  await page.goto("/?theme=light&colleague=off");
+  await page.goto("/?theme=light&colleague=off&lang=en");
   await expect(html).toHaveAttribute("data-theme", "light");
   await page.getByRole("radio", { name: "System" }).click();
   await expect(html).not.toHaveAttribute("data-theme");
   expect(new URL(page.url()).searchParams.get("theme")).toBeNull();
-  expect(await page.evaluate(() => localStorage.getItem("argus-desk.theme"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("ariadne.theme"))).toBeNull();
 });
 
-test("Russian: words, digits and data in Russian, kept after a reload", async ({ page }) => {
-  await open(page);
-  await page.getByRole("radio", { name: "RU", exact: true }).click();
+test("Russian by default: words, digits and data in Russian; English chosen is kept", async ({ page }) => {
+  await page.goto("/?colleague=off&view=" + ALL_CASES);
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page).toHaveTitle("Ariadne Стол заявок");
-  await expect.poll(async () => (await page.getByTestId("row-count").textContent())?.replace(/ /g, " ")).toBe("1 200 обращений из 1 200");
+  await expect(page.getByRole("radio", { name: "RU", exact: true })).toBeChecked();
+  await expect.poll(async () => (await page.getByTestId("row-count").textContent())?.replace(/\u00a0/g, " "), { timeout: 15_000 }).toBe("1 200 обращений из 1 200");
   await expect(page.getByRole("columnheader", { name: "Заявитель" })).toBeVisible();
   await expect(page.locator('[data-cell="0:2"]')).toHaveText("ООО «Песчаный Маяк»");
   await expect(page.locator('[data-cell="0:3"]')).toHaveText("Отказ, 115-ФЗ");
-  await page.reload();
-  await expect(page.getByRole("radio", { name: "RU", exact: true })).toBeChecked();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ariadne Стол заявок");
-});
-
-test("lang is set before the first paint, from the link or the last visit", async ({ page }) => {
-  // The application's script never arrives: what the page shows comes
-  // from the document alone.
-  await page.route(/\/assets\/index-[^/]*\.js$/, () => new Promise(() => {}));
-  const html = page.locator("html");
-  await page.goto("/?lang=ru", { waitUntil: "commit" });
-  await expect(html).toHaveAttribute("lang", "ru");
-  await page.evaluate(() => localStorage.setItem("argus-desk.lang", "ru"));
-  await page.goto("/", { waitUntil: "commit" });
-  await expect(html).toHaveAttribute("lang", "ru");
-  await expect(html).toHaveAttribute("dir", "ltr");
-  // A link's language wins over the stored one; an unknown one is ignored.
-  await page.goto("/?lang=en", { waitUntil: "commit" });
-  await expect(html).toHaveAttribute("lang", "en");
-  await page.goto("/?lang=ar", { waitUntil: "commit" });
-  await expect(html).toHaveAttribute("lang", "ru");
+  await page.getByRole("radio", { name: "EN", exact: true }).click();
+  await expect(page).toHaveTitle("Ariadne Desk");
+  expect(await page.evaluate(() => localStorage.getItem("ariadne.lang"))).toBe("en");
+  await page.goto("/?colleague=off");
+  await expect(page.getByRole("radio", { name: "EN", exact: true })).toBeChecked();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ariadne Desk");
 });
 
 test("the headers of the view the desk opens on fit their columns in both languages", async ({ page }) => {

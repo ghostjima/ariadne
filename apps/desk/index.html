@@ -1,31 +1,14 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="ru" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A desk for complaints and refusals to a bank: an invented register of complaints, each with its legal deadline from a rules engine, in one keyboard-first grid with views, roles, validated edits with undo, conflicts and CSV export. In Russian and English." />
+    <meta name="description" content="Стол заявок банка: выдуманные жалобы и отказы, у каждой срок ответа по закону из движка правил, очередь с представлениями и ролями, карточка обращения и ассистент, который предлагает, а решает человек. На русском и английском." />
     <!-- No icon yet; an empty one keeps the browser from asking for /favicon.ico. -->
     <link rel="icon" href="data:," />
-    <title>Ariadne Desk</title>
-    <script>
-      // Before the first paint: the language from the link (?lang=) or the
-      // last visit sets lang. The same rule as Stoa's readLanguage, which
-      // src/main.tsx applies again; the codes are src/i18n.ts's.
-      (function () {
-        var languages = ["en", "ru"];
-        var lang = new URLSearchParams(location.search).get("lang");
-        if (languages.indexOf(lang) < 0) {
-          try {
-            lang = localStorage.getItem("argus-desk.lang");
-          } catch (e) {
-            lang = null;
-          }
-        }
-        if (languages.indexOf(lang) < 0) return;
-        document.documentElement.lang = lang;
-        document.documentElement.dir = "ltr";
-      })();
-    </script>
+    <title>Ariadne Стол заявок</title>
+    <!-- lang, dir and the theme are set before the first paint by the script
+         vite.config.ts inlines here (Stoa's firstPaintScript). -->
   </head>
   <body>
     <div id="root"></div>

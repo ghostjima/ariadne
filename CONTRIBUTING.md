@@ -13,7 +13,7 @@ Stoa, Ariadne and Tyche; the Ariadne specifics follow them.
   messages and pull request text describe the change only.
 - Plain, specific sentences, without redundant em dashes. Code, comments
   and repository docs in English. Product interface text in Russian first
-  and English second; the current apps also carry an Arabic interface.
+  and English second.
 - Public text names no internal material: plans, audits, roadmap phases,
   people, pricing or hiring.
 - `scripts/check-text.mjs` enforces emojis, attribution and internal paths
@@ -36,9 +36,9 @@ runner, rules, ariadne (repository-wide).
 
 ## Layout
 
-- `apps/desk`: the operations desk (the complaints register in one grid).
-- `apps/agent`: the agent run screen (a plan an assistant proposes and a
-  person approves, runs, stops and undoes).
+- `apps/desk`: the operations desk: the complaints queue, the open case,
+  and the assistant beside it (a plan it proposes and a person approves,
+  runs, stops and undoes).
 - `packages/grid` (`@ariadne/grid`): the desk's data engine.
 - `packages/rules` (`@ariadne/rules`): the TypeScript adapter over the
   rules crate's WebAssembly build; it needs that build (see the crate's
@@ -48,7 +48,7 @@ runner, rules, ariadne (repository-wide).
   WebAssembly. Every rule cites the act, article, part and revision it
   encodes, and the crate's README lists every source.
 
-The apps link Stoa's packages from a sibling checkout of
+The desk links Stoa's packages from a sibling checkout of
 [ghostjima/stoa](https://github.com/ghostjima/stoa) at `../stoa`, built
 with `pnpm install --frozen-lockfile && pnpm build` there.
 
@@ -65,7 +65,6 @@ pnpm -r typecheck
 pnpm test
 node scripts/check-text.mjs origin/main
 pnpm --filter @ariadne/desk e2e
-pnpm --filter @ariadne/agent e2e
 ```
 
 and, for the rules crate:
@@ -83,10 +82,10 @@ cargo +1.85 check -p ariadne-rules --lib --no-default-features --features wasm -
 wasm-pack build crates/ariadne-rules --release --target web --out-dir pkg --out-name ariadne_rules -- --no-default-features --features wasm
 ```
 
-The end-to-end tests build their app and serve the build with
-`vite preview` on their own port (4178 for the desk, 4177 for the
-agent); `E2E_PORT` moves it. CI also runs Lighthouse against each app's
-build and builds the badge values with `scripts/badges.mjs`. The CI jobs
+The end-to-end tests build the desk and serve the build with
+`vite preview` on port 4178; `E2E_PORT` moves it. CI also runs
+Lighthouse against the build and builds the badge values with
+`scripts/badges.mjs`. The CI jobs
 are `rust (ubuntu-latest)`, `rust (macos-latest)`, `rust (windows-latest)`,
 `wasm`, `msrv (1.85)`, `build-and-test` and `badges`, which needs all the
 others.

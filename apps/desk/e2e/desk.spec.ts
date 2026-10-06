@@ -5,7 +5,7 @@
 // and the keyboard.
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { ALL, EDIT_COLUMNS, WITH_EDITS, cell, focusCell, grid, open, pick, toasts, viewParam } from "./helpers";
+import { ALL, EDIT_COLUMNS, WITH_EDITS, cell, focusCell, grid, open, pick, selectionBar, toasts, viewParam } from "./helpers";
 
 const count = (page: import("@playwright/test").Page) => page.getByTestId("row-count");
 
@@ -14,7 +14,7 @@ test("1,200 cases reach the grid through the worker, their deadlines counted by 
   await expect(grid(page)).toHaveAttribute("aria-rowcount", "1201");
   await expect(grid(page)).toHaveAttribute("aria-colcount", "9");
   await expect(cell(page, 0, 1)).toHaveText("C-000001");
-  await expect(page.getByText("Deadlines as of Oct 6, 2026.")).toBeVisible();
+  await expect(page.getByText("Deadlines as of Oct 6, 2026")).toBeVisible();
   // Only the rows in view are in the document.
   expect(await grid(page).getByRole("row").count()).toBeLessThan(60);
   await page.getByText("Performance").click();
@@ -22,14 +22,17 @@ test("1,200 cases reach the grid through the worker, their deadlines counted by 
 });
 
 test("the desk opens on the open cases, the least time left first", async ({ page }) => {
-  await page.goto("/?colleague=off");
+  await page.goto("/?colleague=off&lang=en");
   await expect(count(page)).toHaveText("210 of 1,200 cases", { timeout: 15_000 });
   await expect(page.getByRole("button", { name: /View$/ })).toContainText("Open cases");
   await expect(page.getByRole("columnheader", { name: "Time left" })).toHaveAttribute("aria-sort", "ascending");
   const headers = await page.getByRole("columnheader").allTextContents();
   expect(headers.slice(1, 6)).toEqual(["Case", "Applicant", "Stream", "Stage", "Time left"]);
   await expect(cell(page, 0, 1)).toHaveText("C-000835");
-  await expect(cell(page, 0, 5)).toHaveText("10 working days overdue");
+  // The time left in DeadlineCell's words, with its symbol: a cross once
+  // overdue, an exclamation mark within 3 working days.
+  await expect(cell(page, 0, 5)).toHaveText("✗10 working days overdue");
+  await expect(cell(page, 0, 4)).toHaveText("!Awaiting signature");
   for (const name of ["Reply sent", "Closed", "Answered"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name} \\d`) })).toHaveAttribute("aria-pressed", "false");
   }
@@ -57,7 +60,7 @@ test("the working views: due within 3 working days, overdue, forwarded, waiting 
   // Overdue rows say by how much; due-soon rows how much is left.
   await page.getByRole("button", { name: /View$/ }).click();
   await page.getByRole("option", { name: "Overdue", exact: true }).click();
-  await expect(cell(page, 0, 3)).toHaveText(/working days? overdue$/);
+  await expect(cell(page, 0, 3)).toHaveText(/^✗\d+ working days? overdue$/);
 });
 
 test("the demo's own controls sit apart from the desk's, and say what the simulated colleague does", async ({ page }) => {
@@ -80,15 +83,17 @@ test("a stage chip filters by its count, and chips of other groups combine with 
   await expect(closed).toHaveAttribute("aria-pressed", "true");
   await expect(count(page)).toHaveText("588 of 1,200 cases");
   await expect(grid(page)).toHaveAttribute("aria-rowcount", "589");
-  for (let r = 0; r < 5; r++) await expect(cell(page, r, 4)).toHaveText("Closed");
+  for (let r = 0; r < 5; r++) await expect(cell(page, r, 4)).toHaveText("✓Closed");
   // A second group narrows; its chips count within the first.
   const block = page.getByRole("button", { name: /^Block, 161-FZ \d/ });
   const n = (await block.locator(".stoa-filter-chip__count").textContent())!;
   await block.click();
   await expect(count(page)).toHaveText(`${n} of 1,200 cases`);
   for (let r = 0; r < 3; r++) await expect(cell(page, r, 3)).toHaveText("Block, 161-FZ");
-  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("button", { name: "Clear all" }).click();
   await expect(count(page)).toHaveText(ALL);
+  // Clear all leaves the focus in the search box, never on the page's body.
+  await expect(page.getByLabel("Search")).toBeFocused();
 });
 
 test("search narrows the grid and marks matches; no match shows the empty state", async ({ page }) => {
@@ -101,7 +106,7 @@ test("search narrows the grid and marks matches; no match shows the empty state"
   await search.fill("no case says this");
   await expect(count(page)).toHaveText("0 of 1,200 cases");
   await expect(page.getByText("No cases match")).toBeVisible();
-  await grid(page).locator("..").getByRole("button", { name: "Clear filters" }).click();
+  await page.locator(".desk__grid").getByRole("button", { name: "Clear filters" }).click();
   await expect(count(page)).toHaveText(ALL);
   await expect(search).toHaveValue("");
 });
@@ -279,14 +284,16 @@ test("a bulk reassignment on a keyboard selection can be undone from its toast",
   await page.keyboard.press("Space");
   await page.keyboard.press("Shift+ArrowDown");
   await page.keyboard.press("Shift+ArrowDown");
-  const bulk = page.getByRole("region", { name: "Bulk change" });
-  await expect(bulk).toContainText("Selected: 3");
-  await bulk.getByRole("button", { name: /Assign to/ }).click();
+  const bar = selectionBar(page);
+  await expect(bar).toContainText("3 selected");
+  await bar.getByRole("button", { name: "Reassign" }).click();
+  const dialog = page.getByRole("dialog", { name: "Reassign 3 cases" });
+  await dialog.getByRole("button", { name: /Assign to/ }).click();
   await page.getByRole("option", { name: "F. Okunev" }).click();
-  await bulk.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByRole("button", { name: "Apply" }).click();
   for (const r of [0, 1, 2]) await expect(cell(page, r, 8)).toHaveText("F. Okunev");
-  await expect(bulk).toBeHidden();
-  // The bar and its Apply are gone; the focus goes back to the grid's
+  await expect(bar).toBeHidden();
+  // The bar and its action are gone; the focus goes back to the grid's
   // active cell, not to the page's body.
   await expect(cell(page, 2, 1)).toBeFocused();
   const toast = toasts(page).getByRole("alertdialog").or(toasts(page).locator(".stoa-toast")).filter({ hasText: "assigned to" });
@@ -296,16 +303,17 @@ test("a bulk reassignment on a keyboard selection can be undone from its toast",
   await expect(toasts(page)).toContainText("Undone on 3 cases.");
 });
 
-test("after the bulk bar closes, by Apply or by Clear selection, the focus is in the grid", async ({ page }) => {
+test("after the selection bar closes, by an action or by Clear selection, the focus is in the grid", async ({ page }) => {
   await open(page);
   await cell(page, 1, 0).locator("input").click();
-  const bulk = page.getByRole("region", { name: "Bulk change" });
-  await bulk.getByRole("button", { name: "Clear selection" }).click();
-  await expect(bulk).toBeHidden();
+  const bar = selectionBar(page);
+  await bar.getByRole("button", { name: "Clear selection" }).click();
+  await expect(bar).toBeHidden();
   await expect(cell(page, 1, 0)).toBeFocused();
   await cell(page, 4, 0).locator("input").click();
-  await bulk.getByRole("button", { name: "Apply" }).click();
-  await expect(bulk).toBeHidden();
+  await bar.getByRole("button", { name: "Reassign" }).click();
+  await page.getByRole("dialog", { name: "Reassign 1 case" }).getByRole("button", { name: "Apply" }).click();
+  await expect(bar).toBeHidden();
   await expect(cell(page, 4, 0)).toBeFocused();
   // Undo by keyboard from there keeps it.
   await page.keyboard.press("ControlOrMeta+z");
@@ -389,20 +397,24 @@ test("views: a preset, a saved view that survives a reload, a link, and deletion
   await expect(page.getByRole("option", { name: "Late or nearly" })).toHaveCount(0);
 });
 
-test("the columns sheet shows, hides and reorders columns", async ({ page }) => {
+test("Stoa's column chooser shows, hides and reorders columns; the case and the applicant stay", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: "Columns" }).click();
   const sheet = page.getByRole("dialog", { name: "Columns" });
-  await sheet.locator(".stoa-checkbox__label", { hasText: /^Source$/ }).click();
+  await expect(sheet.getByRole("checkbox", { name: "Case" })).toHaveCount(0);
+  // The list scrolls inside the sheet; a check box is pressed where it is.
+  await sheet.getByRole("checkbox", { name: "Source" }).evaluate((el: HTMLElement) => el.click());
   await expect(sheet.getByRole("checkbox", { name: "Source" })).not.toBeChecked();
-  await sheet.locator(".stoa-checkbox__label", { hasText: /^Note$/ }).click();
+  await sheet.getByRole("checkbox", { name: "Note" }).evaluate((el: HTMLElement) => el.click());
   await expect(sheet.getByRole("checkbox", { name: "Note" })).toBeChecked();
   await sheet.getByRole("button", { name: "Move up: Stage" }).click();
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
   const headers = await page.getByRole("columnheader").allTextContents();
   expect(headers.slice(1, 5)).toEqual(["Case", "Applicant", "Stage", "Stream"]);
   expect(headers).not.toContain("Source");
   expect(headers).toContain("Note");
+  await expect(page.getByText("Modified")).toBeVisible();
 });
 
 test("CSV export writes the current view", async ({ page }) => {
@@ -430,7 +442,7 @@ test("CSV export writes the current view", async ({ page }) => {
 });
 
 test("the scale mode holds 50,000 cases, and CSV stops at 5,000 rows", async ({ page }) => {
-  await open(page, "scale=50000", "50,000 of 50,000 cases");
+  await open(page, "rows=50000", "50,000 of 50,000 cases");
   await expect(page.getByRole("region", { name: "About this demo" })).toContainText("50,000 invented complaints");
   await page.getByRole("button", { name: /^Closed \d/ }).click();
   await expect(count(page)).toHaveText("24,791 of 50,000 cases");

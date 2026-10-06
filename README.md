@@ -13,25 +13,31 @@ takes a regulated or irreversible step on its own: it proposes a plan,
 and every risky step waits for a person, can be stopped, and can be
 undone within a stated window.
 
-What runs today is the foundation, as two working prototypes on
-synthetic data, entirely in the browser:
+What runs today is one working prototype on synthetic data, entirely in
+the browser, in Russian (the default) and English:
 
-- **Ariadne Desk** (`apps/desk`): a keyboard-first desk for a register
-  of invented complaints, each with its legal deadline counted by the
-  rules engine: the open cases by time left in working days, views
-  (due within 3 working days, overdue, forwarded by the Bank of Russia,
-  waiting for facts, awaiting signature), filters with counts, operator,
-  signatory and supervisor roles, edits the rules check, bulk
-  reassignment with undo, edit conflicts with a simulated colleague, and
-  CSV export.
-- **Ariadne Agent** (`apps/agent`): an agent run a person can stop. The
+- **The queue** of a register of invented complaints, each with its
+  legal deadline counted by the rules engine: the open cases by time left
+  in working days, views (due within 3 working days, overdue, forwarded
+  by the Bank of Russia, waiting for facts, awaiting signature), filters
+  with counts, operator, signatory and supervisor roles, edits the rules
+  check, bulk reassignment with undo, edit conflicts with a simulated
+  colleague, and CSV export.
+- **The open case** in one window: the complaint, the applicant, the
+  operation, the flags around it (the OD-2506 sign in the order's own
+  words, or the 115-FZ category), the timeline of its channels, linked
+  cases, and how the reply's last day was worked out, each step with its
+  source.
+- **The assistant** beside the case: a run a person can stop. The
   assistant proposes a plan; the person edits and approves it, confirms
   the risky steps, stops the run at any moment, and undoes what was
   done.
 
-The case card, the drafts and the signature are not built yet;
-[What comes next](#what-comes-next) says what is. There is no screenshot or public deployment yet; the apps run
-locally as described under [Development](#development).
+The assistant's own scenario is still the one it was built with, not
+the case's, and the drafts and the signature are not built yet;
+[What comes next](#what-comes-next) says what is. There is no screenshot
+or public deployment yet; the desk runs locally as described under
+[Development](#development).
 
 ## Problem
 
@@ -64,7 +70,7 @@ The workflows the desk is built around, and what exists of each today:
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
 | Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, signatory and supervisor roles |
-| Case card: client, operation, flags, linked cases, fact requests | not built |
+| Case card: client, operation, flags, linked cases, fact requests | built, but for fact requests: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day |
 | Draft: the assistant proposes a plan and a reply | built as the agent run: plan, consent rule, confirmations with a draft, stop, undo windows |
 | Extension of the deadline, with a reason and an approver | in part: an extension of ten working days to request documents, approved by the supervisor, refused by the rules engine for a money claim under 123-FZ and after the last day for its notice |
 | Review and signature, dispatch and copies | not built |
@@ -110,10 +116,9 @@ The workflows the desk is built around, and what exists of each today:
 
 ## What is built
 
-- [`apps/desk`](apps/desk/README.md): Ariadne Desk, the complaints
-  register in one grid.
-- [`apps/agent`](apps/agent/README.md): Ariadne Agent, the stoppable agent
-  run, streamed from a Service Worker.
+- [`apps/desk`](apps/desk/README.md): Ariadne Desk: the queue, the open
+  case with its card, and the assistant beside it, its run streamed from
+  a Service Worker.
 - [`packages/grid`](packages/grid/README.md) (`@ariadne/grid`): the
   desk's data engine: a seeded synthetic register of complaints in
   Russian and English (1,200 cases by default, 50,000 in the scale
@@ -135,20 +140,15 @@ The workflows the desk is built around, and what exists of each today:
   Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; and a
   rubric that returns coded findings on a structured reply.
 
-Both apps are built on the [Stoa](https://github.com/ghostjima/stoa)
-design system and are tested with axe, light and dark: the desk in
-Russian and English, the agent in English, Russian and Arabic. They are
-not deployed yet; their builds are set up for
-ghostjima.github.io/ariadne/ (the desk) and /ariadne/agent/ (the agent).
+The desk is built on the [Stoa](https://github.com/ghostjima/stoa)
+design system and is tested with axe in Russian and English, light and
+dark. It is not deployed yet; its build is set up for
+ghostjima.github.io/ariadne/.
 
 ## What comes next
 
-- One desk: the agent as a side panel of the selected case, and a case
-  card with the client, the operation, the flags, the channel timeline,
-  linked cases and how the deadline was computed.
 - A complaints scenario for the runner: classify, request facts, draft
   the reply, check it with the rubric, hand it to legal review.
-- Russian as the first interface language and English as the second.
 
 ## Validation plan and target metrics
 
@@ -178,14 +178,14 @@ are set only after a baseline exists.
 
 CI measures these badges on each commit to `main`, and the badge branch
 records the commit they were measured on. Timings and
-sizes of each app and engine, each stamped with its commit, machine and
-browser, are in the `docs/MEASUREMENTS.md` of that app or package; those
+sizes of the desk and each engine, each stamped with its commit, machine
+and browser, are in the `docs/` of the desk and of each package; those
 records were taken in the source repositories before their import here.
 
 ### What each badge counts
 
 CI checks out this repository and Stoa side by side, builds Stoa, then
-builds and tests the packages and both apps; in parallel it lints and
+builds and tests the packages and the desk; in parallel it lints and
 tests the rules crate on Linux, macOS and Windows, builds its
 WebAssembly package and checks it on Rust 1.85. Each green run on `main`
 publishes the dynamic badges to the `badges` branch, as JSON that
@@ -195,25 +195,20 @@ own output and stops, publishing nothing, when a value cannot be read.
 - Unit tests: tests passed, summed over Vitest in every package and app
   and node:test in the root scripts (`pnpm test`).
 - e2e: Playwright tests passed in Chromium against `vite preview` of
-  each app's build, the agent's Service Worker included; the total, then
-  each app's count. The agent's focus tests count twice: they run again
-  with the page's CPU slowed down.
+  the desk's build, its Service Worker included. The assistant's focus
+  tests count twice: they run again with the page's CPU slowed down.
 - axe: axe-core 4.13.0 in the e2e, a serious or critical violation fails
-  the run. Counted for each app as states times language and theme
-  pairs (light and dark; for the desk Russian and English, for the agent
-  English, Russian and Arabic): for the desk, the
-  states listed under its
-  [accessibility section](apps/desk/README.md#accessibility-as-far-as-the-tests-go);
-  for the agent, those under
-  [its own](apps/agent/README.md#accessibility). Scans outside these
-  matrices fail the run too but are not counted.
+  the run. Counted as states times language and theme pairs (Russian and
+  English, light and dark), the states listed under the desk's
+  [accessibility section](apps/desk/README.md#accessibility-as-far-as-the-tests-go).
+  Scans outside this matrix fail the run too but are not counted.
 - Lighthouse: Lighthouse 13 accessibility, best practices and SEO scores
-  for each app's home page served by `vite preview`, the lowest of both
-  apps, desktop and mobile. Performance is not shown: on a shared CI
-  runner it measures the runner.
-- Bundle gzip: every JavaScript and CSS file in each app's `dist/`, gzip
-  level 9, summed per app, workers included. The fonts and `index.html`
-  are not included.
+  for the desk's home page served by `vite preview`, the lower of
+  desktop and mobile. Performance is not shown: on a shared CI runner it
+  measures the runner.
+- Bundle gzip: every JavaScript and CSS file in the desk's `dist/`, gzip
+  level 9, workers included. The fonts, `index.html` and the WebAssembly
+  module (its own badge) are not included.
 - ariadne-rules tests: tests passed in `cargo test --release -p
   ariadne-rules` on Linux, unit, integration and doc tests summed; a
   failed, filtered or incomplete run publishes nothing.
@@ -229,7 +224,7 @@ the front end.
 
 ## Development
 
-The apps link Stoa from a sibling checkout: clone
+The desk links Stoa from a sibling checkout: clone
 [ghostjima/stoa](https://github.com/ghostjima/stoa) next to this
 repository (as `../stoa`) and build it there with
 `pnpm install --frozen-lockfile && pnpm build`. The register's deadlines
@@ -239,21 +234,19 @@ toolchain is pinned in `rust-toolchain.toml`) and `wasm-pack`. Then, here:
 ```bash
 wasm-pack build crates/ariadne-rules --release --target web --out-dir pkg --out-name ariadne_rules -- --no-default-features --features wasm
 pnpm install --frozen-lockfile
-pnpm build          # the packages, then the apps
+pnpm build          # the packages, then the desk
 pnpm -r typecheck
 pnpm test           # every package's unit tests and the root scripts'
 pnpm --filter @ariadne/desk e2e
-pnpm --filter @ariadne/agent e2e
 ```
 
 The rules crate's own commands are in
 [its README](crates/ariadne-rules/README.md#development).
 
-The end-to-end tests build their app and serve it with `vite preview`,
-the desk on 4178 and the agent on 4177; `E2E_PORT` moves it. The dev
-servers: `pnpm --filter @ariadne/desk dev` on 5182 and
-`pnpm --filter @ariadne/agent dev` on 5183. How to contribute, and what
-every change has to pass: [CONTRIBUTING.md](CONTRIBUTING.md).
+The end-to-end tests build the desk and serve it with `vite preview` on
+4178; `E2E_PORT` moves it. The dev server: `pnpm --filter @ariadne/desk
+dev` on 5182. How to contribute, and what every change has to pass:
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

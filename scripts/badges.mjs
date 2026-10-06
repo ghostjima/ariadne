@@ -3,10 +3,9 @@
 // Usage (CI runs it after the tests; see .github/workflows/ci.yml):
 //   node scripts/badges.mjs --out <dir>
 //     --unit <log of `pnpm test`>
-//     --e2e desk=<Playwright JSON report> --e2e agent=<Playwright JSON report>
+//     --e2e desk=<Playwright JSON report> [--e2e <app>=<report> for another app]
 //     --lighthouse desk:desktop=<Lighthouse JSON> --lighthouse desk:mobile=<Lighthouse JSON>
-//     --lighthouse agent:desktop=<Lighthouse JSON> --lighthouse agent:mobile=<Lighthouse JSON>
-//     --dist desk=apps/desk/dist --dist agent=apps/agent/dist
+//     --dist desk=apps/desk/dist
 //     --rules-tests <output of `cargo test --release -p ariadne-rules`>
 //     --rules-wasm <crates/ariadne-rules/pkg/ariadne_rules_bg.wasm>
 //

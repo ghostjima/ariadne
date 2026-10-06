@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { COLUMN_IDS, Outcome, Stage, Stream, generateAll, visibleColumns, writeField, workingDaysLeft } from "@ariadne/grid";
-import { strings } from "../i18n";
-import { buildColumns, leftText, makeFormats } from "./columns";
+import { stoaFormat } from "@ghostjima/stoa-react";
+import { LOCALES, strings } from "../i18n";
+import { buildColumns, deadlineTone, makeFormats, stageTone } from "./columns";
 import { readUrlConfig } from "./settings";
 
 const store = generateAll(20261006, 1_200, 400);
@@ -9,6 +10,7 @@ const ctx = (lang: "en" | "ru", role: "operator" | "signatory" | "supervisor" = 
   store,
   lang,
   t: strings[lang],
+  stoa: stoaFormat(LOCALES[lang]),
   formats: makeFormats(lang),
   role,
 });
@@ -36,22 +38,32 @@ describe("grid columns", () => {
     expect(visibleColumns({ columns: [...COLUMN_IDS] }, "operator")).not.toContain("assignee");
   });
 
-  it("write days in working days left, overdue, or due today, in the interface's words", () => {
-    const formats = makeFormats("ru");
-    expect(leftText(strings.ru, formats, 3)).toBe("3 рабочих дня");
-    expect(leftText(strings.ru, formats, 0)).toBe("Срок сегодня");
-    expect(leftText(strings.ru, formats, -2)).toBe("просрочено на 2 рабочих дня");
+  it("write the time left as DeadlineCell does: Stoa's words in working days, a warning within 3, a cross once overdue", () => {
+    const [ru] = buildColumns(["left"], ctx("ru"));
+    const say = (left: number) => ru!.format!(left, 0, {} as never);
+    expect(say(3)).toBe("Осталось 3 рабочих дня");
+    expect(say(0)).toBe("Срок сегодня");
+    expect(say(-2)).toBe("Просрочено на 2 рабочих дня");
+    expect([deadlineTone(4), deadlineTone(3), deadlineTone(0), deadlineTone(-1)]).toEqual([null, "warning", "warning", "negative"]);
     const [left] = buildColumns(["left"], ctx("en"));
     const open = rows((i) => store.stage[i]! < Stage.Sent)[0]!;
-    expect(left!.format!(left!.accessor(open), open, {} as never)).toBe(leftText(strings.en, makeFormats("en"), workingDaysLeft(store, open)));
+    expect(left!.accessor(open)).toBe(workingDaysLeft(store, open));
+    expect(left!.tone!(left!.accessor(open), open)).toBe(deadlineTone(workingDaysLeft(store, open)));
     const sent = rows((i) => store.stage[i]! >= Stage.Sent)[0]!;
     expect(left!.accessor(sent)).toBe("");
+    expect(left!.tone!("", sent)).toBeNull();
+  });
+
+  it("mark the stage: answered done, awaiting signature called out, the rest plain", () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map(stageTone)).toEqual([null, null, null, null, "warning", "positive", "positive"]);
+    const [stage] = buildColumns(["stage"], ctx("en"));
+    expect(stage!.tone!("4", 0)).toBe("warning");
   });
 
   it("write amounts in roubles and dates in the interface's locale, in the sans face for dates", () => {
     const columns = buildColumns(["opAmount", "registered", "received", "due"], ctx("ru"));
     const row = rows((i) => store.opAmount[i]! > 10_000)[0]!;
-    expect(columns[0]!.format!(columns[0]!.accessor(row), row, {} as never)).toContain("₽");
+    expect(columns[0]!.format!(columns[0]!.accessor(row), row, {} as never)).toMatch(/^[\d\u00a0]+\u00a0₽$/);
     expect(columns.map((c) => [c.id, c.mono])).toEqual([
       ["opAmount", undefined],
       ["registered", false],
@@ -81,17 +93,20 @@ describe("grid columns", () => {
 });
 
 describe("address settings", () => {
-  it("read the role, scale mode, failing chunks, worker and colleague switches", () => {
-    expect(readUrlConfig("?role=operator&failChunk=2,x,5&worker=off&colleague=off&scale=50000")).toMatchObject({
+  it("read the role, scale mode, the case to open, failing chunks, worker and colleague switches", () => {
+    expect(readUrlConfig("?role=operator&failChunk=2,x,5&worker=off&colleague=off&rows=50000&case=C-000835")).toMatchObject({
       role: "operator",
       scale: true,
+      caseId: "C-000835",
       failChunks: [2, 5],
       useWorker: false,
       colleagueSeconds: null,
       view: null,
     });
-    expect(readUrlConfig("")).toMatchObject({ role: "supervisor", scale: false, failChunks: [], useWorker: true, colleagueSeconds: 40 });
-    expect(readUrlConfig("?role=signatory&scale=7").scale).toBe(false);
+    expect(readUrlConfig("")).toMatchObject({ role: "supervisor", scale: false, caseId: null, failChunks: [], useWorker: true, colleagueSeconds: 40 });
+    expect(readUrlConfig("?role=signatory&rows=7").scale).toBe(false);
+    // The assistant's own `scale` (the stream's time scale) is not the desk's.
+    expect(readUrlConfig("?scale=50000").scale).toBe(false);
     expect(readUrlConfig("?role=manager").role).toBe("supervisor");
     expect(readUrlConfig("?colleague=3").colleagueSeconds).toBe(3);
   });

@@ -15,11 +15,12 @@ export const ALL_CASES = serializeView(DEFAULT_VIEW);
 export const EDIT_COLUMNS = ["id", "client", "stream", "stage", "outcome", "ground", "extension", "note"];
 export const WITH_EDITS = viewParam({ columns: EDIT_COLUMNS });
 
-/** Opens the desk with the colleague off unless asked for, on all the cases
- * unless a view is given (the desk itself starts on the open ones), and
- * waits for every row. */
+/** Opens the desk in English unless asked for another language, with the
+ * colleague off unless asked for, on all the cases unless a view is given
+ * (the desk itself starts on the open ones), and waits for every row. */
 export async function open(page: Page, query = "", rows = ALL) {
   const params = new URLSearchParams(query);
+  if (!params.has("lang")) params.set("lang", "en");
   if (!params.has("colleague")) params.set("colleague", "off");
   if (!params.has("view")) params.set("view", ALL_CASES);
   await page.goto(`/?${params}`);
@@ -29,6 +30,8 @@ export async function open(page: Page, query = "", rows = ALL) {
 export const grid = (page: Page) => page.getByRole("grid");
 export const cell = (page: Page, row: number, column: number) => grid(page).locator(`[data-cell="${row}:${column}"]`);
 export const toasts = (page: Page) => page.locator(".stoa-toast-region");
+/** The bar of actions on the selected rows (Stoa's DataGridSelectionBar). */
+export const selectionBar = (page: Page) => page.getByRole("toolbar", { name: "Bulk change" });
 
 /** `scan`, when given, names the language and theme scanned; with `label`
  * as the state, it is recorded as an annotation that scripts/badges.mjs

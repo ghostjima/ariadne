@@ -1,0 +1,317 @@
+// The case card: everything about one complaint in one window. The
+// complaint as the applicant wrote it, the applicant, the operation behind
+// it, the flags around the operation (the OD-2506 sign with the order's own
+// wording, or the 115-FZ category with its article), the timeline of its
+// channels, the cases linked to it, and how the reply's last day was worked
+// out, step by step, each step with its source. Every date and every rule
+// is ariadne-rules'.
+import { useMemo } from "react";
+import {
+  Button,
+  Callout,
+  DeadlineCell,
+  DerivationTable,
+  DescriptionList,
+  Panel,
+  Table,
+  deadlineText,
+  useFormatters,
+  useStoaFormat,
+  type DerivationStep,
+  type TableColumn,
+} from "@ghostjima/stoa-react";
+import {
+  AS_OF_DAY,
+  AML_REASON_CODES,
+  Applicant,
+  Operation,
+  RulesFlag,
+  Source,
+  Stream,
+  clientName,
+  complaintText,
+  dayNumber,
+  effectiveDue,
+  hasFlag,
+  isAnswered,
+  moscowMs,
+  opRefText,
+  rowId,
+  workingDaysLeft,
+  type ColumnStore,
+} from "@ariadne/grid";
+import type { Basis, Deadline } from "@ariadne/rules";
+import { POOLS } from "../data/query";
+import { DUE_SOON } from "../desk/columns";
+import type { CountUnit, Lang, Strings } from "../i18n";
+import { caseDetails, type CaseDetails, type Flag, type Relation, type TimelineEvent } from "./details";
+import { basisName } from "./sources";
+
+const DAY_MS = 86_400_000;
+
+export type CaseCardProps = {
+  store: ColumnStore;
+  row: number;
+  lang: Lang;
+  t: Strings;
+  /** Bumped by every write to the store, so the card reads it again. */
+  version: number;
+  onOpenCase: (row: number) => void;
+};
+
+export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardProps) {
+  // The register keeps Moscow time: a day is the day in Moscow.
+  const fmt = useFormatters({ timeZone: "Europe/Moscow" });
+  const stoa = useStoaFormat();
+  const c = t.case;
+  const { pools, labels } = POOLS[lang];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const details = useMemo(() => caseDetails(store, row), [store, row, version]);
+  const day = (d: number) => fmt.date(d * DAY_MS);
+  const isoDate = (iso: string) => day(dayNumber(iso));
+  const source = (b: Basis) => ({
+    name: b.reading === "conservative" ? `${basisName(b, lang)} (${c.conservative})` : basisName(b, lang),
+    revision: b.revision,
+    href: b.url,
+  });
+
+  const text = complaintText(store, row, pools);
+  const stream = store.stream[row] ?? 0;
+  const channel = labels.channel[store.channel[row] ?? 0] ?? "";
+  const operation = store.operation[row] ?? 0;
+  const claim = store.claim[row] ?? 0;
+
+  return (
+    <div className="case-card">
+      <Panel title={c.complaint} level={3} className="case-card__complaint">
+        <DescriptionList
+          items={[
+            { term: c.subject, description: text.subject },
+            { term: c.received, description: fmt.dateTime(moscowMs(store.received[row] ?? 0, store.receivedMinute[row] ?? 0)) },
+            { term: c.channel, description: channel },
+            { term: c.source, description: labels.source[store.source[row] ?? 0] ?? "" },
+          ]}
+        />
+        {store.source[row] === Source.BankOfRussia && (
+          <Callout tone="info" role="none">
+            {c.forwarded}
+          </Callout>
+        )}
+        <figure className="case-card__text">
+          <figcaption className="muted">{c.text}</figcaption>
+          <blockquote lang={lang}>{text.body}</blockquote>
+        </figure>
+      </Panel>
+
+      <Panel title={c.applicant} level={3}>
+        <DescriptionList
+          items={[
+            { term: c.name, description: clientName(store.applicant[row] ?? Applicant.Individual, store.client[row] ?? 0, pools) },
+            { term: c.applicantType, description: labels.applicant[store.applicant[row] ?? 0] ?? "" },
+          ]}
+        />
+      </Panel>
+
+      <Panel title={c.operation} level={3}>
+        {operation === Operation.None && claim === 0 ? (
+          <p className="muted">{c.noOperation}</p>
+        ) : (
+          <DescriptionList
+            items={[
+              { term: c.operationKind, description: labels.operation[operation] ?? "" },
+              ...(operation === Operation.None ? [] : [{ term: c.reference, description: opRefText(store.opRef[row] ?? 0), numeric: true }]),
+              { term: c.operationDay, description: day(store.opOn[row] ?? 0) },
+              ...((store.opAmount[row] ?? 0) > 0 ? [{ term: c.amount, description: fmt.money(store.opAmount[row] ?? 0, { fractionDigits: 0 }), numeric: true }] : []),
+              ...(claim > 0 ? [{ term: c.claim, description: fmt.money(claim, { fractionDigits: 0 }), numeric: true }] : []),
+            ]}
+          />
+        )}
+        {stream === Stream.MoneyClaim && <p className="muted">{hasFlag(store, row, RulesFlag.Ombudsman) ? c.claimOmbudsman : c.claimAbove}</p>}
+      </Panel>
+
+      <Panel title={c.flags} level={3}>
+        <Flags details={details} t={t} lang={lang} day={day} />
+      </Panel>
+
+      <Panel title={c.timeline} level={3}>
+        <Timeline events={details.timeline} t={t} lang={lang} day={day} time={(d, m) => fmt.dateTime(moscowMs(d, m))} />
+      </Panel>
+
+      <Panel title={c.related} level={3}>
+        <Related store={store} details={details} t={t} lang={lang} onOpenCase={onOpenCase} />
+      </Panel>
+
+      <Panel title={c.deadline} level={3}>
+        <DerivationTable caption={c.derivation} steps={derivation(store, row, details, t, day, isoDate, source, (left) => deadlineText(stoa, left, "workingDays"))} />
+      </Panel>
+    </div>
+  );
+}
+
+function Flags({ details, t, lang, day }: { details: CaseDetails; t: Strings; lang: Lang; day: (d: number) => string }) {
+  const c = t.case;
+  const { labels } = POOLS[lang];
+  if (details.flags.length === 0) return <p className="muted">{c.noFlags}</p>;
+  const line = (flag: Flag) => {
+    switch (flag.kind) {
+      case "sign": {
+        const operation = labels.operation[flag.operation] ?? "";
+        return (
+          <>
+            <p className="case-card__flag-title">{c.sign(flag.sign.number)}</p>
+            <p>{flag.suspended ? c.signSuspended(operation) : c.signRefused(operation)}</p>
+            <p className="muted">
+              {c.signWording}: <q lang="ru">{flag.sign.wording}</q>
+            </p>
+            {lang !== "ru" && (
+              <p className="muted">
+                {c.signSummary}: {flag.sign.summary}
+              </p>
+            )}
+          </>
+        );
+      }
+      case "aml": {
+        const label = labels.amlReasons[(AML_REASON_CODES as readonly string[]).indexOf(flag.reason.code)] ?? flag.reason.code;
+        return (
+          <p className="case-card__flag-title">
+            {c.amlDecision(label, basisName({ source: flag.reason.source, act: "", article: flag.reason.article, part: flag.reason.part, revision: flag.reason.revision, url: "", reading: "text" }, lang))}
+          </p>
+        );
+      }
+      case "deadline":
+        return <p>{c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind}</p>;
+    }
+  };
+  return (
+    <ol className="timeline">
+      {details.flags.map((flag, k) => (
+        <li key={k} className="timeline__item">
+          <span className="timeline__when">{day(flag.day)}</span>
+          <div className="timeline__what">{line(flag)}</div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Timeline({ events, t, lang, day, time }: { events: TimelineEvent[]; t: Strings; lang: Lang; day: (d: number) => string; time: (d: number, minute: number) => string }) {
+  const e = t.case.event;
+  const { labels } = POOLS[lang];
+  const channel = (code: number) => labels.channel[code] ?? "";
+  const line = (event: TimelineEvent): string => {
+    switch (event.kind) {
+      case "received":
+        return event.forwarded ? `${e.received(channel(event.channel))}, ${e.forwarded}` : e.received(channel(event.channel));
+      case "registered":
+        return event.late ? e.registeredLate : e.registered;
+      case "registration_notice":
+        return e.registrationNotice(channel(event.channel));
+      case "extended":
+        return e.extended(day(event.until));
+      case "reply_sent":
+        return event.late ? `${e.replySent(channel(event.channel))}. ${e.replySentLate}` : e.replySent(channel(event.channel));
+      case "copy_to_bank_of_russia":
+        return e.copy;
+      case "closed":
+        return e.closed;
+      case "reply_due":
+        return e.replyDue;
+    }
+  };
+  return (
+    <ol className="timeline">
+      {events.map((event, k) => (
+        <li key={k} className={`timeline__item${event.kind === "reply_due" ? " timeline__item--due" : ""}`}>
+          <span className="timeline__when">{event.kind === "received" ? time(event.day, event.minute) : day(event.day)}</span>
+          <span className="timeline__what">{line(event)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+type RelatedRow = { row: number; relation: Relation };
+
+function Related({ store, details, t, lang, onOpenCase }: { store: ColumnStore; details: CaseDetails; t: Strings; lang: Lang; onOpenCase: (row: number) => void }) {
+  const c = t.case;
+  const { labels } = POOLS[lang];
+  const columns: TableColumn<RelatedRow>[] = [
+    {
+      id: "case",
+      header: c.relatedColumns.case,
+      cell: (r) => (
+        <Button variant="ghost" size="small" onPress={() => onOpenCase(r.row)} aria-label={c.openCase(rowId(r.row))}>
+          {rowId(r.row)}
+        </Button>
+      ),
+    },
+    { id: "relation", header: c.relatedColumns.relation, cell: (r) => c.relation[r.relation] },
+    { id: "stream", header: c.relatedColumns.stream, cell: (r) => labels.stream[store.stream[r.row] ?? 0] ?? "" },
+    { id: "stage", header: c.relatedColumns.stage, cell: (r) => labels.stage[store.stage[r.row] ?? 0] ?? "" },
+    {
+      id: "left",
+      header: c.relatedColumns.left,
+      cell: (r) => (isAnswered(store, r.row) ? "" : <DeadlineCell left={workingDaysLeft(store, r.row)} unit="workingDays" warnAt={DUE_SOON} />),
+    },
+  ];
+  return <Table caption={c.related} hideCaption columns={columns} rows={details.related} rowKey={(r) => r.row} emptyText={c.relatedNone} wrapHeaders />;
+}
+
+/** The steps from receipt to the reply's last day, and the time left. */
+function derivation(
+  store: ColumnStore,
+  row: number,
+  details: CaseDetails,
+  t: Strings,
+  day: (d: number) => string,
+  isoDate: (iso: string) => string,
+  source: (b: Basis) => { name: string; revision: string; href: string },
+  leftText: (left: number) => string,
+): DerivationStep[] {
+  const c = t.case;
+  const count = (d: Deadline) => c.count(isoDate(d.from), String(d.countValue), d.count as CountUnit, d.countValue);
+  const steps: DerivationStep[] = [{ id: "received", label: c.step.received, value: day(store.received[row] ?? 0) }];
+  if (details.registration) {
+    const late = hasFlag(store, row, RulesFlag.RegisteredLate);
+    steps.push({
+      id: "registration",
+      label: c.step.registration,
+      formula: count(details.registration),
+      value: late ? `${day(store.registered[row] ?? 0)}, ${c.registeredLateNote}` : day(store.registered[row] ?? 0),
+      source: source(details.registration.basis),
+    });
+  }
+  if (details.reply) {
+    steps.push({ id: "reply", label: c.step.reply, formula: count(details.reply), value: isoDate(details.reply.due), source: source(details.reply.basis) });
+  }
+  const term = details.term;
+  const daysOff = term.calendar - term.working;
+  const holidays = term.daysOff.length > 0 ? c.holidays(term.daysOff.map((d) => day(d.day)).join(", ")) : "";
+  steps.push({
+    id: "days-off",
+    label: c.step.daysOff,
+    formula: c.daysOffFormula(String(term.calendar), String(term.working)),
+    value: [c.daysOffValue(String(daysOff), daysOff, String(term.weekend), holidays), term.workingWeekends > 0 ? c.workingWeekends(String(term.workingWeekends)) : ""]
+      .filter(Boolean)
+      .join("; "),
+  });
+  const ext = details.extension;
+  if (ext.status === "taken") {
+    steps.push({ id: "extension", label: c.step.extension, formula: count(ext.extended), value: c.extensionTaken(isoDate(ext.extended.due)), source: source(ext.extended.basis) });
+  } else if (ext.status === "possible") {
+    steps.push({ id: "extension", label: c.step.extension, value: c.extensionPossible(isoDate(ext.notice.due)), source: source(ext.notice.basis) });
+  } else {
+    const reason = ext.refusals.map((r) => c.extensionRefusal[r] ?? r).join("; ") || c.extensionRefused;
+    steps.push({ id: "extension", label: c.step.extension, value: reason, ...(details.reply ? { source: source(details.reply.basis) } : {}) });
+  }
+  if (!isAnswered(store, row)) {
+    steps.push({
+      id: "left",
+      label: c.step.left,
+      formula: c.leftFormula(day(AS_OF_DAY), day(effectiveDue(store, row))),
+      value: leftText(workingDaysLeft(store, row)),
+    });
+  }
+  return steps;
+}

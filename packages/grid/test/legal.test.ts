@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { amlReasons, clock, isWorkingDay, nextWorkingDay, od2506Signs, workingDaysBetween } from "@ariadne/rules";
 import { generateAll } from "../src/generator.js";
 import { dayNumber, isoDay } from "../src/days.js";
-import { replyFacts } from "../src/legal.js";
+import { caseFacts, replyFacts, rowReplyFacts } from "../src/legal.js";
 import {
   AML_GROUND_OFFSET,
   AML_REASON_CODES,
@@ -10,7 +10,6 @@ import {
   CORPUS_CHUNK,
   CORPUS_ROWS,
   DEFAULT_SEED,
-  ELECTRONIC_CHANNELS,
   Extension,
   GROUNDS,
   Ground,
@@ -20,7 +19,7 @@ import {
   Stage,
   Stream,
 } from "../src/schema.js";
-import { RulesFlag, hasFlag, type ColumnStore } from "../src/store.js";
+import { RulesFlag, effectiveDue, hasFlag, type ColumnStore } from "../src/store.js";
 import { labels as en } from "../src/pools/en.js";
 import { labels as ru } from "../src/pools/ru.js";
 
@@ -33,19 +32,8 @@ import { labels as ru } from "../src/pools/ru.js";
 const store = generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK);
 const asOf = dayNumber(AS_OF);
 
-function factsOf(s: ColumnStore, i: number) {
-  return {
-    stream: s.stream[i]!,
-    applicant: s.applicant[i]!,
-    forwarded: s.source[i] === Source.BankOfRussia,
-    electronic: ELECTRONIC_CHANNELS.includes(s.channel[i]!),
-    received: s.received[i]!,
-    registered: s.registered[i]!,
-    claim: s.claim[i]!,
-    standardForm: s.claimForm[i] === 1,
-    breachOn: s.claim[i]! > 0 ? s.opOn[i]! : -1,
-  };
-}
+/* The facts the generator asked about, read back from the row */
+const factsOf = (s: ColumnStore, i: number) => rowReplyFacts(s, i);
 
 const rows = (pred: (i: number) => boolean) => Array.from({ length: store.size }, (_, i) => i).filter(pred);
 
@@ -186,5 +174,23 @@ describe("codes and labels follow ariadne-rules' lists", () => {
       expect([ground.act, ground.article, ground.part]).toEqual(["anti_money_laundering", r.article, r.part]);
       expect(en.ground[AML_GROUND_OFFSET + k]).toContain(`art. ${r.article}`);
     });
+  });
+});
+
+describe("a case's whole clock", () => {
+  it("adds the antifraud and anti-money-laundering facts, so the module gives their deadlines too", () => {
+    const blocked = rows((i) => store.stream[i] === Stream.Antifraud && store.operation[i] === 3)[0]!;
+    const refusal = rows((i) => store.stream[i] === Stream.Aml && store.reason[i] === 1)[0]!;
+    const general = rows((i) => store.stream[i] === Stream.General)[0]!;
+    expect(caseFacts(store, blocked).blocked).toEqual({ operation: "transfer", on: isoDay(store.opOn[blocked]!) });
+    expect(clock(caseFacts(store, blocked)).deadlines.map((d) => d.kind)).toContain("antifraud_suspension_ends");
+    expect(caseFacts(store, refusal).aml).toEqual({ decision: { kind: "refuse_operation", on: isoDay(store.opOn[refusal]!) } });
+    expect(clock(caseFacts(store, refusal)).deadlines.map((d) => d.kind)).toContain("aml_reasons_notice");
+    const plain = caseFacts(store, general);
+    expect([plain.blocked, plain.aml]).toEqual([undefined, undefined]);
+    /* The reply's date is the same as the register's */
+    for (const i of [blocked, refusal, general]) {
+      expect(clock(caseFacts(store, i)).replyDue).toBe(isoDay(effectiveDue(store, i)));
+    }
   });
 });

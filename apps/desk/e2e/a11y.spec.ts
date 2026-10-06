@@ -24,7 +24,7 @@ for (const [lang, words] of Object.entries(LANGS)) {
       // A selection with the bulk bar, then an editor with its error.
       await cell(page, 0, 1).click();
       await page.keyboard.press("Space");
-      await expect(page.locator(".desk__bulk")).toBeVisible();
+      await expect(page.locator(".stoa-selection-bar")).toBeVisible();
       await expectNoSeriousViolations(page, "selected", { lang, theme });
       await page.keyboard.press("Space");
       await cell(page, 0, 8).click();
@@ -45,12 +45,12 @@ for (const [lang, words] of Object.entries(LANGS)) {
         await page.keyboard.press("Escape");
         await expect(page.getByRole("dialog")).toHaveCount(0);
       }
-      await page.locator(".desk__bar .stoa-toolbar button").nth(2).click();
+      await page.locator(".desk__bar .stoa-toolbar").getByRole("button", { name: lang === "ru" ? "Столбцы" : "Columns" }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await expectNoSeriousViolations(page, "columns", { lang, theme });
       await page.keyboard.press("Escape");
 
-      await page.locator(".desk__search input").fill("ъъъ zzz");
+      await page.locator(".desk__filters input").fill("ъъъ zzz");
       await expectCount(page, words.empty);
       await expectNoSeriousViolations(page, "empty", { lang, theme });
     });
@@ -102,7 +102,7 @@ for (const width of [1280, 375]) {
       expect(await sidewaysScroll(page), lang).toEqual({ document: 0, region: 0 });
       await cell(page, 0, 1).click();
       await page.keyboard.press("Space");
-      await expect(page.locator(".desk__bulk")).toBeVisible();
+      await expect(page.locator(".stoa-selection-bar")).toBeVisible();
       expect(await sidewaysScroll(page), `${lang}, selected`).toEqual({ document: 0, region: 0 });
     }
   });
@@ -141,10 +141,11 @@ test("at 375 px every column can be reached and edited, and the grid starts on t
     await stage.dblclick();
     await expect(grid(page).getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Escape");
-    // The filters are one tap away.
-    await page.getByText(LANGS[lang].filters, { exact: true }).click();
-    await expect(page.locator(".stoa-filter-chip").first()).toBeVisible();
+    // The filters are one tap away, in a sheet from the bottom.
+    await page.getByRole("button", { name: new RegExp(`^${LANGS[lang].filters}`) }).click();
+    await expect(page.getByRole("dialog").locator(".stoa-filter-chip").first()).toBeVisible();
     await expectNoSeriousViolations(page, `narrow, ${lang}`);
+    await page.keyboard.press("Escape");
   }
 });
 
