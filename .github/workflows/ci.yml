@@ -53,7 +53,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The WebAssembly package of the rules crate, as the desk's worker loads it.
+  # The WebAssembly package of the rules crate, as the desk's worker loads it;
+  # build-and-test takes it from here.
   wasm:
     runs-on: ubuntu-latest
     steps:
@@ -90,6 +91,9 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
+    # The register's legal dates come from the rules crate's WebAssembly
+    # build, which the wasm job makes once.
+    needs: wasm
     # The apps link Stoa from a sibling checkout
     # (link:../../../stoa/packages/...), so this repository is checked out
     # into ariadne/ and Stoa into stoa/ beside it.
@@ -125,6 +129,12 @@ jobs:
         working-directory: stoa
         run: pnpm install --frozen-lockfile && pnpm build
 
+      # The wasm job's build of the rules crate, where wasm-pack puts it;
+      # @ariadne/rules copies it from there.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wasm
+          path: ariadne/crates/ariadne-rules/pkg
       - run: pnpm install --frozen-lockfile
       # The packages first (the apps import their dist/), then the apps.
       - run: pnpm build

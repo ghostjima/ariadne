@@ -16,3 +16,5 @@ pkg/
 CLAUDE.md
 AGENTS.md
 /docs/inside/
+# The rules adapter copies the WebAssembly build here.
+/packages/rules/wasm/
