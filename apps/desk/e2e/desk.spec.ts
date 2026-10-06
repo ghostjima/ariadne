@@ -153,12 +153,17 @@ test("a refusal needs a legal ground of its own stream, and goes to legal review
   await pick(page, row, 5, "Refuse");
   await expect(cell(page, row, 5)).toHaveText("Refuse");
   await expect(page.locator("[role=status]").filter({ hasText: "Decision is now" }).first()).toContainText("Decision is now “Refuse”.");
+  // Decided, with its ground: on to legal review, which takes the case out
+  // of this view of drafts.
+  const drafts = (await page.getByTestId("row-count").textContent())!;
+  const id = (await cell(page, row, 1).textContent())!;
   await pick(page, row, 4, "Legal review");
-  await expect(cell(page, row, 4)).toHaveText("Legal review");
-  // Ctrl or Cmd with Z takes the last edit back.
+  await expect(page.locator("[role=status]").filter({ hasText: "Stage is now" }).first()).toContainText(`${id}: Stage is now “Legal review”.`);
+  await expect(page.getByTestId("row-count")).not.toHaveText(drafts);
+  // Ctrl or Cmd with Z takes the last edit back, and the draft returns.
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(cell(page, row, 4)).toHaveText("Drafting");
   await expect(toasts(page)).toContainText("Undone on 1 case.");
+  await expect(page.getByTestId("row-count")).toHaveText(drafts);
 });
 
 test("a money claim under 123-FZ is never extended; a note over 200 characters is refused", async ({ page }) => {
