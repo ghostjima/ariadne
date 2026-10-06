@@ -43,8 +43,8 @@
     "measure": "pnpm build && node bench/measure.mjs"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
-    "typescript": "6.0.3",
-    "vitest": "5.0.2"
+    "@types/node": "^26.6.4",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
   }
 }

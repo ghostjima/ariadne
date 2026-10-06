@@ -38,11 +38,11 @@
     "bench": "pnpm build && node scripts/bench.mjs"
   },
   "dependencies": {
-    "xstate": "5.32.6"
+    "xstate": "5.33.2"
   },
   "devDependencies": {
-    "@types/node": "22.20.1",
-    "typescript": "5.9.3",
-    "vitest": "5.0.0"
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
   }
 }
