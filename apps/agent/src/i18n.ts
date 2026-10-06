@@ -563,7 +563,7 @@ const en: Strings = {
 };
 
 const ruStrings: Strings = {
-  title: "Ariadne: агент",
+  title: "Ariadne Агент",
   subtitle: "Остановка на любом шаге",
   suppliers: [
     "«Северметалл»",
@@ -872,7 +872,7 @@ const ruStrings: Strings = {
 };
 
 const arStrings: Strings = {
-  title: "Ariadne: الوكيل",
+  title: "Ariadne الوكيل",
   subtitle: "إيقاف عند أي خطوة",
   suppliers: [
     "معادن الشمال",
