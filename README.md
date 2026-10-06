@@ -2,16 +2,6 @@
 
 [![CI](https://github.com/ghostjima/ariadne/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ghostjima/ariadne/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![Unit tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/unit-tests.json)](#badges)
-[![e2e](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/e2e.json)](#badges)
-[![axe](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/axe.json)](#badges)
-[![Lighthouse accessibility](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-accessibility.json)](#badges)
-[![Lighthouse best practices](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-best-practices.json)](#badges)
-[![Lighthouse SEO](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-seo.json)](#badges)
-[![Bundle gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/bundle-size.json)](#badges)
-
-The test, axe, Lighthouse and size badges are measured and published by
-CI from `main`; what each one counts is under [Badges](#badges).
 
 ## In one minute
 
@@ -26,11 +16,11 @@ undone within a stated window.
 What runs today is the foundation, as two working prototypes on
 synthetic data, entirely in the browser:
 
-- **Argus Desk** (`apps/desk`): a keyboard-first desk for 50,000
+- **Ariadne Desk** (`apps/desk`): a keyboard-first desk for 50,000
   requests in one grid, with SLA hours, filters with counts, saved
   views, roles, bulk changes with undo, edit conflicts with a simulated
   colleague, and CSV export.
-- **Ariadne** (`apps/agent`): an agent run a person can stop. The
+- **Ariadne Agent** (`apps/agent`): an agent run a person can stop. The
   assistant proposes a plan; the person edits and approves it, confirms
   the risky steps, stops the run at any moment, and undoes what was
   done.
@@ -117,8 +107,8 @@ The workflows the desk is built around, and what exists of each today:
 
 ## What is built
 
-- [`apps/desk`](apps/desk/README.md): Argus Desk, the 50,000-row desk.
-- [`apps/agent`](apps/agent/README.md): Ariadne, the stoppable agent
+- [`apps/desk`](apps/desk/README.md): Ariadne Desk, the 50,000-row desk.
+- [`apps/agent`](apps/agent/README.md): Ariadne Agent, the stoppable agent
   run, streamed from a Service Worker.
 - [`packages/grid`](packages/grid/README.md) (`@ariadne/grid`): the
   desk's data engine: deterministic generation, columnar store, filters
@@ -159,41 +149,21 @@ are set only after a baseline exists.
 
 ## Measured quality
 
-The badges at the top are measured by CI on each commit to `main`, and
-the badge branch records the commit they were measured on. Timings and
+[![Unit tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/unit-tests.json)](#what-each-badge-counts)
+[![e2e](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/e2e.json)](#what-each-badge-counts)
+[![axe](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/axe.json)](#what-each-badge-counts)
+[![Lighthouse accessibility](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-accessibility.json)](#what-each-badge-counts)
+[![Lighthouse best practices](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-best-practices.json)](#what-each-badge-counts)
+[![Lighthouse SEO](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-seo.json)](#what-each-badge-counts)
+[![Bundle gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/bundle-size.json)](#what-each-badge-counts)
+
+CI measures these badges on each commit to `main`, and the badge branch
+records the commit they were measured on. Timings and
 sizes of each app and engine, each stamped with its commit, machine and
 browser, are in the `docs/MEASUREMENTS.md` of that app or package; those
 records were taken in the source repositories before their import here.
 
-## Role
-
-Product design and engineering by Dr.Ghostjima: the research behind the
-problem, the workflows and interface, the Stoa design system, the
-engines and the tests.
-
-## Development
-
-The apps link Stoa from a sibling checkout: clone
-[ghostjima/stoa](https://github.com/ghostjima/stoa) next to this
-repository (as `../stoa`) and build it there with
-`pnpm install --frozen-lockfile && pnpm build`. Then, here:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm build          # the packages, then the apps
-pnpm -r typecheck
-pnpm test           # every package's unit tests and the root scripts'
-pnpm --filter @ariadne/desk e2e
-pnpm --filter @ariadne/agent e2e
-```
-
-The end-to-end tests build their app and serve it with `vite preview`,
-the desk on 4178 and the agent on 4177; `E2E_PORT` moves it. The dev
-servers: `pnpm --filter @ariadne/desk dev` on 5182 and
-`pnpm --filter @ariadne/agent dev` on 5183. How to contribute, and what
-every change has to pass: [CONTRIBUTING.md](CONTRIBUTING.md).
-
-### Badges
+### What each badge counts
 
 CI checks out this repository and Stoa side by side, builds Stoa, then
 builds and tests the packages and both apps. Each green run on `main`
@@ -221,6 +191,34 @@ own output and stops, publishing nothing, when a value cannot be read.
 - Bundle gzip: every JavaScript and CSS file in each app's `dist/`, gzip
   level 9, summed per app, workers included. The fonts and `index.html`
   are not included.
+
+## Role
+
+Timur Khubaev ([ghostjima](https://github.com/ghostjima)): research,
+product and interaction design, the Stoa design system, the engines and
+the front end.
+
+## Development
+
+The apps link Stoa from a sibling checkout: clone
+[ghostjima/stoa](https://github.com/ghostjima/stoa) next to this
+repository (as `../stoa`) and build it there with
+`pnpm install --frozen-lockfile && pnpm build`. Then, here:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build          # the packages, then the apps
+pnpm -r typecheck
+pnpm test           # every package's unit tests and the root scripts'
+pnpm --filter @ariadne/desk e2e
+pnpm --filter @ariadne/agent e2e
+```
+
+The end-to-end tests build their app and serve it with `vite preview`,
+the desk on 4178 and the agent on 4177; `E2E_PORT` moves it. The dev
+servers: `pnpm --filter @ariadne/desk dev` on 5182 and
+`pnpm --filter @ariadne/agent dev` on 5183. How to contribute, and what
+every change has to pass: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
