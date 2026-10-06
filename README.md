@@ -186,7 +186,8 @@ own output and stops, publishing nothing, when a value cannot be read.
   and node:test in the root scripts (`pnpm test`).
 - e2e: Playwright tests passed in Chromium against `vite preview` of
   each app's build, the agent's Service Worker included; the total, then
-  each app's count.
+  each app's count. The agent's focus tests count twice: they run again
+  with the page's CPU slowed down.
 - axe: axe-core 4.13.0 in the e2e, a serious or critical violation fails
   the run. Counted for each app as states times language and theme
   pairs (English, Russian and Arabic, light and dark): for the desk, the
@@ -195,7 +196,7 @@ own output and stops, publishing nothing, when a value cannot be read.
   for the agent, those under
   [its own](apps/agent/README.md#accessibility). Scans outside these
   matrices fail the run too but are not counted.
-- Lighthouse: Lighthouse 12 accessibility, best practices and SEO scores
+- Lighthouse: Lighthouse 13 accessibility, best practices and SEO scores
   for each app's home page served by `vite preview`, the lowest of both
   apps, desktop and mobile. Performance is not shown: on a shared CI
   runner it measures the runner.

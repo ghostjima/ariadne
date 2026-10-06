@@ -147,7 +147,7 @@ jobs:
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/app/agent-e2e.json
         run: pnpm --filter @ariadne/agent e2e --reporter=list,json
-      # Lighthouse 12 (a pinned dev dependency) in Playwright's Chromium,
+      # Lighthouse 13 (a pinned dev dependency) in Playwright's Chromium,
       # accessibility, best practices and SEO only: performance on a shared
       # runner measures the runner. Each app's build is served by vite
       # preview (the agent's with its built Service Worker), measured, and
