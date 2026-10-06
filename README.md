@@ -28,13 +28,18 @@ the browser, in Russian (the default) and English:
   words, or the 115-FZ category), the timeline of its channels, linked
   cases, and how the reply's last day was worked out, each step with its
   source.
-- **The assistant** beside the case: a run a person can stop. The
-  assistant proposes a plan; the person edits and approves it, confirms
-  the risky steps, stops the run at any moment, and undoes what was
-  done.
+- **The assistant** beside the case: a run a person can stop. For the
+  open case it proposes a plan: classify the complaint, request the facts
+  from antifraud, AML compliance or operations with a deadline of their
+  own, draft the reply citing the law from the rules engine, check the
+  draft with the rubric, hand it to legal review. The person edits and
+  approves the plan, confirms the risky steps (drafting a reply always
+  asks), stops the run at any moment, and undoes what was done. The
+  assistant is given the case's codes, dates and amounts, never the
+  complaint's text, so nothing an applicant writes can instruct it; it
+  sends nothing to the client.
 
-The assistant's own scenario is still the one it was built with, not
-the case's, and the drafts and the signature are not built yet;
+Review, signature and dispatch are not built yet;
 [What comes next](#what-comes-next) says what is. There is no screenshot
 or public deployment yet; the desk runs locally as described under
 [Development](#development).
@@ -70,8 +75,8 @@ The workflows the desk is built around, and what exists of each today:
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
 | Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, signatory and supervisor roles |
-| Case card: client, operation, flags, linked cases, fact requests | built, but for fact requests: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day |
-| Draft: the assistant proposes a plan and a reply | built as the agent run: plan, consent rule, confirmations with a draft, stop, undo windows |
+| Case card: client, operation, flags, linked cases, fact requests | built: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day; the structured fact request is the assistant's step, with its own deadline |
+| Draft: the assistant proposes a plan and a reply | built as the agent run for the open case: classify, request facts, draft the reply from templates over the case's facts with the act and article from the rules engine, check it with the rubric, hand it to legal review; the consent rule, confirmations with the draft, stop and undo windows |
 | Extension of the deadline, with a reason and an approver | in part: an extension of ten working days to request documents, approved by the supervisor, refused by the rules engine for a money claim under 123-FZ and after the last day for its notice |
 | Review and signature, dispatch and copies | not built |
 | Journal and metrics | the agent run keeps a session log of every event and decision, which can be copied as text |
@@ -130,8 +135,9 @@ The workflows the desk is built around, and what exists of each today:
   which the grid, the desk and the agent ask it; it computes nothing
   itself.
 - [`packages/runner`](packages/runner/README.md) (`@ariadne/runner`):
-  the agent's run engine: seeded plan, consent rule, confirmations, undo
-  windows, replay and the event stream.
+  the agent's run engine for a complaint: seeded plan over a case brief
+  of codes, consent rule, confirmations, undo windows, replay and the
+  versioned event stream.
 - [`crates/ariadne-rules`](crates/ariadne-rules/README.md): the legal
   rules engine in Rust compiled to WebAssembly; so far the Russian
   production calendar for 2025 to 2027, counting in working days, and
@@ -147,8 +153,11 @@ ghostjima.github.io/ariadne/.
 
 ## What comes next
 
-- A complaints scenario for the runner: classify, request facts, draft
-  the reply, check it with the rubric, hand it to legal review.
+- Review and signature as states of the case: the reviewer's edits
+  against the assistant's draft, then signature and dispatch, with the
+  copy to the Bank of Russia.
+- The assistant's run changing the register: today what it does is
+  recorded in its own run and log, and the register is left as it was.
 
 ## Validation plan and target metrics
 

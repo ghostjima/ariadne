@@ -94,16 +94,48 @@ assistant's).
 The assistant is [`@ariadne/runner`](../../packages/runner), a
 deterministic engine, not a model: a seeded scenario, a consent rule, and
 a run that replays the same way from the same plan and the same
-decisions. The panel says so. Give it how much it may do without asking;
-read its plan, reorder it, remove steps, mark the ones that must ask
-first; run it and watch every step. Risky steps wait for confirmation
-with a draft of what they will do (high risk always asks: no setting
-lowers that floor), a failed step waits for Retry, Skip or Stop, the
-assistant asks before it leaves the plan, Stop is one key away at every
-moment, and what was done can be undone: internal changes at any time,
-outgoing letters within a window that is counted down on screen. A
-summary closes the run. Each case keeps its own run while the page is
-open.
+decisions. The panel says so. For the open case it proposes five steps:
+
+1. **Classify** the complaint: its stream and reason (the OD-2506 sign or
+   the 115-FZ category), as the register and the rules hold them.
+2. **Request the facts** from the team that holds them (antifraud, AML
+   compliance or operations), with the questions for that team and a
+   deadline of its own: two working days, never after the reply's last
+   day while that is ahead. The request leaves the complaints team, so it
+   can be recalled within a window. When a linked case already holds the
+   facts, the agent asks to take them from there instead.
+3. **Draft the reply** from templates over the case's facts: the
+   operation, the measure and the sign or category behind it, the legal
+   ground with its act, article and part (from the rules engine), the
+   options and the deadlines the law gives the client, and the next
+   steps. The decision on the complaint is the register's; when nobody
+   has decided, the draft leaves it for the reviewer. Drafting is high
+   risk: it always waits for a person, who reads the letter before it is
+   written.
+4. **Check the draft** with the rules engine's rubric: grounds named and
+   not mixed between 161-FZ and 115-FZ, every option and running deadline
+   stated, sentences short. The findings are shown, never applied.
+5. **Hand it to legal review.** The assistant never sends a reply; a
+   signatory does, after the review.
+
+What the assistant is given is the case's brief: its codes, dates and
+amounts from the register and the rules, never the complaint's text. A
+complaint that tells an assistant what to do (the corpus has a few) is
+shown in the card as the applicant's words, with a notice, and cannot
+reach the run: the run service refuses a brief with any string that is
+not one of the engine's codes.
+
+Give it how much it may do without asking; read its plan, reorder it,
+remove steps, mark the ones that must ask first; run it and watch every
+step. Risky steps wait for confirmation with a draft of what they will
+do (high risk always asks: no setting lowers that floor), a failed step
+waits for Retry, Skip or Stop, the assistant asks before it leaves the
+plan, Stop is one key away at every moment, and what was done can be
+undone: internal changes at any time, the fact request within a window
+that is counted down on screen (its toast steps aside while a
+confirmation is open). A summary closes the run. Each case keeps its own
+run while the page is open. What the run does stays in the run and its
+log: the register is not changed by it yet.
 
 Keys in the open case: R runs the plan, S stops, P pauses or resumes, Q
 goes back to the queue, ? lists them. In a confirmation the focus is on
@@ -140,7 +172,9 @@ action in half) and no new step starts; a step waiting for a decision is
 skipped at once. Pause closes the stream between two events, and Resume
 opens the next segment after the last one.
 
-Link parameters for the stream: `?seed=` (the scenario number),
+Link parameters for the stream: `?seed=` (the scenario number: it sets
+the agent's confidence and each step's duration, and an odd number makes
+the fact request time out once),
 `?speed=fast`, `?undoWindow=<seconds>`, `?drop=1` (cut the first segment
 once, to see a reconnection) and `?scale=<factor>` (multiplies every
 delay between events; 0 sends a segment at once).
@@ -186,11 +220,12 @@ light and the dark theme, on: the loaded queue, a selection with its
 bar, an editor showing an error, the shortcuts, save-view and columns
 dialogs, no matches, loading, a partial load failure with the operator
 role, the open case with its card and assistant, and, in the assistant,
-the plan, a confirmation, a failed step with the undo countdown, a
-stopped run with its summary and toasts, New plan asking before it ends
+the plan, the agent's request to change a step, a failed step, the
+reply's confirmation with its letter, a finished run with the draft, the
+rubric's check, its summary and toasts, New plan asking before it ends
 an open undo window, an empty plan, the run service starting, and the
 run service failed; and on the conflict dialog with a toast in Russian,
-dark.
+dark, and the adversarial case in both languages.
 
 They also check: the main tasks by keyboard (grid moves, sorting from a
 header, editing and the rules' refusals, selecting rows, undo, opening a
@@ -212,9 +247,9 @@ Screen readers were not tested by hand.
 
 ## Measurements
 
-Taken in the source repositories, before the complaints register and
-before the merge, and kept as a record: they are not current until taken
-again. The queue's, on commit `7da277e` of Valkyra-Labs/argus-desk with
+Taken in the source repositories, before the complaints register, the
+merge and the assistant's complaint scenario, and kept as a record: they
+are not current until taken again. The queue's, on commit `7da277e` of Valkyra-Labs/argus-desk with
 50,000 sales requests: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). The
 assistant's run, from the agent app before it became this panel:
 [docs/AGENT-MEASUREMENTS.md](docs/AGENT-MEASUREMENTS.md). The scripts

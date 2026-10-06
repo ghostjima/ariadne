@@ -1,7 +1,10 @@
 # Measurements
 
 Taken in the Valkyra-Labs/ariadne-agent repository before its import here; the
-commits named below are that repository's.
+commits named below are that repository's. The run measured was the
+engine's first scenario (protocol version 1: twelve procurement requests),
+not today's five steps for a complaint; kept as a record, not current
+until taken again with `pnpm measure:agent`.
 
 Every number here comes from `node scripts/measure.mjs` (`pnpm measure`),
 taken on commit `666da5b` with a clean tree, on 2026-10-04.
