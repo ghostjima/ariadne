@@ -33,7 +33,8 @@ the browser, in Russian (the default) and English:
   the risky steps, stops the run at any moment, and undoes what was
   done.
 
-The drafts and the signature are not built yet;
+The assistant's own scenario is still the one it was built with, not
+the case's, and the drafts and the signature are not built yet;
 [What comes next](#what-comes-next) says what is. There is no screenshot
 or public deployment yet; the desk runs locally as described under
 [Development](#development).
@@ -69,7 +70,7 @@ The workflows the desk is built around, and what exists of each today:
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
 | Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, signatory and supervisor roles |
-| Case card: client, operation, flags, linked cases, fact requests | not built |
+| Case card: client, operation, flags, linked cases, fact requests | built, but for fact requests: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day |
 | Draft: the assistant proposes a plan and a reply | built as the agent run: plan, consent rule, confirmations with a draft, stop, undo windows |
 | Extension of the deadline, with a reason and an approver | in part: an extension of ten working days to request documents, approved by the supervisor, refused by the rules engine for a money claim under 123-FZ and after the last day for its notice |
 | Review and signature, dispatch and copies | not built |
@@ -148,7 +149,6 @@ ghostjima.github.io/ariadne/.
 
 - A complaints scenario for the runner: classify, request facts, draft
   the reply, check it with the rubric, hand it to legal review.
-- Russian as the first interface language and English as the second.
 
 ## Validation plan and target metrics
 
