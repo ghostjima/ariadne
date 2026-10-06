@@ -16,18 +16,21 @@ undone within a stated window.
 What runs today is the foundation, as two working prototypes on
 synthetic data, entirely in the browser:
 
-- **Ariadne Desk** (`apps/desk`): a keyboard-first desk for 50,000
-  requests in one grid, with SLA hours, filters with counts, saved
-  views, roles, bulk changes with undo, edit conflicts with a simulated
-  colleague, and CSV export.
+- **Ariadne Desk** (`apps/desk`): a keyboard-first desk for a register
+  of invented complaints, each with its legal deadline counted by the
+  rules engine: the open cases by time left in working days, views
+  (due within 3 working days, overdue, forwarded by the Bank of Russia,
+  waiting for facts, awaiting signature), filters with counts, operator,
+  signatory and supervisor roles, edits the rules check, bulk
+  reassignment with undo, edit conflicts with a simulated colleague, and
+  CSV export.
 - **Ariadne Agent** (`apps/agent`): an agent run a person can stop. The
   assistant proposes a plan; the person edits and approves it, confirms
   the risky steps, stops the run at any moment, and undoes what was
   done.
 
-The complaints domain itself (legal deadlines, case cards, drafts,
-signature) is not built yet; [What comes next](#what-comes-next) says
-what is. There is no screenshot or public deployment yet; the apps run
+The case card, the drafts and the signature are not built yet;
+[What comes next](#what-comes-next) says what is. There is no screenshot or public deployment yet; the apps run
 locally as described under [Development](#development).
 
 ## Problem
@@ -60,10 +63,10 @@ The workflows the desk is built around, and what exists of each today:
 | Workflow | Today |
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
-| Queue with the time left, views and roles | built as a general request grid: SLA hours, preset and saved views, operator and manager roles |
+| Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, signatory and supervisor roles |
 | Case card: client, operation, flags, linked cases, fact requests | not built |
 | Draft: the assistant proposes a plan and a reply | built as the agent run: plan, consent rule, confirmations with a draft, stop, undo windows |
-| Extension of the deadline, with a reason and an approver | not built |
+| Extension of the deadline, with a reason and an approver | in part: an extension of ten working days to request documents, approved by the supervisor, refused by the rules engine for a money claim under 123-FZ and after the last day for its notice |
 | Review and signature, dispatch and copies | not built |
 | Journal and metrics | the agent run keeps a session log of every event and decision, which can be copied as text |
 
@@ -107,13 +110,20 @@ The workflows the desk is built around, and what exists of each today:
 
 ## What is built
 
-- [`apps/desk`](apps/desk/README.md): Ariadne Desk, the 50,000-row desk.
+- [`apps/desk`](apps/desk/README.md): Ariadne Desk, the complaints
+  register in one grid.
 - [`apps/agent`](apps/agent/README.md): Ariadne Agent, the stoppable agent
   run, streamed from a Service Worker.
 - [`packages/grid`](packages/grid/README.md) (`@ariadne/grid`): the
-  desk's data engine: deterministic generation, columnar store, filters
-  with facets, views, roles, edit validation, undo, the simulated
-  colleague and CSV.
+  desk's data engine: a seeded synthetic register of complaints in
+  Russian and English (1,200 cases by default, 50,000 in the scale
+  mode, a few with text addressed to an assistant, marked for tests),
+  columnar store, filters with facets, views, roles, edit validation,
+  undo, the simulated colleague and CSV.
+- [`packages/rules`](packages/rules/README.md) (`@ariadne/rules`): the
+  TypeScript adapter over the rules engine's WebAssembly build, through
+  which the grid, the desk and the agent ask it; it computes nothing
+  itself.
 - [`packages/runner`](packages/runner/README.md) (`@ariadne/runner`):
   the agent's run engine: seeded plan, consent rule, confirmations, undo
   windows, replay and the event stream.
@@ -126,18 +136,18 @@ The workflows the desk is built around, and what exists of each today:
   rubric that returns coded findings on a structured reply.
 
 Both apps are built on the [Stoa](https://github.com/ghostjima/stoa)
-design system and are tested with axe in English, Russian and Arabic,
-light and dark. They are not deployed yet; their builds are set up for
+design system and are tested with axe, light and dark: the desk in
+Russian and English, the agent in English, Russian and Arabic. They are
+not deployed yet; their builds are set up for
 ghostjima.github.io/ariadne/ (the desk) and /ariadne/agent/ (the agent).
 
 ## What comes next
 
-- The complaints domain in both engines: a complaints schema for the
-  grid (streams, legal dates, stage, signatory) and a complaints
-  scenario for the runner, with the two apps merged into one desk.
-- `crates/ariadne-rules`: the Russian production calendar and working
-  days, the legal clocks, reason codes, extension rules and a rubric for
-  replies, in Rust compiled to WebAssembly.
+- One desk: the agent as a side panel of the selected case, and a case
+  card with the client, the operation, the flags, the channel timeline,
+  linked cases and how the deadline was computed.
+- A complaints scenario for the runner: classify, request facts, draft
+  the reply, check it with the rubric, hand it to legal review.
 - Russian as the first interface language and English as the second.
 
 ## Validation plan and target metrics
@@ -190,7 +200,8 @@ own output and stops, publishing nothing, when a value cannot be read.
   with the page's CPU slowed down.
 - axe: axe-core 4.13.0 in the e2e, a serious or critical violation fails
   the run. Counted for each app as states times language and theme
-  pairs (English, Russian and Arabic, light and dark): for the desk, the
+  pairs (light and dark; for the desk Russian and English, for the agent
+  English, Russian and Arabic): for the desk, the
   states listed under its
   [accessibility section](apps/desk/README.md#accessibility-as-far-as-the-tests-go);
   for the agent, those under
@@ -221,9 +232,12 @@ the front end.
 The apps link Stoa from a sibling checkout: clone
 [ghostjima/stoa](https://github.com/ghostjima/stoa) next to this
 repository (as `../stoa`) and build it there with
-`pnpm install --frozen-lockfile && pnpm build`. Then, here:
+`pnpm install --frozen-lockfile && pnpm build`. The register's deadlines
+come from the rules crate's WebAssembly build, which needs Rust (the
+toolchain is pinned in `rust-toolchain.toml`) and `wasm-pack`. Then, here:
 
 ```bash
+wasm-pack build crates/ariadne-rules --release --target web --out-dir pkg --out-name ariadne_rules -- --no-default-features --features wasm
 pnpm install --frozen-lockfile
 pnpm build          # the packages, then the apps
 pnpm -r typecheck
@@ -232,9 +246,8 @@ pnpm --filter @ariadne/desk e2e
 pnpm --filter @ariadne/agent e2e
 ```
 
-The rules crate needs Rust (the toolchain is pinned in
-`rust-toolchain.toml`) and, for the browser build, `wasm-pack`; its
-commands are in [its README](crates/ariadne-rules/README.md#development).
+The rules crate's own commands are in
+[its README](crates/ariadne-rules/README.md#development).
 
 The end-to-end tests build their app and serve it with `vite preview`,
 the desk on 4178 and the agent on 4177; `E2E_PORT` moves it. The dev
