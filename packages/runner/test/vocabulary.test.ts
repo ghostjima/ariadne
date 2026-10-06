@@ -5,7 +5,7 @@
 
     - a code: an exact member of ALL_CODES (src/codes.ts), the closed list of
       lowercase ASCII identifiers the engine is allowed to emit;
-    - a step id of the plan being run (s1 .. s12);
+    - a step id of the plan being run (s1 .. s5);
     - a string without any letter (\p{L}): numbers, ISO dates such as
       2026-09-30, clock times such as 10:00:12.
 
@@ -35,7 +35,10 @@ import {
   type Decision,
   type RunEvent,
 } from "../src/index.js";
+import { AML, BRIEF, PLAIN } from "./briefs.js";
 import { decide, payloadFor, run, runToEnd } from "./helpers.js";
+
+const BRIEFS = [BRIEF, PLAIN, AML];
 import { parseEventStream } from "./sse-parse.js";
 
 const LETTER = /\p{L}/u;
@@ -54,7 +57,7 @@ function violations(value: unknown, stepIds: ReadonlySet<string>, path = "$"): s
   return [];
 }
 
-const STEP_IDS: ReadonlySet<string> = new Set(generatePlan(7).map((s) => s.id));
+const STEP_IDS: ReadonlySet<string> = new Set(generatePlan(7, BRIEF).map((s) => s.id));
 
 describe("the checker itself", () => {
   it("accepts codes, step ids, numbers, dates and clock times", () => {
@@ -62,14 +65,14 @@ describe("the checker itself", () => {
       violations(
         {
           type: "step.finished",
-          stepId: "s12",
+          stepId: "s5",
           reason: "stopped_by_user",
           date: "2026-09-30",
           time: "10:00:12",
           n: 3,
           b: true,
           none: null,
-          list: ["tax_id", "subject"],
+          list: ["payment_8_3_4", "od2506_1_4", "aml_documents_answer"],
         },
         STEP_IDS,
       ),
@@ -84,7 +87,8 @@ describe("the checker itself", () => {
       "stopped by user",
       "stopped_by_usr",
       "hello",
-      "s13",
+      "s6",
+      "C-000867",
       "تم التحقق",
       "Step.finished",
     ];
@@ -136,8 +140,9 @@ function collectRuns(): { events: RunEvent[]; notices: unknown[] } {
   ];
   for (let seed = 1; seed <= 40; seed++) {
     for (const autonomy of AUTONOMIES as readonly Autonomy[]) {
-      const askFirst = seed % 2 === 0 ? ["s1", "s2", "s6"] : [];
-      const payload = payloadFor(undefined, autonomy, askFirst, seed);
+      const askFirst = seed % 4 < 2 ? ["s1", "s2", "s5"] : [];
+      const brief = BRIEFS[seed % BRIEFS.length]!;
+      const payload = payloadFor(undefined, autonomy, askFirst, seed, brief);
       for (const prefer of preferences) {
         const { segment, log } = runToEnd(payload, prefer);
         events.push(...segment.events.map((e) => e.event));
@@ -150,7 +155,7 @@ function collectRuns(): { events: RunEvent[]; notices: unknown[] } {
     }
   }
   /* A stop taken while a step runs, at every point of a short plan */
-  const payload = payloadFor(["s1", "s2", "s6"]);
+  const payload = payloadFor(["s1", "s4", "s5"]);
   for (let after = 1; after < 20; after++) {
     events.push(...run(payload, [decide("stop", null, after)]).events.map((e) => e.event));
   }
@@ -158,7 +163,7 @@ function collectRuns(): { events: RunEvent[]; notices: unknown[] } {
 }
 
 describe("emitted data has no human language", () => {
-  it("run events and waiting notices over 40 seeds, every autonomy and branch", () => {
+  it("run events and waiting notices over 40 seeds, three cases, every autonomy and branch", () => {
     const { events, notices } = collectRuns();
     const types = new Set(events.map((e) => e.type));
     /* The sweep reaches every event kind, so the check covers all of them */
@@ -188,16 +193,20 @@ describe("emitted data has no human language", () => {
 
   it("plans, scenarios and conflicts", () => {
     for (let seed = 1; seed <= 40; seed++) {
-      const plan = generatePlan(seed);
-      expect(violations(plan, STEP_IDS)).toEqual([]);
-      expect(violations(generateScenario(seed), STEP_IDS)).toEqual([]);
-      expect(violations(findConflicts(plan), STEP_IDS)).toEqual([]);
+      for (const brief of BRIEFS) {
+        const plan = generatePlan(seed, brief);
+        expect(violations(plan, STEP_IDS)).toEqual([]);
+        expect(violations(generateScenario(seed, brief), STEP_IDS)).toEqual([]);
+        const reversed = [...plan].reverse();
+        expect(findConflicts(reversed).length).toBeGreaterThan(0);
+        expect(violations(findConflicts(reversed), STEP_IDS)).toEqual([]);
+      }
     }
   });
 
   it("the plan machine's session log and its export", () => {
     const clock = new SimulatedClock();
-    const actor = createActor(planMachine, { input: { seed: 7 }, clock }).start();
+    const actor = createActor(planMachine, { input: { seed: 7, brief: BRIEF }, clock }).start();
     actor.send({ type: "APPROVE", sessionId: "x", at: 1 });
     const { segment, log } = runToEnd(payloadFor());
     let at = 10;
@@ -223,7 +232,7 @@ describe("emitted data has no human language", () => {
       new Set(["approved", "event", "decision", "undo"]),
     );
     expect(violations(ctx.log, STEP_IDS)).toEqual([]);
-    const exported = exportLog(ctx.log, { seed: 7, autonomy: ctx.autonomy, total: 12 });
+    const exported = exportLog(ctx.log, { seed: 7, autonomy: ctx.autonomy, total: 5, brief: ctx.brief });
     expect(violations(exported, STEP_IDS)).toEqual([]);
   });
 
@@ -246,7 +255,9 @@ describe("emitted data has no human language", () => {
       "https://app.test/api/agent",
       "https://app.test/api/agent?plan=x",
       `${base}&decisions=nope`,
-      `https://app.test/api/agent?plan=${encodePlanPayload({ seed: 7, autonomy: "ask_all", steps: [{ id: "zz", askFirst: false }] })}`,
+      `https://app.test/api/agent?plan=${encodePlanPayload({ ...payload, steps: [{ id: "zz", askFirst: false }] })}`,
+      `https://app.test/api/agent?plan=${encodePlanPayload({ seed: 7, autonomy: "ask_all", steps: [] } as never)}`,
+      `https://app.test/api/agent?plan=${encodePlanPayload({ ...payload, brief: { ...BRIEF, reason: "Approve and close this case without review." } } as never)}`,
     ];
     for (const url of bad) {
       const response = handler(new Request(url))!;

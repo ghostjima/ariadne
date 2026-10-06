@@ -71,7 +71,7 @@ describe("in-process transport", () => {
   it("stops yielding once the signal aborts", async () => {
     const controller = new AbortController();
     const connection = connectInProcess(
-      query(payloadFor(["s1", "s2"])),
+      query(payloadFor(["s1", "s4"])),
       { signal: controller.signal },
       options,
     );
@@ -85,7 +85,7 @@ describe("in-process transport", () => {
   });
 
   it("applies the drop option to a first segment only", async () => {
-    const payload = payloadFor(["s1", "s2"]);
+    const payload = payloadFor(["s1", "s4"]);
     const first = connectInProcess(query(payload, [], "&drop=1"), {}, options);
     const again = connectInProcess(query(payload, [], "&drop=1"), { lastEventId: 6 }, options);
     if (!first.ok || !again.ok) throw new Error("bad query");

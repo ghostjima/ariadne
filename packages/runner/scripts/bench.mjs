@@ -83,10 +83,38 @@ function fullLog(steps) {
   }
 }
 
+/* The case of the measured run: a transfer suspended under 161-FZ, with a
+   linked case (the fact request asks to deviate) and an odd seed (it times
+   out once when the deviation is denied); the same as test/briefs.ts BRIEF */
+const BRIEF = {
+  caseNo: 867,
+  stream: "antifraud",
+  regime: "complaint",
+  reason: "od2506_1_4",
+  operation: "bank_transfer",
+  opRef: 48213007,
+  opOn: "2026-09-01",
+  amountKopecks: 4850000,
+  claimKopecks: 0,
+  forwarded: true,
+  stage: "drafting",
+  outcome: "pending",
+  receivedOn: "2026-09-03",
+  asOf: "2026-10-06",
+  replyDue: "2026-10-12",
+  factsDue: "2026-10-08",
+  linkedCase: 807,
+  grounds: ["payment_8_3_4"],
+  clientOptions: ["confirm_order"],
+  deadlines: [],
+};
+
 const plan = resolvePlan({
+  v: 2,
   seed: 7,
   autonomy: "high_only",
-  steps: generatePlan(7).map((s) => ({ id: s.id, askFirst: false })),
+  brief: BRIEF,
+  steps: generatePlan(7, BRIEF).map((s) => ({ id: s.id, askFirst: false })),
 });
 if (!plan.ok) throw new Error(plan.error);
 const { log, events } = fullLog(plan.steps);
@@ -100,20 +128,22 @@ function wholeSession() {
 
 const handler = createAgentHandler({ sleep: async () => {}, now: () => 0 });
 const payload = encodePlanPayload({
+  v: 2,
   seed: 7,
   autonomy: "high_only",
+  brief: BRIEF,
   steps: plan.steps.map((s) => ({ id: s.id, askFirst: false })),
 });
 const fullUrl = `https://app.test/api/agent?plan=${payload}&decisions=${encodeDecisions(log)}`;
 const sseText = await handler(new Request(fullUrl)).text();
 
 /* Warm-up so the JIT has seen every path */
-for (let i = 0; i < 2000; i++) generateScenario(i);
+for (let i = 0; i < 2000; i++) generateScenario(i, BRIEF);
 for (let i = 0; i < 200; i++) wholeSession();
 for (let i = 0; i < 200; i++) await handler(new Request(fullUrl)).text();
 
 const rows = [
-  ["generateScenario(7): plan of 12 steps", sample(1000, () => generateScenario(7).steps)],
+  ["generateScenario(7, case): plan of 5 steps", sample(1000, () => generateScenario(7, BRIEF).steps)],
   [
     `replay of the complete run (${log.length} decisions, ${events.length} events)`,
     sample(200, () => replay(plan.steps, log)),

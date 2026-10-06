@@ -6,13 +6,25 @@
   and from numeric or date parameters next to it. The lists are the closed
   vocabulary: a string with a letter in it that appears in an emitted event,
   a plan step or an exported log is either one of these codes or a step id
-  (`s1` .. `s12`). The vocabulary test in test/vocabulary.test.ts checks that.
+  (`s1` .. `s5`). The vocabulary test in test/vocabulary.test.ts checks that.
 
   Dates are ISO 8601 calendar dates (`2026-09-30`) and contain no letters.
 */
 
-/* What a step does to a supplier request */
-export const ACTION_TYPES = ["check", "extend", "reject_duplicate", "request_documents"] as const;
+/* The version of the wire protocol: the plan payload carries it as `v`,
+   and plan.started repeats it. Version 1 was the procurement scenario of
+   twelve supplier requests; it is no longer served. */
+export const PROTOCOL_VERSION = 2;
+
+/* What a step does for the complaint */
+export const ACTION_TYPES = [
+  "classify",
+  "request_facts",
+  "reuse_facts",
+  "draft_reply",
+  "check_draft",
+  "hand_to_review",
+] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
 export const RISKS = ["low", "medium", "high"] as const;
@@ -46,61 +58,193 @@ export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
 /* Transport frame that ends a segment which needs a decision */
 export const WAITING_EVENT = "stream.waiting";
 
-/* Objects a step changes */
-export const OBJECT_KINDS = ["request", "contract", "letter"] as const;
+/* The case, as the application describes it to the engine (CaseBrief in
+   scenario.ts). The lists mirror ariadne-rules' and the desk's codes; the
+   desk's tests check that they agree. */
+
+/* The stream a complaint's reply runs under, as ariadne-rules names it */
+export const STREAMS = ["general", "money_claim", "antifraud", "aml_refusal"] as const;
+export type StreamCode = (typeof STREAMS)[number];
+
+/* The reply regime ariadne-rules sets: a complaint, or a 123-FZ money claim */
+export const REGIMES = ["complaint", "ombudsman_claim"] as const;
+export type Regime = (typeof REGIMES)[number];
+
+/* The operation behind the complaint */
+export const OPERATIONS = [
+  "none",
+  "card_payment",
+  "faster_payment",
+  "bank_transfer",
+  "cash_withdrawal",
+  "account_opening",
+  "account_service",
+] as const;
+export type OperationCode = (typeof OPERATIONS)[number];
+
+/* Where the case is in the register */
+export const CASE_STAGES = [
+  "registered",
+  "waiting_for_facts",
+  "drafting",
+  "legal_review",
+  "awaiting_signature",
+  "sent",
+  "closed",
+] as const;
+export type CaseStage = (typeof CASE_STAGES)[number];
+
+/* The decision on the complaint, as the register holds it; "pending" is
+   left for the reviewer: the engine never decides a complaint */
+export const OUTCOMES = ["pending", "upheld", "partly_upheld", "refused"] as const;
+export type OutcomeCode = (typeof OUTCOMES)[number];
+
+/* The signs of Bank of Russia Order No. OD-2506 (161-FZ reasons), in the
+   order's order */
+export const SIGN_CODES = [
+  "od2506_1_1",
+  "od2506_1_2",
+  "od2506_1_3",
+  "od2506_1_4",
+  "od2506_1_5",
+  "od2506_1_6",
+  "od2506_1_7",
+  "od2506_1_8",
+  "od2506_1_9",
+  "od2506_1_10",
+  "od2506_1_11",
+  "od2506_1_12",
+  "od2506_2_1",
+  "od2506_2_2",
+] as const;
+/* The 115-FZ reason categories */
+export const AML_REASON_CODES = [
+  "aml_operation_refused",
+  "aml_account_refused",
+  "aml_account_terminated",
+  "aml_operation_suspended",
+  "aml_operation_suspended_by_decision",
+  "aml_funds_frozen",
+  "aml_high_risk_measures",
+] as const;
+export type SignCode = (typeof SIGN_CODES)[number];
+export type AmlReasonCode = (typeof AML_REASON_CODES)[number];
+export const REASON_CODES = [...SIGN_CODES, ...AML_REASON_CODES] as const;
+export type ReasonCode = (typeof REASON_CODES)[number];
+
+/* The legal grounds a reply may name; the application maps each to an act,
+   an article and a part (the desk takes them from the register's ground
+   list, which ariadne-rules' tests pin) */
+export const GROUND_CODES = [
+  "payment_8_3_4",
+  "payment_8_3_10",
+  "aml_operation_refused",
+  "aml_account_refused",
+  "aml_account_terminated",
+  "aml_operation_suspended",
+  "aml_operation_suspended_by_decision",
+  "aml_funds_frozen",
+  "aml_high_risk_measures",
+  "contract",
+] as const;
+export type GroundCode = (typeof GROUND_CODES)[number];
+
+/* What the law lets the client do next, as ariadne-rules' rubric names it */
+export const CLIENT_OPTIONS = [
+  "confirm_order",
+  "repeat_operation",
+  "submit_documents",
+  "apply_to_commission",
+  "apply_to_ombudsman",
+] as const;
+export type ClientOption = (typeof CLIENT_OPTIONS)[number];
+
+/* The deadlines a reply states to the client while they run, as
+   ariadne-rules names them */
+export const CLIENT_DEADLINE_KINDS = [
+  "antifraud_suspension_ends",
+  "antifraud_confirmation",
+  "antifraud_repeat_suspension_ends",
+  "antifraud_after_repeat_suspension",
+  "exclusion_decision",
+  "antifraud_refund",
+  "aml_documents_answer",
+  "aml_commission_decision",
+  "high_risk_commission_application",
+] as const;
+export type ClientDeadlineKind = (typeof CLIENT_DEADLINE_KINDS)[number];
+
+/* The next steps every reply states */
+export const NEXT_STEPS = ["contact_bank", "apply_to_bank_of_russia"] as const;
+export type NextStep = (typeof NEXT_STEPS)[number];
+
+/* The team a fact request goes to, by stream */
+export const TEAMS = ["antifraud", "aml", "operations"] as const;
+export type Team = (typeof TEAMS)[number];
+
+/* What a fact request asks */
+export const FACT_QUESTIONS = [
+  "sign_detected",
+  "client_confirmation",
+  "database_match",
+  "decision_basis",
+  "documents_received",
+  "measure_status",
+  "operation_record",
+  "contract_terms",
+  "charges",
+] as const;
+export type FactQuestion = (typeof FACT_QUESTIONS)[number];
+
+/* Objects a step changes, and their statuses */
+export const OBJECT_KINDS = ["classification", "fact_request", "linked_facts", "reply_draft", "case"] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 
-export const REQUEST_STATUSES = [
-  "under_review",
-  "checked",
-  "checked_by_archive",
-  "approved",
-  "rejected_duplicate",
-  "documents_requested",
-] as const;
+export const CLASSIFICATION_STATUSES = ["unconfirmed", "confirmed"] as const;
+export type ClassificationStatus = (typeof CLASSIFICATION_STATUSES)[number];
+
+export const REQUEST_STATUSES = ["not_sent", "sent"] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 
-export const LETTER_STATUSES = ["not_sent", "sent"] as const;
-export type LetterStatus = (typeof LETTER_STATUSES)[number];
+export const LINK_STATUSES = ["not_linked", "linked"] as const;
+export type LinkStatus = (typeof LINK_STATUSES)[number];
+
+export const DRAFT_STATUSES = ["none", "drafted", "checked"] as const;
+export type DraftStatus = (typeof DRAFT_STATUSES)[number];
 
 /* What a step shows the user before it runs */
-export const DRAFT_KINDS = ["email", "decision", "change"] as const;
+export const DRAFT_KINDS = ["change", "request", "reply"] as const;
 export type DraftKind = (typeof DRAFT_KINDS)[number];
 
 export const DRAFT_TEMPLATES = [
-  "check_request",
-  "extend_contract",
-  "reject_duplicate",
-  "request_documents",
-  "check_by_archive",
+  "classify",
+  "request_facts",
+  "reuse_linked_facts",
+  "reply",
+  "check_draft",
+  "hand_to_review",
 ] as const;
 export type DraftTemplate = (typeof DRAFT_TEMPLATES)[number];
 
-/* Documents a supplier can be asked for */
-export const DOCUMENTS = ["registry_extract", "company_card", "license_copy"] as const;
-export type DocumentCode = (typeof DOCUMENTS)[number];
-
-/* Fields compared to call a request a duplicate of an earlier one */
-export const MATCH_FIELDS = ["tax_id", "subject", "amount"] as const;
-export type MatchField = (typeof MATCH_FIELDS)[number];
-
 /* What a finished step reports */
 export const SUMMARY_CODES = [
-  "request_checked",
-  "contract_extended",
-  "request_rejected_duplicate",
-  "documents_requested",
-  "request_checked_by_archive",
+  "case_classified",
+  "facts_requested",
+  "linked_facts_reused",
+  "reply_drafted",
+  "draft_checked",
+  "handed_to_review",
 ] as const;
 export type SummaryCode = (typeof SUMMARY_CODES)[number];
 
 /* What undoing a finished step rolls back */
 export const UNDO_CODES = [
-  "unmark_checked",
-  "restore_contract_term",
-  "return_to_queue",
-  "recall_letter",
-  "unmark_checked_by_archive",
+  "unconfirm_classification",
+  "recall_fact_request",
+  "unlink_facts",
+  "discard_draft",
+  "clear_check",
+  "return_to_drafting",
 ] as const;
 export type UndoCode = (typeof UNDO_CODES)[number];
 
@@ -108,19 +252,23 @@ export type UndoCode = (typeof UNDO_CODES)[number];
 export const ERROR_CODES = ["service_timeout"] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
-export const SERVICES = ["contracts"] as const;
+export const SERVICES = ["fact_requests"] as const;
 export type Service = (typeof SERVICES)[number];
 
 /* Progress phases, two per action type */
 export const PROGRESS_PHASES = [
-  "matching_registry",
-  "reviewing_supplier_history",
-  "preparing_amendment",
-  "recording_new_term",
-  "changing_request_status",
-  "notifying_supplier",
-  "composing_letter",
-  "sending_letter",
+  "reading_case_facts",
+  "matching_reason_codes",
+  "composing_request",
+  "sending_request",
+  "opening_linked_case",
+  "copying_facts",
+  "filling_template",
+  "citing_grounds",
+  "checking_grounds",
+  "checking_deadlines",
+  "assembling_package",
+  "assigning_reviewer",
 ] as const;
 export type ProgressPhase = (typeof PROGRESS_PHASES)[number];
 
@@ -128,17 +276,18 @@ export const SKIP_REASONS = ["skipped_by_user", "skipped_after_error", "stopped_
 export type SkipReason = (typeof SKIP_REASONS)[number];
 
 /* Why the agent asks to leave the plan, and what it proposes instead */
-export const DEVIATION_REASONS = ["fresh_documents_in_archive"] as const;
+export const DEVIATION_REASONS = ["facts_in_linked_case"] as const;
 export type DeviationReason = (typeof DEVIATION_REASONS)[number];
 
-export const DEVIATION_PROPOSALS = ["check_by_archive"] as const;
+export const DEVIATION_PROPOSALS = ["reuse_linked_facts"] as const;
 export type DeviationProposalCode = (typeof DEVIATION_PROPOSALS)[number];
 
-export const CONFLICT_REASONS = ["extend_and_reject_duplicate"] as const;
+/* Two steps in an order that defeats one of them */
+export const CONFLICT_REASONS = ["draft_before_facts", "check_before_draft", "review_before_draft"] as const;
 export type ConflictReason = (typeof CONFLICT_REASONS)[number];
 
 /* The task the scenario represents */
-export const TASK_CODES = ["triage_supplier_requests"] as const;
+export const TASK_CODES = ["answer_complaint"] as const;
 export type TaskCode = (typeof TASK_CODES)[number];
 
 /* Entries of the plan machine's session log */
@@ -170,6 +319,8 @@ export const REQUEST_ERRORS = [
   "too_many_steps",
   "unknown_step",
   "method_not_allowed",
+  "unsupported_version",
+  "invalid_case",
 ] as const;
 export type RequestError = (typeof REQUEST_ERRORS)[number];
 
@@ -188,13 +339,25 @@ export const ALL_CODES: ReadonlySet<string> = new Set<string>([
   ...COMMANDS,
   ...RUN_EVENT_TYPES,
   WAITING_EVENT,
+  ...STREAMS,
+  ...REGIMES,
+  ...OPERATIONS,
+  ...CASE_STAGES,
+  ...OUTCOMES,
+  ...REASON_CODES,
+  ...GROUND_CODES,
+  ...CLIENT_OPTIONS,
+  ...CLIENT_DEADLINE_KINDS,
+  ...NEXT_STEPS,
+  ...TEAMS,
+  ...FACT_QUESTIONS,
   ...OBJECT_KINDS,
+  ...CLASSIFICATION_STATUSES,
   ...REQUEST_STATUSES,
-  ...LETTER_STATUSES,
+  ...LINK_STATUSES,
+  ...DRAFT_STATUSES,
   ...DRAFT_KINDS,
   ...DRAFT_TEMPLATES,
-  ...DOCUMENTS,
-  ...MATCH_FIELDS,
   ...SUMMARY_CODES,
   ...UNDO_CODES,
   ...ERROR_CODES,

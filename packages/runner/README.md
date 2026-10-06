@@ -13,36 +13,42 @@ a failed step offers a retry, the agent can ask to leave the plan, the
 person can stop the run after the current step, and finished steps can
 be undone, some at any time and some only within a time window.
 `@ariadne/runner` holds the rules of all of that and nothing else: no
-model, no server and no interface. The plan is a seeded script
-(procurement: twelve incoming supplier requests), so every run is
-reproducible.
+model, no server and no interface. The plan is a seeded script for one
+complaint to a bank, so every run is reproducible.
 
 The engine emits no human language. Every event is codes and
-parameters (supplier index, request and contract numbers, ISO dates,
-risk, confidence, affected objects before and after), so an application
-renders it in English, Russian, Arabic or anything else. A test fails
-if any string with a letter in it that is not a known code reaches an
-event, a plan, the session log or the stream.
+parameters (case numbers, ISO dates, amounts in kopecks, risk,
+confidence, affected objects before and after), so an application
+renders it in Russian, English or anything else. A test fails if any
+string with a letter in it that is not a known code reaches an event, a
+plan, the session log or the stream.
 
-Status: early. One scripted scenario, behaviour ported from an earlier
-server-side version with its tests (87 tests). Measured in Node on an
-Apple M4 Pro: a plan generates in about 1 us, a complete run replays
-in about 9 us, and the Service Worker handler encodes a complete run as
-an event stream in about 0.1 ms; method and stamps in
-[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser
-yet.
+The case comes in as a brief of codes, numbers and dates only (the
+stream, the OD-2506 sign or 115-FZ category, the operation, the reply's
+last day, the grounds, the options and deadlines the law gives the
+client), which the application works out from its register and its
+rules. The complaint's text never reaches the engine: the protocol
+refuses a brief with any string that is not one of its codes or a date,
+so nothing an applicant writes can instruct the run.
+
+Status: early. One scripted scenario (95 tests). The timings in
+[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) say how they were taken and
+on which commit; not measured in a browser.
 
 ## How a run works
 
-- **Plan.** `generatePlan(seed)` gives twelve steps, one per supplier
-  request. Each step has an action (`check`, `extend`,
-  `reject_duplicate`, `request_documents`), a risk derived from it
-  (`low`, `medium`, `high`, `high`), a confidence, a draft, the objects
-  it changes and its undo window (`null` for internal changes, 60 s for
-  outgoing letters and notifications). One step fails once with a
-  service timeout, one asks to deviate (check against archived
-  documents instead of sending a letter), and two steps conflict
-  (extending and rejecting the same request; `findConflicts`).
+- **Plan.** `generatePlan(seed, brief)` gives five steps for the case:
+  `classify` (low risk), `request_facts` from the team that holds them
+  (antifraud, AML compliance or operations, by stream; medium risk, with
+  its own deadline and a 60 s undo window, since it leaves the complaints
+  team), `draft_reply` (high risk: always a person's decision),
+  `check_draft` (low) and `hand_to_review` (medium; the reply is never
+  sent by the engine). The seed sets each step's confidence and duration;
+  an odd seed makes the fact request time out once; a case with a linked
+  case makes the agent ask to take that case's facts instead
+  (`reuse_facts`, low risk, nothing sent). `findConflicts` flags an order
+  that drafts before the facts are asked for, or checks or hands over a
+  draft not yet written.
 - **Consent rule.** `requiresConfirmation(step, autonomy)`: high risk
   always asks, at every autonomy level. Below that, `ask_all` asks for
   everything, `high_only` asks for steps flagged `askFirst`, `ask_none`
@@ -67,9 +73,9 @@ field is a code from `src/codes.ts`, a step id or an ISO date.
 
 | type | fields |
 |---|---|
-| `plan.started` | `at`, `total` |
+| `plan.started` | `at`, `total`, `protocol` (2) |
 | `step.started` | `stepId`, `at`, `requiresConfirmation` |
-| `step.deviation` | `stepId`, `deviation`: `reason`, `archiveRequest`, `archiveUploaded`, `proposal`, `newType`, `newRisk` |
+| `step.deviation` | `stepId`, `deviation`: `reason`, `linkedCase`, `proposal`, `newType`, `newRisk` |
 | `step.deviated` | `stepId`, `deviatedTo`, `actionType`, `risk`, `requiresConfirmation` |
 | `step.awaiting` | `stepId`, `draft` |
 | `step.running` | `stepId`, `attempt` |
@@ -85,28 +91,41 @@ A segment that needs a decision ends with a `stream.waiting` frame
 
 The structured parts:
 
-- `draft`: `kind` (`email`, `decision`, `change`) and `template`, with
-  the parameters of that template: `check_request` (supplier, request,
-  externalEffects), `extend_contract` (supplier, contract,
-  extendMonths, validUntilBefore, validUntilAfter, termsChanged),
-  `reject_duplicate` (supplier, request, duplicateOf, duplicateOfDate,
-  matchedFields, notifySupplier), `request_documents` (supplier as the
-  recipient, request, documents with maxAgeDays, dueDate),
-  `check_by_archive` (supplier, request, archiveRequest,
-  archiveUploaded, sendsLetter).
-- `objects`: `request` (`before.status`, `after.status`), `contract`
-  (`before.validUntil`, `after.validUntil`) and `letter` (supplier,
-  request, `not_sent` to `sent`).
-- `summary`: `request_checked`, `contract_extended`,
-  `request_rejected_duplicate`, `documents_requested`,
-  `request_checked_by_archive`, each with its numbers.
-- `undo`: `unmark_checked`, `restore_contract_term`, `return_to_queue`,
-  `recall_letter`, `unmark_checked_by_archive`, each with its numbers.
-- `phase`: two per action, for example `composing_letter` and
-  `sending_letter`.
+- `draft`: `kind` (`change`, `request`, `reply`) and `template`, with
+  the parameters of that template: `classify` (caseNo, stream, regime,
+  reason), `request_facts` (caseNo, team, questions, operation, opRef,
+  opOn, factsDue), `reuse_linked_facts` (caseNo, linkedCase,
+  sendsRequest), `reply` (caseNo, repliedOn, stream, regime, outcome,
+  the operation, receivedOn, grounds, reasons, clientOptions, deadlines,
+  nextSteps: what the application writes out and the rubric checks),
+  `check_draft` (caseNo), `hand_to_review` (caseNo, stageBefore,
+  replyDue, sends).
+- `objects`: `classification` (`unconfirmed` to `confirmed`),
+  `fact_request` (team, `not_sent` to `sent`), `linked_facts`
+  (linkedCase, `not_linked` to `linked`), `reply_draft` (`none`,
+  `drafted`, `checked`) and `case` (its stage, to `legal_review`).
+- `summary`: `case_classified`, `facts_requested`,
+  `linked_facts_reused`, `reply_drafted`, `draft_checked`,
+  `handed_to_review`, each with its numbers.
+- `undo`: `unconfirm_classification`, `recall_fact_request`,
+  `unlink_facts`, `discard_draft`, `clear_check`,
+  `return_to_drafting`.
+- `phase`: two per action, for example `filling_template` and
+  `citing_grounds`.
 
-Suppliers are indexes from 0 to `SUPPLIER_COUNT - 1`; their names and
-addresses belong to the application, like every label and sentence.
+The engine never decides a complaint: a reply's `outcome` is the one
+the register holds, `pending` when nobody has decided yet, and the
+application leaves it for the reviewer to state.
+
+### Versions
+
+The protocol has a version, `PROTOCOL_VERSION` (2): the plan payload
+carries it as `v` and `plan.started` repeats it as `protocol`. Version 1
+was a procurement scenario of twelve supplier requests; it is no longer
+served, and a payload without `v: 2` is refused with
+`unsupported_version`. A brief that does not validate is refused with
+`invalid_case`. The exported session log is version 2 and carries the
+brief.
 
 ## API
 
@@ -122,18 +141,19 @@ import {
 import { handleAgentRequest, createAgentHandler } from "@ariadne/runner/sse";
 ```
 
-- Scenario: `generateScenario(seed)`, `generatePlan(seed)`,
+- Scenario: `generateScenario(seed, brief)`, `generatePlan(seed, brief)`,
   `requiresConfirmation`, `findConflicts`, `applyDeviation`,
-  `RISK_BY_TYPE`, `TASK`.
+  `replyDraft`, `teamOf`, `RISK_BY_TYPE`, `taskOf`.
 - Run: `resolvePlan(payload)`, `runPlan(input)` (items: `event`,
   `delay`, `pause`).
-- Protocol: `encodePlanPayload` / `decodePlanPayload`,
+- Protocol: `PROTOCOL_VERSION`, `validateBrief`, `encodePlanPayload` /
+  `decodePlanPayload` (a result with the payload or its error code),
   `encodeDecisions` / `decodeDecisions` (`confirm-s3-14.stop--33`),
   `parseStreamOptions`.
 - Transports: `handleAgentRequest(request): Response | null`,
   `createAgentHandler({ match, sleep, now, timeScale })`,
   `connectInProcess(query, { lastEventId, signal }, options)`.
-- Machines: `planMachine` (events `APPROVE`, `RUN_EVENT`, `DECIDE`,
+- Machines: `planMachine` (input `{ brief, seed, autonomy }`; events `APPROVE`, `RUN_EVENT`, `DECIDE`,
   `STOP`, `UNDO`, `RESET` and the draft edits), `stepMachine`,
   `canDecide`, `stepStatusOf`, `toStepEvent`.
 - Log: the plan machine's `context.log` entries (`approved`, `event`,
@@ -145,7 +165,8 @@ import { handleAgentRequest, createAgentHandler } from "@ariadne/runner/sse";
 
 ## Wiring the Service Worker
 
-The query shape is `GET .../api/agent?plan=<base64url JSON>` with
+The query shape is `GET .../api/agent?plan=<base64url JSON>` (version,
+seed, autonomy, the case brief and the steps) with
 optional `decisions`, `after`, `speed=fast`, `drop=1` and
 `undoWindow=<seconds>`. The handler answers same-origin requests whose
 path ends with `/api/agent` (or whatever `match` accepts) and returns
@@ -166,7 +187,7 @@ self.addEventListener("fetch", (event) => {
 On the page, after the worker controls it:
 
 ```ts
-const params = new URLSearchParams({ plan: encodePlanPayload({ seed, autonomy, steps }) });
+const params = new URLSearchParams({ plan: encodePlanPayload({ v: PROTOCOL_VERSION, seed, autonomy, brief, steps }) });
 if (log.length > 0) params.set("decisions", encodeDecisions(log));
 if (lastEventId > 0) params.set("after", String(lastEventId));
 const source = new EventSource(`api/agent?${params}`);

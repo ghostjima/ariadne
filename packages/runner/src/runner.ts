@@ -13,7 +13,7 @@
   so no log can make a high-risk step run without its own confirmation.
 */
 
-import type { ActionType, Autonomy, Command, ProgressPhase } from "./codes.js";
+import { PROTOCOL_VERSION, type ActionType, type Autonomy, type Command, type ProgressPhase } from "./codes.js";
 import type { Decision, PlanPayload, RunEvent } from "./protocol.js";
 import {
   applyDeviation,
@@ -48,7 +48,7 @@ export type ResolveResult =
 
 /* Turns the payload from the application into the steps of the scenario */
 export function resolvePlan(payload: PlanPayload): ResolveResult {
-  const scenario = generateScenario(payload.seed);
+  const scenario = generateScenario(payload.seed, payload.brief);
   const byId = new Map(scenario.steps.map((s) => [s.id, s]));
   if (payload.steps.length === 0) return { ok: false, error: "empty_plan" };
   if (payload.steps.length > scenario.steps.length) return { ok: false, error: "too_many_steps" };
@@ -64,10 +64,12 @@ export function resolvePlan(payload: PlanPayload): ResolveResult {
 /* The two progress phases each action type reports, at 30% and 65% */
 export const PROGRESS_PHASES_BY_TYPE: Record<ActionType, readonly [ProgressPhase, ProgressPhase]> =
   {
-    check: ["matching_registry", "reviewing_supplier_history"],
-    extend: ["preparing_amendment", "recording_new_term"],
-    reject_duplicate: ["changing_request_status", "notifying_supplier"],
-    request_documents: ["composing_letter", "sending_letter"],
+    classify: ["reading_case_facts", "matching_reason_codes"],
+    request_facts: ["composing_request", "sending_request"],
+    reuse_facts: ["opening_linked_case", "copying_facts"],
+    draft_reply: ["filling_template", "citing_grounds"],
+    check_draft: ["checking_grounds", "checking_deadlines"],
+    hand_to_review: ["assembling_package", "assigning_reviewer"],
   };
 
 export const DEVIATION_ACCEPTS: readonly Command[] = ["allow", "deny"];
@@ -114,7 +116,7 @@ export function* runPlan(input: RunInput): Generator<RunItem> {
     return decision?.command === "stop" && decision.afterEventId <= id;
   }
 
-  yield* emit({ type: "plan.started", at: now(), total: steps.length });
+  yield* emit({ type: "plan.started", at: now(), total: steps.length, protocol: PROTOCOL_VERSION });
 
   let lastDone: string | null = null;
   let stopped = false;

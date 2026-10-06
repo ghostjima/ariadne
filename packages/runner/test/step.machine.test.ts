@@ -1,3 +1,4 @@
+import { BRIEF } from "./briefs.js";
 import { describe, expect, it } from "vitest";
 import { createActor, SimulatedClock } from "xstate";
 import {
@@ -10,12 +11,12 @@ import {
   type StepResult,
 } from "../src/index.js";
 
-const plan = generatePlan(7);
+const plan = generatePlan(7, BRIEF);
 const lowStep = plan.find((s) => s.risk === "low")!;
 const highStep = plan.find((s) => s.risk === "high")!;
 const mediumStep = plan.find((s) => s.risk === "medium")!;
 const deviationStep = plan.find((s) => s.deviation)!;
-const TIMEOUT: StepError = { code: "service_timeout", service: "contracts", timeoutSec: 5 };
+const TIMEOUT: StepError = { code: "service_timeout", service: "fact_requests", timeoutSec: 5 };
 
 function resultFor(step: PlanStep, undoWindowSec: number | null = step.undoWindowSec): StepResult {
   return {
@@ -45,7 +46,7 @@ describe("step machine: consent rule", () => {
     expect(actor.getSnapshot().value).toBe("awaitingConfirmation");
     expect(stepStatusOf(actor.getSnapshot().value)).toBe("awaiting");
     /* Server events that would move it forward are ignored while waiting */
-    actor.send({ type: "PROGRESS", percent: 50, phase: "composing_letter" });
+    actor.send({ type: "PROGRESS", percent: 50, phase: "filling_template" });
     actor.send({ type: "FINISHED", at: 2000, result: resultFor(highStep) });
     expect(actor.getSnapshot().value).toBe("awaitingConfirmation");
     actor.send({ type: "CONFIRM", at: 3000 });
@@ -111,25 +112,29 @@ describe("step machine: errors and deviations", () => {
   it("allowed deviation lowers the risk and runs without a second pause", () => {
     const { actor } = start(deviationStep);
     actor.send({ type: "START", at: 1000 });
-    expect(actor.getSnapshot().value).toBe("awaitingConfirmation");
+    expect(actor.getSnapshot().value).toBe("running");
     actor.send({ type: "DEVIATION", deviation: deviationStep.deviation! });
     expect(actor.getSnapshot().value).toBe("awaitingDeviation");
     actor.send({ type: "ALLOW", at: 1100 });
     const snap = actor.getSnapshot();
     expect(snap.value).toBe("running");
     expect(snap.context.step.risk).toBe("low");
-    expect(snap.context.step.type).toBe("check");
+    expect(snap.context.step.type).toBe("reuse_facts");
+    expect(snap.context.step.error).toBeUndefined();
     expect(snap.context.deviationAllowed).toBe(true);
   });
 
-  it("denied deviation keeps the original high-risk step waiting for confirmation", () => {
-    const { actor } = start(deviationStep);
+  it("denied deviation keeps the original step, waiting for confirmation when flagged", () => {
+    const flagged = { ...deviationStep, askFirst: true };
+    const { actor } = start(flagged);
     actor.send({ type: "START", at: 1000 });
+    expect(actor.getSnapshot().value).toBe("awaitingConfirmation");
     actor.send({ type: "DEVIATION", deviation: deviationStep.deviation! });
     actor.send({ type: "DENY", at: 1100 });
     const snap = actor.getSnapshot();
     expect(snap.value).toBe("awaitingConfirmation");
-    expect(snap.context.step.risk).toBe("high");
+    expect(snap.context.step.type).toBe("request_facts");
+    expect(snap.context.step.risk).toBe("medium");
     expect(snap.context.deviationAllowed).toBe(false);
   });
 });

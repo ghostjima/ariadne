@@ -4,9 +4,9 @@
   out in the reader's language. Clock strings contain digits and colons only.
 */
 
-import { EXPORT_FORMAT, type AgentKind, type Autonomy, type TaskCode } from "./codes.js";
+import { EXPORT_FORMAT, PROTOCOL_VERSION, type AgentKind, type Autonomy, type TaskCode } from "./codes.js";
 import type { LogEntry } from "./machines/plan.machine.js";
-import { TASK } from "./scenario.js";
+import { taskOf, type CaseBrief } from "./scenario.js";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -30,14 +30,19 @@ export function countdown(ms: number): string {
   return `${Math.floor(total / 60)}:${pad(total % 60)}`;
 }
 
-export type LogHeader = { seed: number; autonomy: Autonomy; total: number };
+export type LogHeader = { seed: number; autonomy: Autonomy; total: number; brief: CaseBrief };
 
 export type ExportedEntry = LogEntry & { time: string };
 
 export type SessionExport = {
   format: typeof EXPORT_FORMAT;
-  version: 1;
-  task: { code: TaskCode; requests: number };
+  /* The export's own version: 2 since the run is about one complaint */
+  version: 2;
+  /* The event protocol the entries were received in */
+  protocol: number;
+  task: { code: TaskCode; caseNo: number };
+  /* The case as the run was given it: codes, numbers and dates */
+  brief: CaseBrief;
   /* The run is a seeded script; no model produces it */
   agent: AgentKind;
   seed: number;
@@ -52,8 +57,10 @@ export type SessionExport = {
 export function exportLog(entries: readonly LogEntry[], header: LogHeader): SessionExport {
   return {
     format: EXPORT_FORMAT,
-    version: 1,
-    task: { ...TASK },
+    version: 2,
+    protocol: PROTOCOL_VERSION,
+    task: taskOf(header.brief),
+    brief: header.brief,
     agent: "scripted",
     seed: header.seed,
     autonomy: header.autonomy,
