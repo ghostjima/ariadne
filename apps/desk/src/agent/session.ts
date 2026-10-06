@@ -14,11 +14,13 @@
 // so nothing is lost and nothing runs twice.
 import { createActor, type Actor } from "xstate";
 import {
+  PROTOCOL_VERSION,
   canDecide,
   encodeDecisions,
   encodePlanPayload,
   planMachine,
   type Autonomy,
+  type CaseBrief,
   type Decidable,
   type Decision,
   type RunEvent,
@@ -64,6 +66,8 @@ export type SessionNotice =
 
 export type SessionOptions = {
   seed: number;
+  /** The case the run is about: codes, numbers and dates only. */
+  brief: CaseBrief;
   autonomy?: Autonomy;
   /** Extra stream parameters (speed, drop, undoWindow, scale). */
   streamParams?: URLSearchParams;
@@ -104,8 +108,8 @@ export class RunSession {
   readonly #streamParams: URLSearchParams;
   readonly #now: () => number;
 
-  constructor({ seed, autonomy, streamParams, now }: SessionOptions) {
-    this.plan = createActor(planMachine, { input: autonomy ? { seed, autonomy } : { seed } }).start();
+  constructor({ seed, brief, autonomy, streamParams, now }: SessionOptions) {
+    this.plan = createActor(planMachine, { input: autonomy ? { seed, brief, autonomy } : { seed, brief } }).start();
     this.#streamParams = streamParams ?? new URLSearchParams();
     this.#now = now ?? Date.now;
   }
@@ -146,8 +150,10 @@ export class RunSession {
     params.set(
       "plan",
       encodePlanPayload({
+        v: PROTOCOL_VERSION,
         seed: ctx.seed,
         autonomy: ctx.autonomy,
+        brief: ctx.brief,
         steps: ctx.order.map((id) => ({ id, askFirst: askFirst.get(id) ?? false })),
       }),
     );

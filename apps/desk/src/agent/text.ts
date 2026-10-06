@@ -1,120 +1,151 @@
 // Sentences from the engine's structured data: a step's title, a draft, the
 // objects a step changes, a summary, an undo, an error, a log line. The
-// words come from i18n.ts and the numbers and dates from format.ts.
-import type { AffectedObject, Draft, LogEntry, PlanStep, StepError, Summary, UndoEffect } from "@ariadne/runner";
+// words come from i18n.ts, the register's labels (stream, stage, operation,
+// sign, category) from the grid's language pools, and the numbers and dates
+// from format.ts.
+import { AML_REASON_CODES, CASE_STAGES, OPERATIONS, SIGN_CODES, STREAMS } from "@ariadne/runner";
+import type {
+  AffectedObject,
+  CaseStage,
+  Draft,
+  LogEntry,
+  PlanStep,
+  ReasonCode,
+  StepError,
+  StreamCode,
+  Summary,
+  UndoEffect,
+} from "@ariadne/runner";
+import { padId, type Labels } from "@ariadne/grid";
 import type { Fmt } from "./format";
-import type { Strings } from "./i18n";
+import type { Lang, Strings } from "./i18n";
 
-export type Text = { t: Strings; f: Fmt };
+export type Text = { t: Strings; f: Fmt; labels: Labels; lang: Lang };
 
-export function supplierName({ t, f }: Text, index: number): string {
-  return t.suppliers[index] ?? f.id(index + 1);
+/** A case number as the register shows it: C-000867. */
+export const caseId = (caseNo: number): string => padId(caseNo);
+
+export function streamName({ labels }: Text, stream: StreamCode): string {
+  return labels.stream[STREAMS.indexOf(stream)] ?? stream;
+}
+
+export function stageName({ labels }: Text, stage: CaseStage): string {
+  return labels.stage[CASE_STAGES.indexOf(stage)] ?? stage;
+}
+
+/** The register's label of an OD-2506 sign or a 115-FZ category. */
+export function reasonName({ labels }: Text, reason: ReasonCode): string {
+  const sign = (SIGN_CODES as readonly string[]).indexOf(reason);
+  if (sign >= 0) return labels.signs[sign] ?? reason;
+  return labels.amlReasons[(AML_REASON_CODES as readonly string[]).indexOf(reason)] ?? reason;
 }
 
 /** What a step does, as a title. A step that took the agent's proposed
  * change is titled by what it does now. */
-export function stepTitle(x: Text, step: Pick<PlanStep, "type" | "request" | "contract" | "supplier" | "deviatedTo">): string {
-  const { t, f } = x;
-  const r = f.id(step.request);
-  const s = supplierName(x, step.supplier);
-  if (step.deviatedTo === "check_by_archive") return t.stepTitle.check_by_archive(r);
+export function stepTitle(x: Text, step: Pick<PlanStep, "type" | "draft">): string {
+  const { t } = x;
   switch (step.type) {
-    case "check":
-      return t.stepTitle.check(r, s);
-    case "extend":
-      return t.stepTitle.extend(f.id(step.contract ?? 0), s);
-    case "reject_duplicate":
-      return t.stepTitle.reject_duplicate(r, s);
-    case "request_documents":
-      return t.stepTitle.request_documents(r, s);
+    case "classify":
+      return t.stepTitle.classify;
+    case "request_facts":
+      return t.stepTitle.request_facts(step.draft.template === "request_facts" ? t.team[step.draft.team] : t.team.operations);
+    case "reuse_facts":
+      return t.stepTitle.reuse_facts(step.draft.template === "reuse_linked_facts" ? caseId(step.draft.linkedCase) : "");
+    case "draft_reply":
+      return t.stepTitle.draft_reply;
+    case "check_draft":
+      return t.stepTitle.check_draft;
+    case "hand_to_review":
+      return t.stepTitle.hand_to_review;
   }
 }
 
+/** The lines of a draft, as a confirmation shows them. A reply's own
+ * text is written out by reply.ts; here it has its preface. */
 export function draftLines(x: Text, draft: Draft): string[] {
-  const { t, f } = x;
+  const { t, f, labels } = x;
   switch (draft.template) {
-    case "check_request":
-      return t.draft.check_request(f.id(draft.request), supplierName(x, draft.supplier), draft.externalEffects);
-    case "extend_contract":
-      return t.draft.extend_contract(
-        f.id(draft.contract),
-        supplierName(x, draft.supplier),
-        { n: draft.extendMonths, text: f.int(draft.extendMonths) },
-        f.date(draft.validUntilBefore),
-        f.date(draft.validUntilAfter),
-        draft.termsChanged,
+    case "classify":
+      return t.draft.classify(streamName(x, draft.stream), draft.reason ? reasonName(x, draft.reason) : null, t.regime[draft.regime]);
+    case "request_facts": {
+      const operation = draft.operation === "none" ? null : (labels.operation[OPERATIONS.indexOf(draft.operation)] ?? null);
+      const day = draft.opOn ? `${operation}, ${f.date(draft.opOn)}` : operation;
+      return t.draft.request_facts(
+        caseId(draft.caseNo),
+        t.team[draft.team],
+        day,
+        draft.questions.map((q) => t.question[q]),
+        f.date(draft.factsDue),
       );
-    case "reject_duplicate":
-      return t.draft.reject_duplicate(
-        f.id(draft.request),
-        supplierName(x, draft.supplier),
-        f.id(draft.duplicateOf),
-        f.date(draft.duplicateOfDate),
-        f.list(draft.matchedFields.map((field) => t.matchField[field])),
-        draft.notifySupplier,
-      );
-    case "request_documents":
-      return t.draft.request_documents(
-        f.id(draft.request),
-        supplierName(x, draft.supplier),
-        f.list(
-          draft.documents.map((d) =>
-            d.maxAgeDays === null ? t.document[d.document] : t.documentAge(t.document[d.document], { n: d.maxAgeDays, text: f.int(d.maxAgeDays) }),
-          ),
-        ),
-        f.date(draft.dueDate),
-      );
-    case "check_by_archive":
-      return t.draft.check_by_archive(f.id(draft.request), f.id(draft.archiveRequest), f.date(draft.archiveUploaded), draft.sendsLetter);
+    }
+    case "reuse_linked_facts":
+      return t.draft.reuse_linked_facts(caseId(draft.linkedCase), draft.sendsRequest);
+    case "reply":
+      return t.draft.reply;
+    case "check_draft":
+      return t.draft.check_draft;
+    case "hand_to_review":
+      return t.draft.hand_to_review(caseId(draft.caseNo), stageName(x, draft.stageBefore), f.date(draft.replyDue), draft.sends);
   }
 }
 
 export function objectLine(x: Text, object: AffectedObject): string {
-  const { t, f } = x;
+  const { t } = x;
   switch (object.kind) {
-    case "request":
-      return t.object.request(f.id(object.request), t.requestStatus[object.before.status], t.requestStatus[object.after.status]);
-    case "contract":
-      return t.object.contract(f.id(object.contract), f.date(object.before.validUntil), f.date(object.after.validUntil));
-    case "letter":
-      return t.object.letter(
-        supplierName(x, object.supplier),
-        f.id(object.request),
-        t.letterStatus[object.before.status],
-        t.letterStatus[object.after.status],
+    case "classification":
+      return t.object.classification(
+        caseId(object.caseNo),
+        t.classificationStatus[object.before.status],
+        t.classificationStatus[object.after.status],
       );
+    case "fact_request":
+      return t.object.fact_request(t.team[object.team], t.requestStatus[object.before.status], t.requestStatus[object.after.status]);
+    case "linked_facts":
+      return t.object.linked_facts(caseId(object.linkedCase), t.linkStatus[object.before.status], t.linkStatus[object.after.status]);
+    case "reply_draft":
+      return t.object.reply_draft(t.draftStatus[object.before.status], t.draftStatus[object.after.status]);
+    case "case":
+      return t.object.case(caseId(object.caseNo), stageName(x, object.before.stage), stageName(x, object.after.stage));
   }
 }
 
 export function summaryText(x: Text, summary: Summary): string {
   const { t, f } = x;
   switch (summary.code) {
-    case "request_checked":
-      return t.summaryText.request_checked(f.id(summary.request), summary.registryMatch);
-    case "contract_extended":
-      return t.summaryText.contract_extended(f.id(summary.contract), f.date(summary.validUntil), f.id(summary.request));
-    case "request_rejected_duplicate":
-      return t.summaryText.request_rejected_duplicate(f.id(summary.request), f.id(summary.duplicateOf), summary.supplierNotified);
-    case "documents_requested":
-      return t.summaryText.documents_requested(supplierName(x, summary.supplier), f.id(summary.request));
-    case "request_checked_by_archive":
-      return t.summaryText.request_checked_by_archive(f.id(summary.request), summary.letterSent);
+    case "case_classified":
+      return t.summaryText.case_classified(
+        caseId(summary.caseNo),
+        streamName(x, summary.stream),
+        summary.reason ? reasonName(x, summary.reason) : null,
+      );
+    case "facts_requested":
+      return t.summaryText.facts_requested(t.team[summary.team], f.date(summary.factsDue));
+    case "linked_facts_reused":
+      return t.summaryText.linked_facts_reused(caseId(summary.linkedCase));
+    case "reply_drafted":
+      return t.summaryText.reply_drafted(caseId(summary.caseNo));
+    case "draft_checked":
+      return t.summaryText.draft_checked;
+    case "handed_to_review":
+      return t.summaryText.handed_to_review(caseId(summary.caseNo), f.date(summary.replyDue));
   }
 }
 
 export function undoText(x: Text, undo: UndoEffect): string {
-  const { t, f } = x;
+  const { t } = x;
   switch (undo.code) {
-    case "unmark_checked":
-      return t.undoText.unmark_checked(f.id(undo.request));
-    case "restore_contract_term":
-      return t.undoText.restore_contract_term(f.id(undo.contract), f.date(undo.validUntil), f.id(undo.request));
-    case "return_to_queue":
-      return t.undoText.return_to_queue(f.id(undo.request), undo.noticeRecalled);
-    case "recall_letter":
-      return t.undoText.recall_letter(supplierName(x, undo.supplier), f.id(undo.request));
-    case "unmark_checked_by_archive":
-      return t.undoText.unmark_checked_by_archive(f.id(undo.request));
+    case "unconfirm_classification":
+      return t.undoText.unconfirm_classification(caseId(undo.caseNo));
+    case "recall_fact_request":
+      return t.undoText.recall_fact_request(t.team[undo.team]);
+    case "unlink_facts":
+      return t.undoText.unlink_facts(caseId(undo.linkedCase));
+    case "discard_draft":
+      return t.undoText.discard_draft;
+    case "clear_check":
+      return t.undoText.clear_check;
+    case "return_to_drafting":
+      return t.undoText.return_to_drafting(caseId(undo.caseNo), stageName(x, undo.stage));
   }
 }
 

@@ -17,14 +17,16 @@ import "../styles.css";
 import { makeFmt } from "./format";
 import { fullRun } from "./fullRun";
 import { LOCALES, strings } from "./i18n";
+import { POOLS } from "../data/query";
+import { SAMPLE_BRIEF } from "./sampleBrief";
 import type { SessionSnapshot } from "./session";
 import { useRunSteps } from "./ui/hooks";
 import { RunPanel } from "./ui/RunPanel";
 import { LogPanel } from "./ui/SidePanels";
 
-const plan = createActor(planMachine, { input: { seed: 7 } }).start();
-const run = fullRun(generatePlan(7), "high_only");
-const x = { t: strings.en, f: makeFmt(LOCALES.en) };
+const plan = createActor(planMachine, { input: { seed: 7, brief: SAMPLE_BRIEF } }).start();
+const run = fullRun(generatePlan(7, SAMPLE_BRIEF), "high_only");
+const x = { t: strings.en, f: makeFmt(LOCALES.en), labels: POOLS.en.labels, lang: "en" as const };
 const SNAPSHOT: SessionSnapshot = { status: "streaming", failure: null, waiting: null, lastEventId: 0, transport: "page", workerChanges: 0 };
 
 type Step = { kind: "event"; id: number; event: RunEvent } | { kind: "decision"; decision: Decision };

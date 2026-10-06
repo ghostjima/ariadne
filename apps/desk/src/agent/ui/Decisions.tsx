@@ -1,13 +1,15 @@
 // The confirmations the run stops for: a risky step's draft (confirm or
-// skip) and the agent's request to leave the plan (allow or keep it). Each
+// skip; a reply shows the letter itself, as the agent will write it) and
+// the agent's request to leave the plan (allow or keep it). Each
 // is an AlertDialog with the focus on the safe action, so an Enter pressed
 // by habit skips the step or keeps the plan; Escape does the same, and the
 // dialog says so. Stop stays one key away while the dialog is open.
 import { useRef } from "react";
 import { AlertDialog, Kbd } from "@ghostjima/stoa-react";
-import type { WaitingNotice } from "@ariadne/runner";
-import { draftLines, objectLine, stepTitle, type Text } from "../text";
+import { applyDeviation, type WaitingNotice } from "@ariadne/runner";
+import { caseId, draftLines, objectLine, stepTitle, type Text } from "../text";
 import type { StepView } from "./hooks";
+import { ReplyDraftView } from "./ReplyCheck";
 
 export type DecisionsProps = {
   x: Text;
@@ -54,7 +56,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
 
   if (waiting.accepts.includes("allow") && ctx.deviation) {
     const deviation = ctx.deviation;
-    const proposed = stepTitle(x, { ...ctx.step, deviatedTo: deviation.proposal });
+    const proposed = stepTitle(x, applyDeviation(ctx.step));
     return (
       <AlertDialog
         key={key}
@@ -69,7 +71,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
         }}
       >
         <p>{stepTitle(x, ctx.step)}</p>
-        <p>{t.deviationReason[deviation.reason](f.id(deviation.archiveRequest), f.date(deviation.archiveUploaded))}</p>
+        <p>{t.deviationReason[deviation.reason](caseId(deviation.linkedCase))}</p>
         <p>{t.deviationProposal[deviation.proposal]}</p>
         <p>{t.deviation.instead(proposed, t.risk[deviation.newRisk])}</p>
         <KeyHints x={x} escape={t.deviation.escapeKeeps} />
@@ -99,6 +101,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
         {draftLines(x, draft).map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {draft.kind === "reply" && <ReplyDraftView x={x} draft={draft} />}
         <p className="draft-heading">{t.confirm.changes}</p>
         <ul className="draft-objects">
           {ctx.step.objects.map((object) => {

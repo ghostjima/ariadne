@@ -97,6 +97,11 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
             {c.forwarded}
           </Callout>
         )}
+        {text.injection && (
+          <Callout tone="warning" role="none">
+            {c.injected}
+          </Callout>
+        )}
         <figure className="case-card__text">
           <figcaption className="muted">{c.text}</figcaption>
           <blockquote lang={lang}>{text.body}</blockquote>

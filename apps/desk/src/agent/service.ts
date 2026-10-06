@@ -3,7 +3,7 @@
 // control before any case is opened), and the sessions, one per case, kept
 // while the page lives so a case opened again finds its run where it was.
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_SEED } from "@ariadne/runner";
+import { DEFAULT_SEED, type CaseBrief } from "@ariadne/runner";
 import { seedFrom, streamParamsFrom } from "./scale";
 import { RunSession } from "./session";
 import { pageTransport, workerTransport, type Transport } from "./transport";
@@ -79,12 +79,21 @@ export function useRunService(): RunService {
 /** Every case's session, by row. */
 const sessions = new Map<number, RunSession>();
 
-/** The session of a case: made on first use, with the page's scenario
- * number and stream parameters, and the service's transport. */
-export function sessionFor(row: number, transport: Transport | null): RunSession {
+/** The session of a case: made on first use, with the case's brief, the
+ * page's scenario number and stream parameters, and the service's
+ * transport. A plan not yet run is made again when the register changed
+ * what the brief says (an edit, a colleague's change); a run keeps the
+ * brief it was approved with. */
+export function sessionFor(row: number, brief: CaseBrief, transport: Transport | null): RunSession {
   let session = sessions.get(row);
+  if (session && session.plan.getSnapshot().matches("draft") && JSON.stringify(session.plan.getSnapshot().context.brief) !== JSON.stringify(brief)) {
+    const { seed, autonomy } = session.plan.getSnapshot().context;
+    session.dispose();
+    session = new RunSession({ seed, brief, autonomy, streamParams: streamParamsFrom(location.search) });
+    sessions.set(row, session);
+  }
   if (!session) {
-    session = new RunSession({ seed: seedFrom(location.search) ?? DEFAULT_SEED, streamParams: streamParamsFrom(location.search) });
+    session = new RunSession({ seed: seedFrom(location.search) ?? DEFAULT_SEED, brief, streamParams: streamParamsFrom(location.search) });
     sessions.set(row, session);
   }
   if (transport && session.getSnapshot().transport !== transport.kind) session.setTransport(transport);

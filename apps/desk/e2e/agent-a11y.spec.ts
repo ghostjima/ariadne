@@ -5,7 +5,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { strings } from "../src/agent/i18n";
 import type { Lang } from "../src/i18n";
-import { en, expectNoSeriousViolations, expectPlanState, ready, confirmation, agentUrl } from "./agent-helpers";
+import { LINKED_CASE, en, expectNoSeriousViolations, expectPlanState, ready, confirmation, agentUrl } from "./agent-helpers";
 
 const LANGS: Lang[] = ["ru", "en"];
 const THEMES = ["light", "dark"] as const;
@@ -20,7 +20,8 @@ for (const lang of LANGS)
   for (const theme of THEMES)
     test(`axe: every state in ${lang}, ${theme}`, async ({ page }) => {
       const t = strings[lang];
-      await page.goto(agentUrl(`lang=${lang}&theme=${theme}&scale=0.05`));
+      // A case whose fact request asks to deviate, then times out once.
+      await page.goto(agentUrl(`lang=${lang}&theme=${theme}&scale=0.05`, LINKED_CASE));
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
       await ready(page, t.plan.run);
@@ -28,27 +29,31 @@ for (const lang of LANGS)
 
       await page.getByRole("button", { name: t.plan.run }).click();
       await expect(confirmation(page)).toBeVisible();
-      await expectNoSeriousViolations(page, "confirmation", { lang, theme });
-      await answer(page, "primary");
+      await expectNoSeriousViolations(page, "the agent's request to change a step", { lang, theme });
+      await answer(page, "safe");
 
-      // The failed step, with its Retry, Skip and Stop, and the undo countdown above.
+      // The failed step, with its Retry, Skip and Stop.
       await expect(page.getByRole("button", { name: t.step.retry, exact: true })).toBeVisible();
-      await expectNoSeriousViolations(page, "failed step and undo window", { lang, theme });
+      await expectNoSeriousViolations(page, "failed step", { lang, theme });
       await page.getByRole("button", { name: t.step.retry, exact: true }).click();
-      await expect(confirmation(page)).toBeVisible();
+      // The reply's confirmation, with the letter, over the undo countdown
+      // (its toast steps aside while the dialog is open).
+      await expect(confirmation(page).locator(".reply-draft")).toBeVisible();
+      await expectNoSeriousViolations(page, "confirmation with the reply draft", { lang, theme });
       await page.keyboard.press("p"); // no effect while waiting; the dialog stays
-      await page.keyboard.press("s");
-      await expectPlanState(page, "stopped");
+      await answer(page, "primary");
+      await expectPlanState(page, "finished");
+      await page.locator(".reply-shown summary").click();
       await expect(page.locator(".summary")).toBeVisible();
-      await expectNoSeriousViolations(page, "stopped, with summary and toasts", { lang, theme });
+      await expectNoSeriousViolations(page, "finished, with the draft, the rubric's check, summary and toasts", { lang, theme });
 
-      // The letter's undo window is still open: New plan asks first.
+      // The fact request's undo window is still open: New plan asks first.
       await page.getByRole("button", { name: t.run.newPlan }).click();
       await expect(confirmation(page)).toBeVisible();
       await expectNoSeriousViolations(page, "new plan with an open undo window", { lang, theme });
       await confirmation(page).getByRole("button", { name: t.newPlanAsk.confirm }).click();
       await expectPlanState(page, "draft");
-      for (let i = 0; i < 12; i += 1) await page.locator(".stoa-reorder__remove").first().click();
+      for (let i = 0; i < 5; i += 1) await page.locator(".stoa-reorder__remove").first().click();
       await expect(page.getByText(t.plan.emptyTitle)).toBeVisible();
       await expectNoSeriousViolations(page, "empty plan", { lang, theme });
     });
@@ -104,11 +109,15 @@ for (const width of [1280, 375])
         });
       expect(await sideways()).toEqual([0, 0]);
       await page.getByRole("button", { name: strings[lang].plan.run }).click();
-      await answer(page, "primary");
-      await expect(page.getByRole("button", { name: strings[lang].step.retry, exact: true })).toBeVisible();
+      await page.getByRole("button", { name: strings[lang].step.retry, exact: true }).click();
+      // The reply's confirmation, the longest dialog, fits too.
+      await expect(confirmation(page).locator(".reply-draft")).toBeVisible();
       expect(await sideways()).toEqual([0, 0]);
-      await page.keyboard.press("s");
-      await expectPlanState(page, "stopped");
+      const dialogBox = (await confirmation(page).boundingBox())!;
+      expect(dialogBox.x).toBeGreaterThanOrEqual(0);
+      expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(width);
+      await answer(page, "safe");
+      await expectPlanState(page, "finished");
       expect(await sideways()).toEqual([0, 0]);
     });
 
@@ -144,7 +153,9 @@ for (const theme of THEMES)
     await page.goto(agentUrl(`theme=${theme}&scale=0.05`));
     await ready(page);
     // A log long enough to scroll inside itself, and a page that scrolls.
+    await page.getByRole("radio", { name: en.autonomy.ask_all }).click();
     await page.getByRole("button", { name: en.plan.run }).click();
+    await answer(page, "primary");
     await answer(page, "primary");
     await page.getByRole("button", { name: en.step.retry, exact: true }).click();
     await answer(page, "primary");

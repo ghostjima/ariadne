@@ -50,3 +50,18 @@
 .draft-heading { font-weight: var(--stoa-font-weight-semibold); }
 .draft-objects { margin: 0; padding-inline-start: var(--stoa-space-6); }
 .stoa-dialog__body { display: grid; gap: var(--stoa-space-2); }
+/* The reply as the agent drafts it: in its confirmation (a dialog, outside
+   .agent) and under the finished drafting step. A sentence a line. */
+.reply-draft {
+  margin: 0;
+  padding: var(--stoa-space-3) var(--stoa-space-4);
+  border-inline-start: 3px solid var(--stoa-color-border-strong);
+  background: var(--stoa-color-surface-sunken);
+  display: grid;
+  gap: var(--stoa-space-1);
+  overflow-wrap: anywhere;
+}
+.reply-draft p { margin: 0; }
+.reply-shown summary { cursor: pointer; }
+.reply-shown[open] summary { margin-block-end: var(--stoa-space-2); }
+.rubric-findings { margin: 0; padding-inline-start: var(--stoa-space-5); display: grid; gap: var(--stoa-space-1); }

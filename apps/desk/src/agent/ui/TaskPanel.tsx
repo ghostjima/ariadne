@@ -2,11 +2,12 @@
 // may do without asking. Editable before the run, a plain record during it.
 import { useId } from "react";
 import { ChoiceGroup, NumberField, Panel } from "@ghostjima/stoa-react";
-import { AUTONOMIES, TASK, type Autonomy } from "@ariadne/runner";
-import type { Text } from "../text";
+import { AUTONOMIES, taskOf, type Autonomy, type CaseBrief } from "@ariadne/runner";
+import { caseId, type Text } from "../text";
 
 export type TaskPanelProps = {
   x: Text;
+  brief: CaseBrief;
   seed: number;
   autonomy: Autonomy;
   editable: boolean;
@@ -14,17 +15,18 @@ export type TaskPanelProps = {
   onAutonomy: (autonomy: Autonomy) => void;
 };
 
-export function TaskPanel({ x, seed, autonomy, editable, onSeed, onAutonomy }: TaskPanelProps) {
+export function TaskPanel({ x, brief, seed, autonomy, editable, onSeed, onAutonomy }: TaskPanelProps) {
   const { t, f } = x;
   const helpId = useId();
-  const requests = f.int(TASK.requests);
+  const task = taskOf(brief);
+  const name = t.taskName[task.code](caseId(task.caseNo));
   if (!editable) {
     return (
       <Panel title={t.task.panel} className="task" level={4}>
         <dl className="facts">
           <div>
             <dt>{t.task.task}</dt>
-            <dd>{t.taskName[TASK.code](requests)}</dd>
+            <dd>{name}</dd>
           </div>
           <div>
             <dt>{t.task.scenario}</dt>
@@ -41,7 +43,7 @@ export function TaskPanel({ x, seed, autonomy, editable, onSeed, onAutonomy }: T
   return (
     <Panel title={t.task.panel} className="task" level={4}>
       {/* The task is the case's; there is one, so it is said, not chosen. */}
-      <p>{t.taskName[TASK.code](requests)}</p>
+      <p>{name}</p>
       <div className="task__fields">
         <NumberField label={t.task.scenario} value={seed} minValue={1} maxValue={9999} step={1} onChange={onSeed} aria-describedby={helpId} />
         <p id={helpId} className="muted task__help">

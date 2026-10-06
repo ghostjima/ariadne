@@ -1,13 +1,13 @@
 // A complete run of a plan, every pause answered the way a person who
 // agrees with the agent would (confirm, allow, retry): the decision log and
 // the events it produces. Used by the unit tests and the throughput bench.
-import { generatePlan, runPlan, type Autonomy, type Command, type Decision, type PlanStep, type RunEvent } from "@ariadne/runner";
+import { runPlan, type Autonomy, type Command, type Decision, type PlanStep, type RunEvent } from "@ariadne/runner";
 
 export type FullRun = { decisions: Decision[]; events: { id: number; event: RunEvent }[] };
 
 const ANSWER: Partial<Record<Command, true>> = { confirm: true, allow: true, retry: true };
 
-export function fullRun(steps: readonly PlanStep[] = generatePlan(7), autonomy: Autonomy = "high_only"): FullRun {
+export function fullRun(steps: readonly PlanStep[], autonomy: Autonomy = "high_only"): FullRun {
   const decisions: Decision[] = [];
   for (let guard = 0; guard < 100; guard += 1) {
     const events: { id: number; event: RunEvent }[] = [];
