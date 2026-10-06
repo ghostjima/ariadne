@@ -40,7 +40,6 @@ fn antifraud_case() -> Case {
         stopped_on: d("2026-05-08"),
         confirmed_on: None,
         database_match_after_confirmation: false,
-        exclusion_request_registered_on: None,
         refund_claim_received_on: None,
     });
     case
@@ -158,6 +157,42 @@ fn running_deadlines_are_stated_with_the_clocks_date() {
     // A reply on 12 May: both ended on 9 May and need no mention.
     reply.replied_on = d("2026-05-12");
     reply.stated_deadlines.clear();
+    assert_eq!(rubric(&reply, &case, &c), []);
+}
+
+#[test]
+fn a_refused_repeat_states_the_refusals_end_not_a_suspensions() {
+    // A card operation refused on Friday 8 May 2026 under 161-FZ art. 8
+    // part 3.4, sentence 2, repeated the same day and refused again after a
+    // database match (part 3.10). A reply that day states when the next
+    // repeat goes through (part 3.11): the two days are 8 and 9 May, so
+    // from 10 May. It offers the repeat; nothing about a confirmation.
+    let mut case = antifraud_case();
+    case.antifraud = Some(AntifraudFacts {
+        operation: Operation::CardSbpOrEmoney,
+        confirmed_on: Some(d("2026-05-08")),
+        database_match_after_confirmation: true,
+        ..case.antifraud.unwrap()
+    });
+    let c = clock(&case).unwrap();
+    let mut reply = good_antifraud_reply();
+    reply.grounds = vec![
+        ground(Act::PaymentSystem, "8", "3.4"),
+        ground(Act::PaymentSystem, "8", "3.10"),
+    ];
+    reply.client_options = vec![ClientOption::RepeatOperation];
+    reply.stated_deadlines = vec![StatedDeadline {
+        kind: K::AntifraudRepeatRefusalEnds,
+        due: d("2026-05-09"),
+    }];
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [("deadline_missing", Some("antifraud_after_repeat_refusal"))]
+    );
+    reply.stated_deadlines.push(StatedDeadline {
+        kind: K::AntifraudAfterRepeatRefusal,
+        due: d("2026-05-10"),
+    });
     assert_eq!(rubric(&reply, &case, &c), []);
 }
 

@@ -67,11 +67,14 @@ error `outside_calendar`, never a guess; a malformed date is
 
 `clock(case)` takes a `Case` (the stream, the sector, the applicant, how
 it arrived, the day of receipt and of registration, a money claim, an
-extension asked for, and the antifraud and anti-money-laundering facts
-around it) and returns a `Clock`: dated deadlines, duties tied to an
-event, warnings about the data, and refusals. Every deadline and duty
-names its source (with revision), article and part, and whether it
-follows the text or a conservative reading.
+extension asked for, and the antifraud, database and
+anti-money-laundering facts around it) and returns a `Clock`: dated
+deadlines, duties tied to an event, the measures taken with their
+grounds, warnings about the data, and refusals. Every deadline, duty and
+measure names its source (with revision), article and part, and whether
+it follows the text or a conservative reading. A Bank of Russia
+directive is numbered in items only: its basis has no article, and the
+item is the part.
 
 | Rule | Term | Basis |
 |---|---|---|
@@ -83,9 +86,16 @@ follows the text or a conservative reading.
 | Copy to the self-regulatory organisation, standard breach found | the complaint and the reply, the day the reply goes out | 9.1 part 12; 6.2 item 8; 15.11 item 5; 6.2 part 10 (banks have none) |
 | Money claim up to 500,000 roubles from a consumer | 15 working days from receipt on the standard electronic form within 180 days of the breach, otherwise 30 calendar days moved to a working day; no extension | 123-FZ art. 15 part 1, art. 16 part 2, art. 28 part 1 |
 | Antifraud suspension of a transfer | two days from and including the day of suspension, calendar days | 161-FZ art. 8 part 3.4; Bank of Russia letter No. 010-31/7975 |
-| Client's confirmation | by the day after the suspension | 161-FZ art. 8 part 3.6 item 3 |
-| Second suspension after a database match | two days from and including the confirmation; then executed at once | 161-FZ art. 8 parts 3.10, 3.11; the same letter |
-| Bank of Russia on a request to remove data | 15 working days from registration | 161-FZ art. 9 part 11.10; the Bank of Russia's page |
+| Client's notice of the block | at once: the block, advice, how to confirm or repeat | 161-FZ art. 8 part 3.6 items 1 to 3 |
+| Client's confirmation, transfers only | by the day after the suspension; a later one leaves the order not accepted | 161-FZ art. 8 part 3.6 item 3, part 3.9 |
+| Second suspension of a confirmed transfer after a database match | two days from and including the confirmation; then executed at once | 161-FZ art. 8 parts 3.10, 3.11; the same letter |
+| Refused repeat of a card, e-money or Faster Payments operation after a database match | two days from and including the repeat; then the next repeat is carried out | 161-FZ art. 8 parts 3.10, 3.11 |
+| Client's notice of the second step | at once: the reason, the term, a later repeat | 161-FZ art. 8 part 3.10, sentence 2 |
+| Card or online banking suspended for the client's own data in the database | notice with the reason the same day; notice of the right to apply for removal at once; restored at once after removal | 161-FZ art. 9 parts 9.2, 11.8, 11.11 (the suspension under parts 11.6, 11.7) |
+| Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
+| Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
+| The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it | Directive No. 6748-U items 2.1, 2.3, 2.4 |
+| Operator's answer to a Bank of Russia request on an application | 3 working days from the request | Directive No. 6748-U item 2.9 |
 | Refund to an individual | 30 days after the claim is received | 161-FZ art. 8 part 3.13 |
 | 115-FZ reasons notice | 5 working days from the decision | 115-FZ art. 7 item 13.1-1 (paragraph 1 for an account, 2 for an operation) |
 | Answer to the client's documents | 7 working days from submission | 115-FZ art. 7 item 13.4, paragraph 2 |
@@ -99,6 +109,17 @@ date. A claim on the standard form within 180 days gets exactly 15
 working days, which around the New Year can end later than 30 calendar
 days would (received 11 December 2025: 13 January 2026 rather than
 12 January); the engine follows the text.
+
+The first action on every kind of operation rests on 161-FZ art. 8
+part 3.4: its first sentence suspends a transfer order, its second
+refuses a card operation, an e-money transfer or a Faster Payments
+transfer (`measures`: `suspend_order`, `refuse_operation`). Part 3.10 is
+only the second step, after the client confirmed the order or repeated
+the operation and the operator then received data from the Bank of
+Russia's database (`suspend_confirmed_order`, `refuse_repeat`). A
+transfer confirmed after the day following the suspension is not
+accepted (part 3.9, `order_not_accepted`), and a database match after it
+suspends nothing.
 
 #### Conservative readings
 
@@ -117,6 +138,9 @@ gives the earlier date or the wider duty, marks the basis
   securities market professional (a voluntary participant of the
   ombudsman's procedure at most), take the earlier of the possible reply
   dates and no extension.
+- The two days of 161-FZ art. 8 part 3.11 after a refused repeat count
+  the day of the repeat: the Bank of Russia's letter says so of the
+  confirmation's day, and the repeat's term uses the same words.
 - The 30-day refund of 161-FZ art. 8 part 3.13 counts calendar days and
   is not moved off a day off: the Bank of Russia's letter that says so
   covers parts 3.4 and 3.10 only.
@@ -146,15 +170,22 @@ gives the earlier date or the wider duty, marks the basis
 - Deadlines: `registration`, `registration_notice`, `reply`,
   `extension_notice`, `reply_extended`, `antifraud_suspension_ends`,
   `antifraud_confirmation`, `antifraud_repeat_suspension_ends`,
-  `antifraud_after_repeat_suspension`, `exclusion_decision`,
-  `antifraud_refund`, `aml_reasons_notice`, `aml_documents_answer`,
+  `antifraud_after_repeat_suspension`, `antifraud_repeat_refusal_ends`,
+  `antifraud_after_repeat_refusal`, `instrument_suspension_notice`,
+  `exclusion_forwarding`, `exclusion_refusal_notice`,
+  `exclusion_decision`, `exclusion_decision_relay`,
+  `bank_of_russia_query_answer`, `antifraud_refund`, `aml_reasons_notice`, `aml_documents_answer`,
   `aml_commission_decision`, `high_risk_notice`,
   `high_risk_commission_application`.
 - Counts: `same_day`, `next_working_day`, `working_days`,
   `calendar_days`, `calendar_days_to_working_day`, `months`.
 - Duties: `copy_to_bank_of_russia`, `copy_to_sro`,
-  `notify_client_of_block`, `notify_client_of_repeat_block`; when:
+  `notify_client_of_block`, `notify_client_of_repeat_block`,
+  `notify_client_of_right_to_apply`, `restore_instrument`; when:
   `same_day_as_each_dispatch`, `same_day_as_reply`, `immediately`.
+- Measures: `suspend_order`, `refuse_operation`,
+  `suspend_confirmed_order`, `refuse_repeat`, `order_not_accepted`,
+  `suspend_instrument`.
 - Warnings: `registration_date_assumed`, `registered_late`,
   `money_claim_outside_ombudsman`, `money_claim_from_legal_entity`,
   `ombudsman_participation_unknown`, `breach_date_unknown`,
@@ -253,8 +284,8 @@ the code:
   kopecks for a money claim); returns a `ClockOutput` with `regime`,
   `deadlines` (each with `kind`, `due`, `from`, `count`, `countValue`,
   `forOthers` and a `basis` of `source`, `act`, `article`, `part`,
-  `revision`, `url`, `reading`), `duties`, `warnings`, `refusals` and
-  `replyDue`.
+  `revision`, `url`, `reading`), `duties`, `measures` (each with `kind`,
+  `on` and a `basis`), `warnings`, `refusals` and `replyDue`.
 - `od2506Signs()`: the signs, each with `number`, `code`, `group`,
   `summary`, `appliesFrom`, `thresholds` (`value`, `unit`, `bound`, `of`)
   and `wording`.
@@ -271,7 +302,8 @@ the code:
 ## Sources
 
 Each rule cites its source from `src/sources.rs`; every source is listed
-here with the revision its text was checked against, read on 2026-10-06.
+here with the revision its text was checked against, read on 2026-10-06
+or, where `sources.rs` says so, on 2026-10-07.
 A test fails when this list and the code disagree.
 
 | Source | Revision | Text read at |
@@ -292,6 +324,7 @@ A test fails when this list and the code disagree.
 | National Payment System Law No. 161-FZ, art. 8 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_115625/cbc4acba397e1a1aebba6be746102a90208db5b4/) |
 | National Payment System Law No. 161-FZ, art. 9 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/) |
 | Bank of Russia letter No. 010-31/7975 of 02.09.2024, counting the terms of 161-FZ art. 8 | 2024-09-02 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/409525913/) |
+| Bank of Russia Directive No. 6748-U of 13.06.2024, the client's application to remove data from the database, as amended by Directive No. 7287-U of 19.01.2026 | 2026-01-19 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/); revision confirmed on [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_480956/) |
 | Bank of Russia page on requests to remove data from its database | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/contactBR/161-FZ/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/3e3e0d20d2919071b55ef95f26f849df6a4f11e8/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/0a562008be657e44b6145557f337cc626af9ffab/) |
@@ -301,7 +334,14 @@ A test fails when this list and the code disagree.
 | Bank of Russia page on replies to complaints, with its recommendations | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/) |
 
 The decrees, the letters and Order No. OD-2506 have not been amended as
-far as could be found; their revision is their date. The order's PDF on
+far as could be found; their revision is their date. Directive No. 6748-U
+was amended by Directive No. 7287-U of 19.01.2026, registered by the
+Ministry of Justice on 10.04.2026 under No. 85995 and officially
+published on 21.04.2026, as the Bank of Russia's
+[registry of information security acts](https://www.cbr.ru/information_security/acts/)
+lists it; the directive counts the Bank of Russia's 15 working days from
+its receipt of the application, where the Bank of Russia's page says from
+its registration, and the engine follows the directive. The order's PDF on
 cbr.ru carries a registration stamp placeholder instead of its number and
 date, which come from the Bank of Russia's listing; no amending order was
 found on 2026-10-06. The 123-FZ revision is that of its latest amendment

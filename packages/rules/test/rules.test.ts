@@ -109,6 +109,29 @@ describe("through the WebAssembly build", () => {
     expect(aml.deadlines.map((d) => d.kind)).toContain("aml_reasons_notice");
   });
 
+  it("names part 3.4 as the first ground and part 3.10 as the second, and the database's terms", () => {
+    // The crate's worked example: a card operation refused on Friday 8 May
+    // 2026 and repeated the same day into a database match; the client's
+    // card suspended on 9 May; the Bank of Russia receives the application
+    // to remove the data on 12 May and decides by 2 June.
+    const c = clock({
+      stream: "antifraud",
+      receivedOn: "2026-05-08",
+      blocked: { operation: "card_sbp_or_emoney", on: "2026-05-08", confirmedOn: "2026-05-08", databaseMatchAfterConfirmation: true },
+      database: { instrumentSuspendedOn: "2026-05-09", exclusionReceivedByBankOfRussiaOn: "2026-05-12" },
+    });
+    expect(c.measures.map((m) => [m.kind, m.on, m.basis.part])).toEqual([
+      ["refuse_operation", "2026-05-08", "3.4, sentence 2"],
+      ["refuse_repeat", "2026-05-08", "3.10, sentence 1"],
+      ["suspend_instrument", "2026-05-09", "11.6"],
+    ]);
+    expect(due(c, "antifraud_after_repeat_refusal")).toBe("2026-05-10");
+    expect(due(c, "antifraud_repeat_suspension_ends")).toBeUndefined();
+    expect(due(c, "instrument_suspension_notice")).toBe("2026-05-09");
+    const decision = c.deadlines.find((d) => d.kind === "exclusion_decision")!;
+    expect([decision.due, decision.from, decision.basis.source, decision.basis.article]).toEqual(["2026-06-02", "2026-05-12", "directive_6748_u", ""]);
+  });
+
   it("lists the 14 signs of OD-2506 and the 115-FZ categories, once", () => {
     const signs = od2506Signs();
     expect(signs).toHaveLength(14);
