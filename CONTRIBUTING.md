@@ -41,6 +41,9 @@ runner, rules, ariadne (repository-wide).
   person approves, runs, stops and undoes).
 - `packages/grid` (`@ariadne/grid`): the desk's data engine.
 - `packages/runner` (`@ariadne/runner`): the agent's run engine.
+- `crates/ariadne-rules`: the legal rules engine, in Rust compiled to
+  WebAssembly. Every rule cites the act, article, part and revision it
+  encodes, and the crate's README lists every source.
 
 The apps link Stoa's packages from a sibling checkout of
 [ghostjima/stoa](https://github.com/ghostjima/stoa) at `../stoa`, built
@@ -61,10 +64,28 @@ pnpm --filter @ariadne/desk e2e
 pnpm --filter @ariadne/agent e2e
 ```
 
+and, for the rules crate:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy --workspace --all-targets --locked --no-default-features -- -D warnings
+cargo clippy --workspace --all-targets --locked --features wasm -- -D warnings
+cargo clippy --workspace --all-targets --locked --all-features -- -D warnings
+cargo test --workspace --release --locked --no-default-features
+cargo test --workspace --release --locked --all-features
+cargo +1.85 check --workspace --all-targets --locked
+cargo +1.85 check -p ariadne-rules --lib --no-default-features --features wasm --target wasm32-unknown-unknown --locked
+wasm-pack build crates/ariadne-rules --release --target web --out-dir pkg --out-name ariadne_rules -- --no-default-features --features wasm
+```
+
 The end-to-end tests build their app and serve the build with
 `vite preview` on their own port (4178 for the desk, 4177 for the
 agent); `E2E_PORT` moves it. CI also runs Lighthouse against each app's
-build and builds the badge values with `scripts/badges.mjs`.
+build and builds the badge values with `scripts/badges.mjs`. The CI jobs
+are `rust (ubuntu-latest)`, `rust (macos-latest)`, `rust (windows-latest)`,
+`wasm`, `msrv (1.85)`, `build-and-test` and `badges`, which needs all the
+others.
 
 A failed check is not flaky until the exact same command passes on rerun.
 When a check fails and the fix is not obvious, report it rather than route
