@@ -159,19 +159,20 @@ async function latin(page: Page): Promise<string[]> {
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement!;
       if (skip(el)) continue;
-      for (const w of (n.textContent ?? "").match(/[A-Za-z]+/g) ?? []) out.push(`${w} in "${n.textContent!.trim().slice(0, 60)}"`);
+      // The product name is never translated.
+      for (const w of (n.textContent ?? "").match(/[A-Za-z]+/g) ?? []) if (w !== "Ariadne") out.push(`${w} in "${n.textContent!.trim().slice(0, 60)}"`);
     }
     for (const el of document.querySelectorAll("[aria-label], [title], [placeholder], [alt], [aria-keyshortcuts]")) {
       if (skip(el)) continue;
       for (const name of ["aria-label", "title", "placeholder", "alt"])
         for (const w of el.getAttribute(name)?.match(/[A-Za-z]+/g) ?? []) out.push(`${w} in ${name}`);
     }
-    for (const w of document.title.match(/[A-Za-z]+/g) ?? []) out.push(`${w} in the title`);
+    for (const w of document.title.match(/[A-Za-z]+/g) ?? []) if (w !== "Ariadne") out.push(`${w} in the title`);
     return out;
   });
 }
 
-test("the Arabic interface is right to left and has no Latin words", async ({ page }) => {
+test("the Arabic interface is right to left and has no Latin words apart from the product name", async ({ page }) => {
   const t = strings.ar;
   await page.goto("/?lang=ar&scale=0.05");
   await ready(page, t.plan.run);

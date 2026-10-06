@@ -185,7 +185,7 @@ export type Strings = {
 };
 
 const en: Strings = {
-  title: "Argus Desk",
+  title: "Ariadne Desk",
   subtitle: "Fifty thousand service requests in one grid",
   gridLabel: "Requests",
 
@@ -349,7 +349,7 @@ const en: Strings = {
 };
 
 const ruStrings: Strings = {
-  title: "Аргус",
+  title: "Ariadne: стол заявок",
   subtitle: "Пятьдесят тысяч заявок в одной таблице",
   gridLabel: "Заявки",
 
@@ -513,7 +513,7 @@ const ruStrings: Strings = {
 };
 
 const ar: Strings = {
-  title: "أرغوس",
+  title: "Ariadne: مكتب الطلبات",
   subtitle: "خمسون ألف طلب خدمة في جدول واحد",
   gridLabel: "الطلبات",
 

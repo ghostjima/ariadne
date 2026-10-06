@@ -56,20 +56,20 @@ test("Russian: words, digits and data in Russian, kept after a reload", async ({
   await open(page);
   await page.getByRole("radio", { name: "RU", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-  await expect(page).toHaveTitle("Аргус");
+  await expect(page).toHaveTitle("Ariadne: стол заявок");
   await expect(page.getByTestId("row-count")).toHaveText("50 000 заявок из 50 000");
   await expect(page.getByRole("columnheader", { name: "Клиент" })).toBeVisible();
   await expect(page.locator('[data-cell="0:2"]')).toHaveText("ООО «Ветроплав»");
   await page.reload();
   await expect(page.getByRole("radio", { name: "RU", exact: true })).toBeChecked();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Аргус");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ariadne: стол заявок");
 });
 
 test("Arabic: right to left, Arabic-Indic digits, Arabic data, pinned columns at the right", async ({ page }) => {
   await open(page, "lang=ar", "الطلبات: ٥٠٬٠٠٠ من ٥٠٬٠٠٠");
   const html = page.locator("html");
   await expect(html).toHaveAttribute("dir", "rtl");
-  await expect(page).toHaveTitle("أرغوس");
+  await expect(page).toHaveTitle("Ariadne: مكتب الطلبات");
   await expect(page.getByRole("columnheader", { name: "العميل" })).toBeVisible();
   await expect(page.locator('[data-cell="0:2"]')).toHaveText(/[؀-ۿ]/);
   await expect(page.locator('[data-cell="0:3"]')).toHaveText(/[٠-٩]/);

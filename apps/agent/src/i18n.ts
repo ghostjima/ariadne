@@ -254,8 +254,8 @@ export type Strings = {
 };
 
 const en: Strings = {
-  title: "Ariadne",
-  subtitle: "An agent you can stop",
+  title: "Ariadne Agent",
+  subtitle: "Stop it at any step",
   suppliers: [
     "Northwind Metals",
     "Harbour Logistics",
@@ -563,8 +563,8 @@ const en: Strings = {
 };
 
 const ruStrings: Strings = {
-  title: "Ариадна",
-  subtitle: "Агент, которого можно остановить",
+  title: "Ariadne: агент",
+  subtitle: "Остановка на любом шаге",
   suppliers: [
     "«Северметалл»",
     "«Гавань-Логистик»",
@@ -872,8 +872,8 @@ const ruStrings: Strings = {
 };
 
 const arStrings: Strings = {
-  title: "أريادني",
-  subtitle: "وكيل يمكنك إيقافه",
+  title: "Ariadne: الوكيل",
+  subtitle: "إيقاف عند أي خطوة",
   suppliers: [
     "معادن الشمال",
     "لوجستيات المرفأ",

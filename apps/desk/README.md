@@ -1,4 +1,4 @@
-# Argus Desk
+# Ariadne Desk: the desk app
 
 Part of the [Ariadne Desk](../../README.md) repository; the measured
 badges, and what each one counts, are in its README.

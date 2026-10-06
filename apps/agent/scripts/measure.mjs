@@ -51,7 +51,7 @@ await new Promise((resolve, reject) => {
   const poll = () =>
     fetch(BASE)
       .then((r) => r.text())
-      .then((html) => (html.includes("<title>Ariadne</title>") ? resolve() : reject(new Error(`Port ${PORT} serves another application`))))
+      .then((html) => (html.includes("<title>Ariadne Agent</title>") ? resolve() : reject(new Error(`Port ${PORT} serves another application`))))
       .catch(() => (Date.now() - started > 20_000 ? reject(new Error("preview did not start")) : setTimeout(poll, 200)));
   poll();
 });

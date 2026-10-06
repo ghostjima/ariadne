@@ -47,8 +47,8 @@ describe("language tables", () => {
     expect(strings.en.shownOf("2", "50,000", 2)).toBe("2 of 50,000 requests");
   });
 
-  it("the Arabic and Russian tables use Latin letters only for CSV, SLA, the file name and key names", () => {
-    const allowed = new Set(["CSV", "SLA", "requests", "csv", "zayavki", "p"]);
+  it("the Arabic and Russian tables use Latin letters only for the product name, CSV, SLA, the file name and key names", () => {
+    const allowed = new Set(["Ariadne", "CSV", "SLA", "requests", "csv", "zayavki", "p"]);
     for (const lang of ["ar", "ru"] as const) {
       const latin = texts(strings[lang]).flatMap((s) => s.match(/[A-Za-z]+/g) ?? []);
       expect(latin.filter((w) => !allowed.has(w)), lang).toEqual([]);
