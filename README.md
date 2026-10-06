@@ -121,7 +121,9 @@ The workflows the desk is built around, and what exists of each today:
   rules engine in Rust compiled to WebAssembly; so far the Russian
   production calendar for 2025 to 2027, counting in working days, and
   the legal clocks of 442-FZ, 123-FZ, 161-FZ and 115-FZ, each deadline
-  with its act, article, part and revision.
+  with its act, article, part and revision; the signs of Bank of Russia
+  Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; and a
+  rubric that returns coded findings on a structured reply.
 
 Both apps are built on the [Stoa](https://github.com/ghostjima/stoa)
 design system and are tested with axe in English, Russian and Arabic,

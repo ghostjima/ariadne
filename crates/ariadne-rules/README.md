@@ -14,8 +14,8 @@ below, at the revisions listed below. Where a reading is uncertain, the
 crate encodes the conservative one and says so in the code and here. A
 person decides every case.
 
-Status: early. The production calendar, working days and the legal
-clocks are in; reason codes and the reply rubric follow.
+Status: early. The production calendar, working days, the legal clocks,
+the reason codes and the reply rubric are in.
 
 ## What it computes
 
@@ -165,6 +165,72 @@ gives the earlier date or the wider duty, marks the basis
   `extension_too_long`.
 - Errors: `invalid_date`, `outside_calendar`, `dates_out_of_order`,
   `invalid_extension`, `invalid_amount`, `unknown_code`, `missing_date`.
+- Rubric: the findings above; client options `confirm_order`,
+  `repeat_operation`, `submit_documents`, `apply_to_commission`,
+  `apply_to_ombudsman`; acts `payment_system`, `anti_money_laundering`,
+  `ombudsman`, `complaint_law`, `other_law`, `contract`.
+
+### Reason codes
+
+The 14 signs of a transfer without the client's voluntary consent, set by
+the Bank of Russia's Order No. OD-2506 of 05.11.2025 from 1 January 2026,
+transcribed from the order's text as the Bank of Russia publishes it
+(`reasons::SIGNS`): the number, a reason code (`od2506_1_1` to
+`od2506_1_12`, `od2506_2_1`, `od2506_2_2`), the group (12 for transfers of
+money, 2 for digital rubles), the day it applies from (sign 1.2, the state
+anti-fraud system, from 1 March 2026), the thresholds it states, a short
+English summary for the desk and the wording in Russian, which is the
+law. The thresholds:
+
+| Sign | Threshold |
+|---|---|
+| 1.9 | calls or messages found in a period of at least 6 hours before the order |
+| 1.10 | a phone number changed within 48 hours before the order |
+| 1.11 | a cash deposit by token card within 24 hours after a cross-border transfer of more than 100,000 roubles to individuals |
+| 1.12 | more than 200,000 roubles in through Faster Payments from the client's own account at another operator, less than 24 hours before an order to someone not paid in the previous 6 months |
+
+A test checks that every threshold appears in its sign's own words, and
+a fingerprint of the transcription fails the tests on any change to it.
+
+The grounds of a refusal or restriction under 115-FZ, as reason
+categories (`reasons::AmlReason`), each with its article and item:
+`aml_operation_refused` (art. 7 item 11), `aml_account_refused` (item 5.2,
+paragraph 2), `aml_account_terminated` (item 5.2, paragraph 3),
+`aml_operation_suspended` (item 10), `aml_operation_suspended_by_decision`
+(item 10.1), `aml_funds_frozen` (item 1, subitem 6),
+`aml_high_risk_measures` (art. 7.7 item 5). A sign is a 161-FZ reason, a
+category a 115-FZ one.
+
+### Reply rubric
+
+`rubric(reply, case, clock)` checks a structured reply (the legal grounds
+it names, its reasons, next steps, the client's options, the deadlines it
+states and its text) and returns coded findings. It checks only what
+needs no legal judgment:
+
+| Finding | When | Basis |
+|---|---|---|
+| `ground_missing` | no legal ground named | the Bank of Russia's letter No. IN-01-59/98, paragraph 3 ("со ссылкой на конкретную норму"); Banking Law art. 30.1 part 9 and equivalents |
+| `ground_without_article` | a law named without an article (a contract needs none) | the same |
+| `grounds_mixed` | 161-FZ and 115-FZ both among the grounds or the reasons | the same letter ("однозначно дифференцировать") |
+| `stream_ground_missing` | an antifraud or anti-money-laundering complaint answered without naming that law | the same |
+| `next_steps_missing` | no next step | the same ("порядке дальнейших действий") |
+| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4) | the letter and each provision |
+| `deadline_missing`, `deadline_mismatch` | a deadline that concerns the client and runs on the reply's day is not stated, or stated with another date than the clock's | the Bank of Russia's recommendations on replies (concrete terms) |
+| `text_empty`, `sentence_too_long`, `sentences_long_on_average` | no text; a sentence of more than 25 words; more than 15 words a sentence on average | the same recommendations (no long sentences) |
+
+The word limits, 25 and 15, are this engine's own: the Bank of Russia
+advises against long sentences but sets no number. They are hypotheses to
+calibrate on real replies. Sentences end at a full stop, question or
+exclamation mark or ellipsis followed by a capital, so "п. 11 ст. 7" does
+not split, and at a line break, for lists.
+
+The rubric reads the 161-FZ and 115-FZ letter conservatively: any reply
+that names both laws, or gives reasons from both, is flagged, though a
+case can involve both; a person decides whether it does. It also asks
+for both the documents and the commission against a refused operation or
+contract, as the route the law gives, although the commission comes only
+after the bank's answer to the documents.
 
 ## Interface
 
@@ -189,6 +255,18 @@ the code:
   `forOthers` and a `basis` of `source`, `act`, `article`, `part`,
   `revision`, `url`, `reading`), `duties`, `warnings`, `refusals` and
   `replyDue`.
+- `od2506Signs()`: the signs, each with `number`, `code`, `group`,
+  `summary`, `appliesFrom`, `thresholds` (`value`, `unit`, `bound`, `of`)
+  and `wording`.
+- `amlReasons()`: the 115-FZ categories, each with `code`, `source`,
+  `article`, `part` and `revision`.
+- `rubric(reply, input)`: `reply` is a `ReplyInput`, made with
+  `new ReplyInput(repliedOn, text)` and filled with `grounds`
+  (`GroundInput`s of an act code, article and part), `reasons`,
+  `nextSteps`, `clientOptions` and `statedDeadlines`
+  (`StatedDeadlineInput`s); `input` is the case's `CaseInput`, from which
+  the clock is computed. Returns `FindingOutput`s with `code`, `subject`,
+  `sentence`, `words`, `source` and `reference`.
 
 ## Sources
 
@@ -218,9 +296,15 @@ A test fails when this list and the code disagree.
 | Anti-Money-Laundering Law No. 115-FZ, art. 7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/3e3e0d20d2919071b55ef95f26f849df6a4f11e8/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/0a562008be657e44b6145557f337cc626af9ffab/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.8 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/b9e70868f2269695609ac83c8cabbc15dbc7b4e0/) |
+| Bank of Russia Order No. OD-2506 of 05.11.2025, the signs of a transfer without voluntary consent, in force from 01.01.2026 | 2025-11-05 | [cbr.ru, PDF](https://cbr.ru/Crosscut/LawActs/File/10123) |
+| Bank of Russia information letter No. IN-01-59/98 of 26.08.2025, informing clients of restrictions | 2025-08-26 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/412494092/) |
+| Bank of Russia page on replies to complaints, with its recommendations | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/) |
 
-The decrees and the letter have not been amended; their revision is
-their date. The 123-FZ revision is that of its latest amendment
+The decrees, the letters and Order No. OD-2506 have not been amended as
+far as could be found; their revision is their date. The order's PDF on
+cbr.ru carries a registration stamp placeholder instead of its number and
+date, which come from the Bank of Russia's listing; no amending order was
+found on 2026-10-06. The 123-FZ revision is that of its latest amendment
 (No. 505-FZ of 28.12.2025) as garant.ru listed it. The Bank of Russia's
 forwarding of complaints to organisations (86-FZ arts. 79.3 and 79.4) is
 what makes a complaint "forwarded"; the organisation's duties for it are
