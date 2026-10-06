@@ -69,7 +69,7 @@ test("a failed or empty browser run stops the e2e badge", () => {
 });
 
 const lighthouse = (formFactor, scores = { accessibility: 1, "best-practices": 0.96, seo: 0.9 }) => ({
-  lighthouseVersion: "12.8.2",
+  lighthouseVersion: "13.5.0",
   configSettings: { formFactor },
   categories: Object.fromEntries(Object.entries(scores).map(([id, score]) => [id, { score }])),
 });
