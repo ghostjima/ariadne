@@ -36,7 +36,7 @@ import { labels as ru } from "../src/pools/ru.js";
 
 const custom: View = {
   name: "Мой вид",
-  filters: { stage: [1, 2], stream: [2], source: [2], deadline: [0] },
+  filters: { stage: [1, 2], stream: [2], source: [2], deadline: [0], copy: [] },
   search: "сбп",
   columns: ["id", "client", "assignee", "stage", "signatory", "note"],
   sort: { id: "left", desc: true },
@@ -114,6 +114,7 @@ describe("role rules", () => {
       stream: [],
       source: [],
       deadline: [DeadlineClass.DueSoon],
+      copy: [],
       search: "",
       scope: { assignees: [SELF_ASSIGNEE], signatories: null },
     });
@@ -126,7 +127,7 @@ describe("the working views", () => {
   const run = (name: string) => filterRows(store, null, criteriaFor(preset(name), "supervisor")).index;
 
   it("names every preset, with a label in each language", () => {
-    expect(PRESET_VIEWS.map((v) => v.name)).toEqual(["open", "dueSoon", "overdue", "forwarded", "waitingForFacts", "awaitingSignature", "all"]);
+    expect(PRESET_VIEWS.map((v) => v.name)).toEqual(["open", "dueSoon", "overdue", "forwarded", "waitingForFacts", "awaitingSignature", "copiesDueToday", "all"]);
     for (const v of PRESET_VIEWS) {
       expect(isPreset(v.name)).toBe(true);
       for (const labels of [ru, en]) expect(labels.presets[v.name as keyof typeof labels.presets]).toBeTruthy();
@@ -135,7 +136,10 @@ describe("the working views", () => {
   });
 
   it("every working view sorts by the time left, least first", () => {
-    for (const v of PRESET_VIEWS) if (v.name !== "all") expect(v.sort).toEqual({ id: "left", desc: false });
+    // The copies due today are of replies already sent: no time is left
+    // to count, and they go in the order the cases came.
+    for (const v of PRESET_VIEWS) if (v.name !== "all" && v.name !== "copiesDueToday") expect(v.sort).toEqual({ id: "left", desc: false });
+    expect(PRESET_VIEWS.find((v) => v.name === "copiesDueToday")?.sort).toEqual({ id: "id", desc: false });
   });
 
   it("open cases: everything not yet answered", () => {
@@ -181,7 +185,7 @@ describe("view serialization", () => {
     expect(parseView(btoa(JSON.stringify({ n: "x", f: [[0], [2], 1, []], c: ["status"] })))).toBeNull();
     const partial = parseView(btoa(JSON.stringify({ v: 2, n: "x", c: ["stage", "bogus"] })));
     expect(partial?.columns).toEqual(["stage"]);
-    expect(partial?.filters).toEqual({ stage: [], stream: [], source: [], deadline: [] });
+    expect(partial?.filters).toEqual({ stage: [], stream: [], source: [], deadline: [], copy: [] });
     expect(partial?.density).toBe("default");
     expect(partial?.sort).toBeNull();
     expect(parseView(btoa(JSON.stringify({ v: 2, n: "  " })))?.name).toBe("");

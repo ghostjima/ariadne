@@ -48,7 +48,7 @@ describe("csv export", () => {
   it("writes every column of the catalogue with the defaults", () => {
     const row = Array.from({ length: store.size }, (_, i) => i).find((i) => store.linked[i]! >= 0 && store.operation[i]! > 0)!;
     const [header, line] = toCsv(store, [row], COLUMN_IDS, { headers: enLabels.columns, pools: en, labels: enLabels }).split("\r\n");
-    expect(header?.split(";")).toHaveLength(24);
+    expect(header?.split(";")).toHaveLength(25);
     const cells = Object.fromEntries(COLUMN_IDS.map((id, k) => [id, line!.split(";")[k]]));
     expect(cells.id).toBe(`C-${String(row + 1).padStart(6, "0")}`);
     expect(cells.received).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/);

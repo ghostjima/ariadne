@@ -14,6 +14,7 @@ import {
   ELECTRONIC_CHANNELS,
   EXTENSION_WORKING_DAYS,
   Operation,
+  SECTOR_RULES,
   STREAM_RULES,
   Source,
   Stream,
@@ -78,6 +79,10 @@ export function workingDaysFrom(from: number, to: number): number {
 /* What generation needs to know about a complaint to ask for its clock */
 export type ReplyFacts = {
   stream: number;
+  /* Sector code */
+  sector: number;
+  /* A breach of a base or internal standard found */
+  breach: boolean;
   applicant: number;
   forwarded: boolean;
   electronic: boolean;
@@ -104,6 +109,8 @@ export type ReplyClock = {
 export function replyFacts(f: ReplyFacts, extended: boolean): CaseFacts {
   const facts: CaseFacts = {
     stream: STREAM_RULES[f.stream] ?? "general",
+    sector: SECTOR_RULES[f.sector] ?? "bank",
+    standardBreachFound: f.breach,
     receivedOn: isoDay(f.received),
     registeredOn: isoDay(f.registered),
     applicant: f.applicant === Applicant.LegalEntity ? "legal_entity" : "individual",
@@ -127,7 +134,7 @@ const dueOf = (c: Clock, kind: string): number => {
 /* The reply's last day, and what an extension to request documents would
    give: two clocks, one without and one with the extension asked for. */
 export function replyClock(f: ReplyFacts): ReplyClock {
-  const key = `${f.stream}|${f.applicant}|${f.forwarded ? 1 : 0}|${f.electronic ? 1 : 0}|${f.received}|${f.registered}|${f.claim}|${f.standardForm ? 1 : 0}|${f.breachOn}`;
+  const key = `${f.stream}|${f.sector}|${f.breach ? 1 : 0}|${f.applicant}|${f.forwarded ? 1 : 0}|${f.electronic ? 1 : 0}|${f.received}|${f.registered}|${f.claim}|${f.standardForm ? 1 : 0}|${f.breachOn}`;
   const cached = clocks.get(key);
   if (cached) return cached;
   const plain = clock(replyFacts(f, false));
@@ -139,6 +146,7 @@ export function replyClock(f: ReplyFacts): ReplyClock {
   if (plain.warnings.includes("registered_late")) flags |= RulesFlag.RegisteredLate;
   if (plain.deadlines.some((d) => d.kind === "registration_notice")) flags |= RulesFlag.RegistrationNotice;
   if (plain.duties.some((d) => d.kind === "copy_to_bank_of_russia")) flags |= RulesFlag.CopyToBankOfRussia;
+  if (plain.duties.some((d) => d.kind === "copy_to_sro")) flags |= RulesFlag.CopyToSro;
   const out: ReplyClock = {
     due: dueOf(plain, "reply"),
     dueExt: refused ? -1 : dueOf(asked, "reply_extended"),
@@ -154,6 +162,8 @@ export function rowReplyFacts(store: ColumnStore, i: number): ReplyFacts {
   const claim = store.claim[i] ?? 0;
   return {
     stream: store.stream[i] ?? 0,
+    sector: store.sector[i] ?? 0,
+    breach: (store.breach[i] ?? 0) === 1,
     applicant: store.applicant[i] ?? 0,
     forwarded: store.source[i] === Source.BankOfRussia,
     electronic: ELECTRONIC_CHANNELS.includes(store.channel[i] ?? 0),

@@ -22,6 +22,36 @@ export const STREAM_COUNT = 4;
 /* The stream codes as ariadne-rules names them */
 export const STREAM_RULES = ["general", "money_claim", "antifraud", "aml_refusal"] as const;
 
+/* The organisation of the group the complaint is to: the bank, or one of
+   its non-bank companies. The complaint article is the same 442-FZ
+   template in every sector (Banking Law art. 30.1; 151-FZ art. 9.1;
+   4015-1 art. 6.2; 39-FZ art. 15.11; 190-FZ art. 6.2); the non-bank ones
+   copy the complaint and the reply to their self-regulatory organisation
+   on the day of the reply when they find a breach of a base or internal
+   standard, which a bank does not. */
+export const Sector = { Bank: 0, Microfinance: 1, Insurer: 2, SecuritiesProfessional: 3, CreditCooperative: 4 } as const;
+export const SECTOR_COUNT = 5;
+/* The sector codes as ariadne-rules names them */
+export const SECTOR_RULES = ["bank", "microfinance", "insurer", "securities_professional", "credit_cooperative"] as const;
+
+/* The copies a dispatch owes, as bits of the `copies` column: of the reply
+   to the Bank of Russia (a forwarded complaint), of the complaint and the
+   reply to the self-regulatory organisation (a base-standard breach
+   found), and of the extension notice to the Bank of Russia; each due on
+   the day its original went out, and marked once sent. */
+export const Copy = {
+  BankOfRussiaDue: 1,
+  BankOfRussiaSent: 2,
+  SroDue: 4,
+  SroSent: 8,
+  NoticeDue: 16,
+  NoticeSent: 32,
+} as const;
+/* The copy class of a row, for the filter and the views: computed, never
+   stored */
+export const CopyClass = { DueToday: 0, Sent: 1, None: 2 } as const;
+export const COPY_CLASS_COUNT = 3;
+
 /* Who sent it */
 export const Source = {
   Client: 0,
@@ -198,6 +228,7 @@ export const COLUMNS: readonly ColumnSpec[] = [
   { id: "reason", kind: "enum" },
   { id: "subject", kind: "text", searchable: true },
   { id: "source", kind: "enum" },
+  { id: "sector", kind: "enum" },
   { id: "channel", kind: "enum" },
   { id: "received", kind: "datetime" },
   { id: "registered", kind: "date" },
@@ -255,6 +286,7 @@ export const PRESET_IDS = [
   "forwarded",
   "waitingForFacts",
   "awaitingSignature",
+  "copiesDueToday",
   "all",
 ] as const;
 export type PresetId = (typeof PRESET_IDS)[number];

@@ -76,6 +76,8 @@ export function cellText(store: ColumnStore, row: number, spec: ColumnSpec, opti
       return subjectText(store, row, pools);
     case "source":
       return code(labels.source, store.source[row]);
+    case "sector":
+      return code(labels.sector, store.sector[row]);
     case "channel":
       return code(labels.channel, store.channel[row]);
     case "received":
