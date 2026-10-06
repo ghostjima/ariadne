@@ -128,6 +128,17 @@ pub enum OperationCode {
     Transfer = "transfer",
 }
 
+/// Why a complaint is left without a reply on substance.
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoSubstanceCode {
+    NoAddress = "no_address",
+    NoName = "no_name",
+    Offensive = "offensive",
+    Illegible = "illegible",
+    SubstanceUnclear = "substance_unclear",
+}
+
 /// What a 115-FZ decision refused.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,6 +176,10 @@ pub struct CaseInput {
     pub extension_working_days: Option<u32>,
     #[wasm_bindgen(js_name = standardBreachFound)]
     pub standard_breach_found: bool,
+    #[wasm_bindgen(js_name = noSubstance)]
+    pub no_substance: Option<NoSubstanceCode>,
+    #[wasm_bindgen(js_name = stopCorrespondence)]
+    pub stop_correspondence: bool,
     #[wasm_bindgen(js_name = blockedOperation)]
     pub blocked_operation: Option<OperationCode>,
     #[wasm_bindgen(js_name = blockedOn)]
@@ -201,10 +216,18 @@ pub struct CaseInput {
     pub documents_submitted_on: Option<String>,
     #[wasm_bindgen(js_name = commissionAppliedOn)]
     pub commission_applied_on: Option<String>,
+    #[wasm_bindgen(js_name = commissionRequestReceivedOn)]
+    pub commission_request_received_on: Option<String>,
+    #[wasm_bindgen(js_name = commissionRequestWorkingDays)]
+    pub commission_request_working_days: Option<u32>,
+    #[wasm_bindgen(js_name = commissionDecidedOn)]
+    pub commission_decided_on: Option<String>,
     #[wasm_bindgen(js_name = highRiskMeasuresOn)]
     pub high_risk_measures_on: Option<String>,
     #[wasm_bindgen(js_name = highRiskNoticeReceivedOn)]
     pub high_risk_notice_received_on: Option<String>,
+    #[wasm_bindgen(js_name = ratingReviewReceivedOn)]
+    pub rating_review_received_on: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -227,6 +250,8 @@ impl CaseInput {
             extension_ground: None,
             extension_working_days: None,
             standard_breach_found: false,
+            no_substance: None,
+            stop_correspondence: false,
             blocked_operation: None,
             blocked_on: None,
             confirmed_on: None,
@@ -244,8 +269,12 @@ impl CaseInput {
             aml_decision_on: None,
             documents_submitted_on: None,
             commission_applied_on: None,
+            commission_request_received_on: None,
+            commission_request_working_days: None,
+            commission_decided_on: None,
             high_risk_measures_on: None,
             high_risk_notice_received_on: None,
+            rating_review_received_on: None,
         }
     }
 }
@@ -316,6 +345,16 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         _ => return Err(Error::InvalidExtension),
     };
     case.standard_breach_found = i.standard_breach_found;
+    case.no_substance = match i.no_substance {
+        None => None,
+        Some(NoSubstanceCode::NoAddress) => Some(clock::NoSubstanceGround::NoAddress),
+        Some(NoSubstanceCode::NoName) => Some(clock::NoSubstanceGround::NoName),
+        Some(NoSubstanceCode::Offensive) => Some(clock::NoSubstanceGround::Offensive),
+        Some(NoSubstanceCode::Illegible) => Some(clock::NoSubstanceGround::Illegible),
+        Some(NoSubstanceCode::SubstanceUnclear) => Some(clock::NoSubstanceGround::SubstanceUnclear),
+        Some(NoSubstanceCode::__Invalid) => return Err(Error::UnknownCode),
+    };
+    case.stop_correspondence = i.stop_correspondence;
     case.antifraud = match (i.blocked_operation, opt_date(&i.blocked_on)?) {
         (None, None) => None,
         (Some(op), Some(stopped_on)) => Some(clock::AntifraudFacts {
@@ -367,14 +406,25 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         decision,
         documents_submitted_on: opt_date(&i.documents_submitted_on)?,
         commission_applied_on: opt_date(&i.commission_applied_on)?,
+        commission_request_received_on: opt_date(&i.commission_request_received_on)?,
+        commission_request_working_days: i.commission_request_working_days,
+        commission_decided_on: opt_date(&i.commission_decided_on)?,
         high_risk_measures_on: opt_date(&i.high_risk_measures_on)?,
         high_risk_notice_received_on: opt_date(&i.high_risk_notice_received_on)?,
+        rating_review_received_on: opt_date(&i.rating_review_received_on)?,
     };
+    if aml.commission_request_working_days.is_some() && aml.commission_request_received_on.is_none()
+    {
+        return Err(Error::MissingDate);
+    }
     let any_aml = aml.decision.is_some()
         || aml.documents_submitted_on.is_some()
         || aml.commission_applied_on.is_some()
+        || aml.commission_request_received_on.is_some()
+        || aml.commission_decided_on.is_some()
         || aml.high_risk_measures_on.is_some()
-        || aml.high_risk_notice_received_on.is_some();
+        || aml.high_risk_notice_received_on.is_some()
+        || aml.rating_review_received_on.is_some();
     case.aml = any_aml.then_some(aml);
     Ok(case)
 }
@@ -522,6 +572,38 @@ fn to_output(c: &clock::Clock) -> ClockOutput {
 pub fn clock(input: &CaseInput) -> Result<ClockOutput, JsError> {
     let case = to_case(input).map_err(js)?;
     Ok(to_output(&clock::clock(&case).map_err(js)?))
+}
+
+/// The last day of a fact request, and what set it.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct FactRequestOutput {
+    /// The last day: the internal policy's, or an earlier external term's.
+    pub due: String,
+    /// Two working days after the request: the desk's own policy, not a
+    /// term of any law.
+    #[wasm_bindgen(js_name = policyDue)]
+    pub policy_due: String,
+    /// The deadline code that caps the policy, when one does.
+    #[wasm_bindgen(js_name = cappedBy)]
+    pub capped_by: Option<String>,
+}
+
+fn fact_request_pure(input: &CaseInput, sent_on: &str) -> Result<FactRequestOutput, Error> {
+    let c = clock::clock(&to_case(input)?)?;
+    let f = clock::fact_request_due(&c, Date::parse(sent_on)?)?;
+    Ok(FactRequestOutput {
+        due: f.due.to_string(),
+        policy_due: f.policy_due.to_string(),
+        capped_by: f.capped_by.map(|k| k.code().to_string()),
+    })
+}
+
+/// The last day of a request for facts to another unit, sent on
+/// `sent_on`, in the case `input` describes.
+#[wasm_bindgen(js_name = factRequestDue)]
+pub fn fact_request_due(input: &CaseInput, sent_on: &str) -> Result<FactRequestOutput, JsError> {
+    fact_request_pure(input, sent_on).map_err(js)
 }
 
 /// A threshold a sign states.
@@ -879,6 +961,43 @@ mod tests {
         assert_eq!(to_case(&j).unwrap().database, None);
         j.data_removed_on = Some("2026-5-20".into());
         assert_eq!(to_case(&j), Err(Error::InvalidDate));
+    }
+
+    #[test]
+    fn the_fact_request_and_the_new_complaint_facts_cross_whole() {
+        // An operation refused under 115-FZ on Thursday 30 April 2026;
+        // documents submitted on 8 May are answered by 20 May. A fact
+        // request sent on 19 May would be due on 21 May; the documents'
+        // answer caps it at 20 May.
+        let mut i = CaseInput::new(StreamCode::AmlRefusal, "2026-05-12".into());
+        i.aml_decision = Some(AmlDecisionCode::RefuseOperation);
+        i.aml_decision_on = Some("2026-04-30".into());
+        i.documents_submitted_on = Some("2026-05-08".into());
+        let f = fact_request_pure(&i, "2026-05-19").unwrap();
+        assert_eq!(
+            (
+                f.due.as_str(),
+                f.policy_due.as_str(),
+                f.capped_by.as_deref()
+            ),
+            ("2026-05-20", "2026-05-21", Some("aml_documents_answer"))
+        );
+        // Left without a reply on substance, illegible: the notice within
+        // 5 working days of the registration assumed on 12 May, 19 May.
+        i.no_substance = Some(NoSubstanceCode::Illegible);
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        let notice = out
+            .deadlines
+            .iter()
+            .find(|d| d.kind == "no_substance_notice")
+            .unwrap();
+        assert_eq!(
+            (notice.due.as_str(), notice.basis.part.as_str()),
+            ("2026-05-19", "13")
+        );
+        // A request term without the request's day is incomplete.
+        i.commission_request_working_days = Some(5);
+        assert_eq!(to_case(&i), Err(Error::MissingDate));
     }
 
     #[test]

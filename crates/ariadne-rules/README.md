@@ -84,7 +84,11 @@ item is the part.
 | Extension | once, at most 10 working days, only to request documents; a reasoned notice | 30.1 part 8; 9.1 part 8; 6.2 item 5 paragraph 2; 15.11 item 3; 6.2 part 7 |
 | Copy to the Bank of Russia, forwarded complaint | each notice and the reply, the day they go out | 30.1 part 15; 9.1 part 16; 6.2 item 12; 15.11 item 11; 6.2 part 15 |
 | Copy to the self-regulatory organisation, standard breach found | the complaint and the reply, the day the reply goes out | 9.1 part 12; 6.2 item 8; 15.11 item 5; 6.2 part 10 (banks have none) |
+| Notice of no reply on substance, grounds 2 to 5 (no name, offensive language, illegible, substance unclear); none for ground 1, no address | 5 working days from registration, with the reasons | 30.1 parts 12, 13; 9.1 parts 13, 14; 6.2 items 9, 10; 15.11 items 6, 7; 6.2 parts 11, 12 |
+| Notice of stopping the correspondence on a repeated complaint | as the notice above: 5 working days from registration | 30.1 part 14; 9.1 part 15; 6.2 item 11; 15.11 item 8; 6.2 part 13 |
+| Keeping the complaint, the reply and every notice | 3 years from registration (credit cooperatives: no statutory term) | 30.1 part 11; 9.1 part 11; 6.2 item 14; 15.11 item 9 (190-FZ art. 6.2 has none) |
 | Money claim up to 500,000 roubles from a consumer | 15 working days from receipt on the standard electronic form within 180 days of the breach, otherwise 30 calendar days moved to a working day; no extension | 123-FZ art. 15 part 1, art. 16 part 2, art. 28 part 1 |
+| The ombudsman's three years | a warning when more than three years passed since the breach, never a refusal: the consumer may have learned of it later, and the ombudsman may restore the term | 123-FZ art. 15 parts 1, 4 |
 | Antifraud suspension of a transfer | two days from and including the day of suspension, calendar days | 161-FZ art. 8 part 3.4; Bank of Russia letter No. 010-31/7975 |
 | Client's notice of the block | at once: the block, advice, how to confirm or repeat | 161-FZ art. 8 part 3.6 items 1 to 3 |
 | Client's confirmation, transfers only | by the day after the suspension; a later one leaves the order not accepted | 161-FZ art. 8 part 3.6 item 3, part 3.9 |
@@ -100,8 +104,11 @@ item is the part.
 | 115-FZ reasons notice | 5 working days from the decision | 115-FZ art. 7 item 13.1-1 (paragraph 1 for an account, 2 for an operation) |
 | Answer to the client's documents | 7 working days from submission | 115-FZ art. 7 item 13.4, paragraph 2 |
 | Interagency commission | at most 20 working days from the application | 115-FZ art. 7 item 13.5, paragraph 3 |
+| Organisation's answer to the commission's request | the term the request sets, at least 3 working days; 3 when unknown | 115-FZ art. 7 item 13.6, paragraph 1; Regulation No. 842-P items 2.6, 2.8 |
+| Notice of the commission's decision | 3 working days from the decision, to the applicant and the organisation | Regulation No. 842-P item 4.1; 115-FZ art. 7 item 13.6 |
 | High-risk measures notice | 5 working days after the measures | 115-FZ art. 7.7 item 8 |
 | Client's application to the commission | 6 months from receipt of that notice | 115-FZ art. 7.8 item 1, paragraph 2 |
+| Bank of Russia on a request to revise a high-risk rating, no measures applied | 15 working days from its receipt | 115-FZ art. 7.8 item 1.1 |
 
 The engine never proposes an extension for a money claim under 123-FZ:
 the clock carries the refusal `extension_not_allowed` and no extended
@@ -132,8 +139,15 @@ gives the earlier date or the wider duty, marks the basis
   `registration_date_assumed`.
 - The extension notice is due by the original reply date: the text sets
   no date, and a term cannot be extended after it has ended.
-- Under 123-FZ the sector article's registration term is kept, though
-  123-FZ sets none.
+- Under 123-FZ the sector article's registration term, its notices and
+  its storage term are kept, though 123-FZ sets none.
+- Stopping the correspondence is notified "in the manner" of the no-reply
+  notice; the engine applies that notice's 5 working days from the
+  registration of the repeated complaint.
+- The commission's request given without its term: the least the law
+  allows, 3 working days, with the warning `commission_term_assumed`. A
+  request that gives less keeps its own, earlier day, with the warning
+  `commission_term_below_minimum`.
 - A standard-form claim without a breach day, and a money claim to a
   securities market professional (a voluntary participant of the
   ombudsman's procedure at most), take the earlier of the possible reply
@@ -153,32 +167,72 @@ gives the earlier date or the wider duty, marks the basis
   terminated contract the engine still gives the 7 days, with the
   warning `documents_answer_beyond_text`.
 
+The commission's review keeps the statutory ceiling of 20 working days:
+Regulation No. 842-P sets no shorter term of its own (item 2.2 refers
+back to 115-FZ art. 7 item 13.5). The 15 working days on the Bank of
+Russia's guidance page belong to the Bank of Russia's own review of a
+high-risk rating under 115-FZ art. 7.8 item 1.1, which the engine encodes
+separately (`high_risk_rating_review`).
+
+#### Fact requests
+
+`fact_request_due(clock, sent_on)` gives the last day of a request for
+facts from the complaints unit to the unit that holds them (antifraud,
+anti-money-laundering compliance, operations): 2 working days
+(`FACT_REQUEST_WORKING_DAYS`). That number is an internal policy of the
+desk, not a term of any law: no act read sets a term for one unit of an
+organisation to answer another. It is capped by the earliest term that
+binds the answering unit and has not ended before the request: the reply
+(extended, when the extension was allowed); the answer to the client's
+documents against a 115-FZ refusal, 7 working days (115-FZ art. 7
+item 13.4); the answer to the interagency commission's request (art. 7
+item 13.6); the answer to a Bank of Russia request on an application to
+remove data, 3 working days (Directive No. 6748-U item 2.9). The result
+names the policy's day and the deadline that capped it, if any.
+
 #### Not covered
 
-- The no-reply notice (5 working days) and stopping correspondence on
-  repeated complaints; the insurance carve-out of 4015-1 art. 6.2 item 1
-  (claims for an insurance payment are outside the complaint article);
-  pawnshops, pension funds and credit bureaus; the three-year limit of
-  123-FZ art. 15 part 1.
-- The commission's review term under the Bank of Russia's Regulation
-  No. 842-P, which the Bank of Russia's guidance gives as 15 working
-  days: the regulation's text was not read, so the engine uses the
-  statutory ceiling of 20.
+- The insurance carve-out of 4015-1 art. 6.2 item 1 (claims for an
+  insurance payment are outside the complaint article); pawnshops,
+  pension funds and credit bureaus.
+
+#### Not verified
+
+These points were looked for and remain open; the engine does not rely
+on them:
+
+- The status of bill No. 1166230-8 on the financial ombudsman's funding
+  after its first reading on 27.05.2026.
+- The ten sample reply scripts attached to the Bank of Russia's letter
+  No. 59-4-12/38508 of 29.08.2025; only its covering letter was read.
+- The current editions of the base standards of brokers and of credit
+  consumer cooperatives on complaints.
+- The text of 161-FZ art. 8 parts 3.4-1, 3.7-1 and 3.13-1 to 3.13-7 and
+  the amended part 3.8, in force from 01.03.2027 under Federal Law
+  No. 210-FZ of 26.06.2026.
+- The official publication of Bank of Russia Directive No. 7382-U of
+  25.06.2026, which amends Regulation No. 842-P: the revision is
+  confirmed on consultant.ru, the registration and the day it took
+  effect only in secondary sources.
 
 #### Codes
 
 - Deadlines: `registration`, `registration_notice`, `reply`,
-  `extension_notice`, `reply_extended`, `antifraud_suspension_ends`,
-  `antifraud_confirmation`, `antifraud_repeat_suspension_ends`,
+  `extension_notice`, `reply_extended`, `no_substance_notice`,
+  `stop_correspondence_notice`, `storage_until`,
+  `antifraud_suspension_ends`, `antifraud_confirmation`,
+  `antifraud_repeat_suspension_ends`,
   `antifraud_after_repeat_suspension`, `antifraud_repeat_refusal_ends`,
   `antifraud_after_repeat_refusal`, `instrument_suspension_notice`,
   `exclusion_forwarding`, `exclusion_refusal_notice`,
   `exclusion_decision`, `exclusion_decision_relay`,
-  `bank_of_russia_query_answer`, `antifraud_refund`, `aml_reasons_notice`, `aml_documents_answer`,
-  `aml_commission_decision`, `high_risk_notice`,
-  `high_risk_commission_application`.
+  `bank_of_russia_query_answer`, `antifraud_refund`,
+  `aml_reasons_notice`, `aml_documents_answer`,
+  `aml_commission_decision`, `commission_request_answer`,
+  `commission_decision_notice`, `high_risk_notice`,
+  `high_risk_commission_application`, `high_risk_rating_review`.
 - Counts: `same_day`, `next_working_day`, `working_days`,
-  `calendar_days`, `calendar_days_to_working_day`, `months`.
+  `calendar_days`, `calendar_days_to_working_day`, `months`, `years`.
 - Duties: `copy_to_bank_of_russia`, `copy_to_sro`,
   `notify_client_of_block`, `notify_client_of_repeat_block`,
   `notify_client_of_right_to_apply`, `restore_instrument`; when:
@@ -191,7 +245,9 @@ gives the earlier date or the wider duty, marks the basis
   `ombudsman_participation_unknown`, `breach_date_unknown`,
   `confirmation_late`, `confirmation_date_missing`,
   `refund_for_individuals_only`, `high_risk_for_legal_entities_only`,
-  `documents_answer_beyond_text`, `sro_copy_not_applicable`.
+  `documents_answer_beyond_text`, `sro_copy_not_applicable`,
+  `ombudsman_term_may_have_passed`, `storage_term_not_set`,
+  `commission_term_below_minimum`, `commission_term_assumed`.
 - Refusals: `extension_not_allowed`, `extension_ground_not_allowed`,
   `extension_too_long`.
 - Errors: `invalid_date`, `outside_calendar`, `dates_out_of_order`,
@@ -286,6 +342,9 @@ the code:
   `forOthers` and a `basis` of `source`, `act`, `article`, `part`,
   `revision`, `url`, `reading`), `duties`, `measures` (each with `kind`,
   `on` and a `basis`), `warnings`, `refusals` and `replyDue`.
+- `factRequestDue(input, sentOn)`: the last day of a fact request sent
+  on `sentOn` in the case `input` describes, as a `FactRequestOutput`
+  with `due`, `policyDue` and `cappedBy` (a deadline code, or undefined).
 - `od2506Signs()`: the signs, each with `number`, `code`, `group`,
   `summary`, `appliesFrom`, `thresholds` (`value`, `unit`, `bound`, `of`)
   and `wording`.
@@ -329,6 +388,7 @@ A test fails when this list and the code disagree.
 | Anti-Money-Laundering Law No. 115-FZ, art. 7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/3e3e0d20d2919071b55ef95f26f849df6a4f11e8/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/0a562008be657e44b6145557f337cc626af9ffab/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.8 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/b9e70868f2269695609ac83c8cabbc15dbc7b4e0/) |
+| Bank of Russia Regulation No. 842-P of 23.09.2024, the interagency commission's review, as amended by Directive No. 7382-U of 25.06.2026 | 2026-06-25 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/polozhenie-banka-rossii-ot-23092024-n-842-p-o-trebovanijakh/); revision confirmed on [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_490180/) |
 | Bank of Russia Order No. OD-2506 of 05.11.2025, the signs of a transfer without voluntary consent, in force from 01.01.2026 | 2025-11-05 | [cbr.ru, PDF](https://cbr.ru/Crosscut/LawActs/File/10123) |
 | Bank of Russia information letter No. IN-01-59/98 of 26.08.2025, informing clients of restrictions | 2025-08-26 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/412494092/) |
 | Bank of Russia page on replies to complaints, with its recommendations | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/) |
@@ -343,8 +403,14 @@ lists it; the directive counts the Bank of Russia's 15 working days from
 its receipt of the application, where the Bank of Russia's page says from
 its registration, and the engine follows the directive. The order's PDF on
 cbr.ru carries a registration stamp placeholder instead of its number and
-date, which come from the Bank of Russia's listing; no amending order was
-found on 2026-10-06. The 123-FZ revision is that of its latest amendment
+date; both are confirmed by the order's entry in the Bank of Russia's
+[registry of information security acts](https://www.cbr.ru/information_security/acts/),
+which links the same PDF. Under 161-FZ art. 8 part 3.3 the signs are
+published on the Bank of Russia's site, and the order was posted on
+cbr.ru on 14.11.2025, as the Bank of Russia stated in its comments on the
+order; it is not among the acts published in the Bulletin of the Bank of
+Russia. No amending order was found on 2026-10-07; the registry was last
+updated on 16.06.2026. The 123-FZ revision is that of its latest amendment
 (No. 505-FZ of 28.12.2025) as garant.ru listed it. The Bank of Russia's
 forwarding of complaints to organisations (86-FZ arts. 79.3 and 79.4) is
 what makes a complaint "forwarded"; the organisation's duties for it are

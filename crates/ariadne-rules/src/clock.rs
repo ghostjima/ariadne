@@ -20,7 +20,10 @@
 //!   microfinance organisation, insurer, securities market professional
 //!   or credit cooperative that finds a breach of a base or internal
 //!   standard, the complaint and the reply to its self-regulatory
-//!   organisation on the day the reply goes out;
+//!   organisation on the day the reply goes out; a notice within 5 working
+//!   days of registration when the complaint is left without a reply on
+//!   substance or the correspondence is stopped; the complaint, the reply
+//!   and every notice kept for 3 years from registration;
 //! - a money claim within the financial ombudsman's reach (123-FZ):
 //!   15 working days from receipt for a claim on the standard electronic
 //!   form within 180 days of the breach, otherwise 30 calendar days; no
@@ -39,9 +42,16 @@
 //!   operator's own terms when the client applies through it;
 //! - an anti-money-laundering refusal (115-FZ): the reasons in 5 working
 //!   days, the answer to the client's documents in 7, the interagency
-//!   commission's 20; for a client the Bank of Russia places in the high
-//!   risk group, the notice in 5 working days and the client's 6 months to
-//!   apply to the commission.
+//!   commission's 20, its request to the organisation (at least 3 working
+//!   days) and the notice of its decision in 3 (Regulation No. 842-P); for
+//!   a client the Bank of Russia places in the high risk group, the notice
+//!   in 5 working days, the client's 6 months to apply to the commission,
+//!   and the Bank of Russia's 15 working days on a request to revise the
+//!   rating.
+//!
+//! [`fact_request_due`] gives the last day of a request for facts to
+//! another unit of the organisation: an internal term, not the law's,
+//! capped by the external terms that bind the unit that answers.
 
 use crate::calendar;
 use crate::sources::{self, Source};
@@ -123,6 +133,23 @@ pub enum ExtensionGround {
     RequestDocuments,
     /// Anything else.
     Other,
+}
+
+/// Why a complaint is left without a reply on substance (Banking Law
+/// art. 30.1 part 12 and the sector equivalents), in the order the law
+/// lists them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NoSubstanceGround {
+    /// 1: no address to reply to; there is nowhere to send a notice.
+    NoAddress,
+    /// 2: no surname or name of the applicant.
+    NoName,
+    /// 3: obscene or offensive language, or threats.
+    Offensive,
+    /// 4: the text cannot be read.
+    Illegible,
+    /// 5: the substance cannot be made out.
+    SubstanceUnclear,
 }
 
 /// A requested extension of the reply term.
@@ -221,12 +248,24 @@ pub struct AmlFacts {
     pub documents_submitted_on: Option<Date>,
     /// The day the client applied to the interagency commission.
     pub commission_applied_on: Option<Date>,
+    /// The day the commission's request for the organisation's reasoned
+    /// justification reached it (115-FZ art. 7 item 13.6; Regulation
+    /// No. 842-P items 2.6 and 2.8).
+    pub commission_request_received_on: Option<Date>,
+    /// The working days the request gives, when known: at least 3.
+    pub commission_request_working_days: Option<u32>,
+    /// The day the commission decided.
+    pub commission_decided_on: Option<Date>,
     /// The day the bank applied the measures for a client the Bank of
     /// Russia placed in the high-risk group (art. 7.7 item 5).
     pub high_risk_measures_on: Option<Date>,
     /// The day the client received the notice of those measures
     /// (art. 7.7 item 8).
     pub high_risk_notice_received_on: Option<Date>,
+    /// The day the Bank of Russia received the client's application to
+    /// revise its high-risk rating where the bank applied no measures
+    /// (art. 7.8 item 1.1).
+    pub rating_review_received_on: Option<Date>,
 }
 
 /// One complaint, with the facts the clocks need.
@@ -248,6 +287,12 @@ pub struct Case {
     /// The organisation found a breach of a base or internal standard of
     /// its self-regulatory organisation.
     pub standard_breach_found: bool,
+    /// The organisation leaves the complaint without a reply on substance,
+    /// on this ground.
+    pub no_substance: Option<NoSubstanceGround>,
+    /// The organisation decided the complaint repeats earlier ones without
+    /// new arguments and stops the correspondence on the question.
+    pub stop_correspondence: bool,
     pub antifraud: Option<AntifraudFacts>,
     pub database: Option<DatabaseFacts>,
     pub aml: Option<AmlFacts>,
@@ -268,6 +313,8 @@ impl Case {
             money_claim: None,
             extension: None,
             standard_breach_found: false,
+            no_substance: None,
+            stop_correspondence: false,
             antifraud: None,
             database: None,
             aml: None,
@@ -302,6 +349,9 @@ pub enum DeadlineKind {
     Reply,
     ExtensionNotice,
     ReplyExtended,
+    NoSubstanceNotice,
+    StopCorrespondenceNotice,
+    StorageUntil,
     AntifraudSuspensionEnds,
     AntifraudConfirmation,
     AntifraudRepeatSuspensionEnds,
@@ -318,13 +368,16 @@ pub enum DeadlineKind {
     AmlReasonsNotice,
     AmlDocumentsAnswer,
     AmlCommissionDecision,
+    CommissionRequestAnswer,
+    CommissionDecisionNotice,
     HighRiskNotice,
     HighRiskCommissionApplication,
+    HighRiskRatingReview,
 }
 
 impl DeadlineKind {
     /// Every kind.
-    pub const ALL: [DeadlineKind; 23] = {
+    pub const ALL: [DeadlineKind; 29] = {
         use DeadlineKind::*;
         [
             Registration,
@@ -332,6 +385,9 @@ impl DeadlineKind {
             Reply,
             ExtensionNotice,
             ReplyExtended,
+            NoSubstanceNotice,
+            StopCorrespondenceNotice,
+            StorageUntil,
             AntifraudSuspensionEnds,
             AntifraudConfirmation,
             AntifraudRepeatSuspensionEnds,
@@ -348,8 +404,11 @@ impl DeadlineKind {
             AmlReasonsNotice,
             AmlDocumentsAnswer,
             AmlCommissionDecision,
+            CommissionRequestAnswer,
+            CommissionDecisionNotice,
             HighRiskNotice,
             HighRiskCommissionApplication,
+            HighRiskRatingReview,
         ]
     };
 
@@ -370,6 +429,9 @@ impl DeadlineKind {
             Reply => "reply",
             ExtensionNotice => "extension_notice",
             ReplyExtended => "reply_extended",
+            NoSubstanceNotice => "no_substance_notice",
+            StopCorrespondenceNotice => "stop_correspondence_notice",
+            StorageUntil => "storage_until",
             AntifraudSuspensionEnds => "antifraud_suspension_ends",
             AntifraudConfirmation => "antifraud_confirmation",
             AntifraudRepeatSuspensionEnds => "antifraud_repeat_suspension_ends",
@@ -388,6 +450,9 @@ impl DeadlineKind {
             AmlCommissionDecision => "aml_commission_decision",
             HighRiskNotice => "high_risk_notice",
             HighRiskCommissionApplication => "high_risk_commission_application",
+            CommissionRequestAnswer => "commission_request_answer",
+            CommissionDecisionNotice => "commission_decision_notice",
+            HighRiskRatingReview => "high_risk_rating_review",
         }
     }
 
@@ -401,7 +466,9 @@ impl DeadlineKind {
             AntifraudConfirmation
                 | ExclusionDecision
                 | AmlCommissionDecision
+                | CommissionDecisionNotice
                 | HighRiskCommissionApplication
+                | HighRiskRatingReview
         )
     }
 }
@@ -422,6 +489,8 @@ pub enum Count {
     CalendarDaysToWorkingDay(u32),
     /// n months after it (Civil Code art. 192).
     Months(u32),
+    /// n years after it (Civil Code art. 192).
+    Years(u32),
 }
 
 impl Count {
@@ -435,6 +504,7 @@ impl Count {
             Count::CalendarDays(n) => ("calendar_days", n),
             Count::CalendarDaysToWorkingDay(n) => ("calendar_days_to_working_day", n),
             Count::Months(n) => ("months", n),
+            Count::Years(n) => ("years", n),
         }
     }
 }
@@ -652,6 +722,23 @@ pub enum Warning {
     /// A bank has no self-regulatory organisation to copy a standard
     /// breach to under the Banking Law.
     SroCopyNotApplicable,
+    /// More than three years passed between the breach and the claim: the
+    /// ombudsman hears a claim within three years of the day the consumer
+    /// learned or should have learned of the breach (123-FZ art. 15
+    /// part 1), which may be later than the breach, and may restore the
+    /// term for good reasons (part 4). A warning, never a refusal; the
+    /// organisation's reply term is unchanged.
+    OmbudsmanTermMayHavePassed,
+    /// A credit cooperative: 190-FZ art. 6.2 sets no term for keeping
+    /// complaints, replies and notices, so the engine gives none.
+    StorageTermNotSet,
+    /// The commission's request gives the organisation less than the 3
+    /// working days 115-FZ art. 7 item 13.6 guarantees; the stated, earlier
+    /// day is kept.
+    CommissionTermBelowMinimum,
+    /// The commission's request was given without its term: the shortest
+    /// the law allows, 3 working days, is assumed.
+    CommissionTermAssumed,
 }
 
 impl Warning {
@@ -671,6 +758,10 @@ impl Warning {
             HighRiskForLegalEntitiesOnly => "high_risk_for_legal_entities_only",
             DocumentsAnswerBeyondText => "documents_answer_beyond_text",
             SroCopyNotApplicable => "sro_copy_not_applicable",
+            OmbudsmanTermMayHavePassed => "ombudsman_term_may_have_passed",
+            StorageTermNotSet => "storage_term_not_set",
+            CommissionTermBelowMinimum => "commission_term_below_minimum",
+            CommissionTermAssumed => "commission_term_assumed",
         }
     }
 }
@@ -739,6 +830,12 @@ struct SectorArticle {
     extension: &'static str,
     copy_to_bank_of_russia: &'static str,
     copy_to_sro: Option<&'static str>,
+    /// The notice of leaving a complaint without a reply on substance.
+    no_substance_notice: &'static str,
+    /// Stopping the correspondence, notified as the part above says.
+    stop_correspondence: &'static str,
+    /// Keeping complaints, replies and notices for three years.
+    storage: Option<&'static str>,
 }
 
 fn sector_article(sector: Sector) -> SectorArticle {
@@ -751,6 +848,9 @@ fn sector_article(sector: Sector) -> SectorArticle {
             extension: "8",
             copy_to_bank_of_russia: "15",
             copy_to_sro: None,
+            no_substance_notice: "13",
+            stop_correspondence: "14",
+            storage: Some("11"),
         },
         Sector::Microfinance => SectorArticle {
             source: sources::MICROFINANCE_LAW_9_1,
@@ -760,6 +860,9 @@ fn sector_article(sector: Sector) -> SectorArticle {
             extension: "8",
             copy_to_bank_of_russia: "16",
             copy_to_sro: Some("12"),
+            no_substance_notice: "14",
+            stop_correspondence: "15",
+            storage: Some("11"),
         },
         Sector::Insurer => SectorArticle {
             source: sources::INSURANCE_LAW_6_2,
@@ -769,6 +872,9 @@ fn sector_article(sector: Sector) -> SectorArticle {
             extension: "5, paragraph 2",
             copy_to_bank_of_russia: "12",
             copy_to_sro: Some("8"),
+            no_substance_notice: "10",
+            stop_correspondence: "11",
+            storage: Some("14"),
         },
         Sector::SecuritiesProfessional => SectorArticle {
             source: sources::SECURITIES_LAW_15_11,
@@ -778,6 +884,9 @@ fn sector_article(sector: Sector) -> SectorArticle {
             extension: "3",
             copy_to_bank_of_russia: "11",
             copy_to_sro: Some("5"),
+            no_substance_notice: "7",
+            stop_correspondence: "8",
+            storage: Some("9"),
         },
         Sector::CreditCooperative => SectorArticle {
             source: sources::CREDIT_COOPERATION_LAW_6_2,
@@ -787,6 +896,9 @@ fn sector_article(sector: Sector) -> SectorArticle {
             extension: "7",
             copy_to_bank_of_russia: "15",
             copy_to_sro: Some("10"),
+            no_substance_notice: "12",
+            stop_correspondence: "13",
+            storage: None,
         },
     }
 }
@@ -894,6 +1006,23 @@ fn complaint(case: &Case, c: &mut Clock) -> Result<(), Error> {
         });
     }
 
+    no_substance(case, &a, registered, c)?;
+
+    // "хранить обращения заявителей, а также копии ответов на обращения и
+    // копии уведомлений ... в течение трех лет со дня регистрации
+    // обращений": registered on Tuesday 12 May 2026, kept to 12 May 2029
+    // (Civil Code arts. 191, 192), whatever day that is.
+    match a.storage {
+        Some(part) => c.deadlines.push(Deadline {
+            kind: DeadlineKind::StorageUntil,
+            due: registered.add_months(36),
+            from: registered,
+            count: Count::Years(3),
+            basis: text(a.source, a.article, part),
+        }),
+        None => c.warnings.push(Warning::StorageTermNotSet),
+    }
+
     let claim = ombudsman_regime(case, c);
     let complaint_reply = Deadline {
         kind: DeadlineKind::Reply,
@@ -911,12 +1040,16 @@ fn complaint(case: &Case, c: &mut Clock) -> Result<(), Error> {
         Some(claim) => {
             c.regime = Regime::OmbudsmanClaim;
             // The sector article sends such a claim to 123-FZ's "порядок и
-            // сроки", which set no registration term; keeping the
-            // article's registration (and its notice) is the wider duty.
+            // сроки", which set no registration term, no notices and no
+            // storage; keeping the article's terms is the wider duty.
             for d in c.deadlines.iter_mut() {
                 if matches!(
                     d.kind,
-                    DeadlineKind::Registration | DeadlineKind::RegistrationNotice
+                    DeadlineKind::Registration
+                        | DeadlineKind::RegistrationNotice
+                        | DeadlineKind::NoSubstanceNotice
+                        | DeadlineKind::StopCorrespondenceNotice
+                        | DeadlineKind::StorageUntil
                 ) {
                     d.basis.reading = Reading::Conservative;
                 }
@@ -963,9 +1096,60 @@ fn complaint(case: &Case, c: &mut Clock) -> Result<(), Error> {
     Ok(())
 }
 
+/// The notices of leaving a complaint without a reply on substance and of
+/// stopping the correspondence.
+fn no_substance(
+    case: &Case,
+    a: &SectorArticle,
+    registered: Date,
+    c: &mut Clock,
+) -> Result<(), Error> {
+    let notice = |part| -> Result<Deadline, Error> {
+        Ok(Deadline {
+            kind: DeadlineKind::NoSubstanceNotice,
+            due: calendar::add_working_days(registered, 5)?,
+            from: registered,
+            count: Count::WorkingDays(5),
+            basis: text(a.source, a.article, part),
+        })
+    };
+    match case.no_substance {
+        // Without an address there is nowhere to send a notice: the text
+        // asks for one on grounds 2 to 5 only.
+        None | Some(NoSubstanceGround::NoAddress) => {}
+        // "в течение пяти рабочих дней со дня регистрации обращения ... с
+        // указанием причин невозможности рассмотрения обращения по
+        // существу": registered on Tuesday 12 May 2026, 13 to 15 May (3),
+        // 18 and 19 May (5).
+        Some(_) => c.deadlines.push(notice(a.no_substance_notice)?),
+    }
+    if case.stop_correspondence {
+        // "Об этом решении заявитель уведомляется в порядке,
+        // предусмотренном частью тринадцатой": whether the 5 working days
+        // of that part apply is not said; they are applied, from the
+        // registration of the repeated complaint.
+        c.deadlines.push(Deadline {
+            kind: DeadlineKind::StopCorrespondenceNotice,
+            basis: conservative(a.source, a.article, a.stop_correspondence),
+            ..notice(a.stop_correspondence)?
+        });
+    }
+    Ok(())
+}
+
 /// The reply term of 123-FZ art. 16 part 2.
 fn ombudsman_reply(case: &Case, claim: MoneyClaim, c: &mut Clock) -> Result<Deadline, Error> {
     let received = case.received_on;
+    if let Some(breach) = claim.breach_on {
+        // "если со дня, когда потребитель ... узнал или должен был узнать
+        // о нарушении своего права, прошло не более трех лет": a breach on
+        // 10 April 2023 and a claim on 27 April 2026 may be out of time,
+        // but the consumer may have learned of it later, and the ombudsman
+        // may restore the term (art. 15 part 4). A warning only.
+        if received > breach.add_months(36) {
+            c.warnings.push(Warning::OmbudsmanTermMayHavePassed);
+        }
+    }
     let short = Deadline {
         kind: DeadlineKind::Reply,
         due: calendar::add_working_days(received, 15)?,
@@ -1390,7 +1574,10 @@ fn aml(case: &Case, f: &AmlFacts, c: &mut Clock) -> Result<(), Error> {
             basis: text(sources::AML_LAW_7, "7", "13.5, paragraph 3"),
         });
     }
-    let high_risk = f.high_risk_measures_on.is_some() || f.high_risk_notice_received_on.is_some();
+    commission(f, c)?;
+    let high_risk = f.high_risk_measures_on.is_some()
+        || f.high_risk_notice_received_on.is_some()
+        || f.rating_review_received_on.is_some();
     if high_risk && case.applicant == Applicant::Individual {
         c.warnings.push(Warning::HighRiskForLegalEntitiesOnly);
     }
@@ -1422,5 +1609,141 @@ fn aml(case: &Case, f: &AmlFacts, c: &mut Clock) -> Result<(), Error> {
             basis: conservative(sources::AML_LAW_7_8, "7.8", "1, paragraph 2"),
         });
     }
+    if let Some(received) = f.rating_review_received_on {
+        // "не позднее пятнадцати рабочих дней со дня получения
+        // Центральным банком Российской Федерации заявления о пересмотре":
+        // the Bank of Russia's own review of a rating where the bank
+        // applied no measures; not the commission's term. Received on
+        // Monday 1 June 2026: 2 to 5 June (4), 8 to 11 June (8; 12 June is a
+        // holiday), 15 to 19 (13), 22 and 23 June (15).
+        c.deadlines.push(Deadline {
+            kind: DeadlineKind::HighRiskRatingReview,
+            due: calendar::add_working_days(received, 15)?,
+            from: received,
+            count: Count::WorkingDays(15),
+            basis: text(sources::AML_LAW_7_8, "7.8", "1.1"),
+        });
+    }
     Ok(())
+}
+
+/// The interagency commission's request to the organisation and the
+/// notice of its decision.
+fn commission(f: &AmlFacts, c: &mut Clock) -> Result<(), Error> {
+    if let Some(received) = f.commission_request_received_on {
+        if let Some(applied) = f.commission_applied_on {
+            check_order(applied, received)?;
+        }
+        // "срок исполнения финансовой организацией требования ... не может
+        // быть менее трех рабочих дней" (115-FZ art. 7 item 13.6); the
+        // answer goes "в установленный в запросе ... срок" (Regulation
+        // No. 842-P item 2.8). A request placed on Thursday 4 June 2026
+        // with 5 working days: 5 June (1), 8 to 11 June (5).
+        let (days, basis) = match f.commission_request_working_days {
+            Some(n) => {
+                if n < 3 {
+                    c.warnings.push(Warning::CommissionTermBelowMinimum);
+                }
+                (n, text(sources::REGULATION_842_P, "", "2.8"))
+            }
+            None => {
+                c.warnings.push(Warning::CommissionTermAssumed);
+                (
+                    3,
+                    conservative(sources::AML_LAW_7, "7", "13.6, paragraph 1"),
+                )
+            }
+        };
+        c.deadlines.push(Deadline {
+            kind: DeadlineKind::CommissionRequestAnswer,
+            due: calendar::add_working_days(received, days)?,
+            from: received,
+            count: Count::WorkingDays(days),
+            basis,
+        });
+    }
+    if let Some(decided) = f.commission_decided_on {
+        if let Some(applied) = f.commission_applied_on {
+            check_order(applied, decided)?;
+        }
+        // "направляется в течение трех рабочих дней со дня принятия
+        // решения ... заявителю и финансовой организации отдельными
+        // письмами": decided on Friday 26 June 2026, 29 and 30 June,
+        // 1 July.
+        c.deadlines.push(Deadline {
+            kind: DeadlineKind::CommissionDecisionNotice,
+            due: calendar::add_working_days(decided, 3)?,
+            from: decided,
+            count: Count::WorkingDays(3),
+            basis: text(sources::REGULATION_842_P, "", "4.1"),
+        });
+    }
+    Ok(())
+}
+
+/// The days a request for facts to another unit of the organisation
+/// (antifraud, anti-money-laundering compliance, operations) gives that
+/// unit: 2 working days. An internal policy of the desk, not a term of
+/// any law: no act read sets a term for one unit to answer another.
+pub const FACT_REQUEST_WORKING_DAYS: u32 = 2;
+
+/// The last day of a request for facts, and what set it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FactRequestDue {
+    /// The last day: the policy's, or an earlier external term's.
+    pub due: Date,
+    /// [`FACT_REQUEST_WORKING_DAYS`] after the request.
+    pub policy_due: Date,
+    /// The deadline that ends earlier than the policy and so caps it, or
+    /// `None` when the policy's day stands.
+    pub capped_by: Option<DeadlineKind>,
+}
+
+/// The deadlines of a clock that bind the unit answering a fact request
+/// as well as the complaints unit: the reply itself, the answer to the
+/// client's documents against a 115-FZ refusal (art. 7 item 13.4, 7
+/// working days), the answer to the interagency commission's request
+/// (item 13.6, at least 3 working days) and the answer to a Bank of
+/// Russia request on an application to remove data (Directive No. 6748-U
+/// item 2.9, 3 working days).
+const FACT_REQUEST_CAPS: [DeadlineKind; 5] = [
+    DeadlineKind::Reply,
+    DeadlineKind::ReplyExtended,
+    DeadlineKind::AmlDocumentsAnswer,
+    DeadlineKind::CommissionRequestAnswer,
+    DeadlineKind::BankOfRussiaQueryAnswer,
+];
+
+/// The last day of a fact request sent on `sent_on` in a case with this
+/// clock: [`FACT_REQUEST_WORKING_DAYS`] after it, or the earliest external
+/// term that binds the answering unit and ends before that, if it has not
+/// ended before the request. The reply counts as extended only when the
+/// extension was allowed.
+///
+/// A request sent on Tuesday 12 May 2026 is due on Thursday 14 May (13
+/// and 14 May). With a Bank of Russia request about an application to
+/// remove data received on Thursday 7 May, whose answer is due on 13 May
+/// (8, 12 and 13 May), it is due on 13 May.
+///
+/// Errors: [`Error::OutsideCalendar`] when the count leaves the calendar.
+pub fn fact_request_due(clock: &Clock, sent_on: Date) -> Result<FactRequestDue, Error> {
+    let policy_due = calendar::add_working_days(sent_on, FACT_REQUEST_WORKING_DAYS)?;
+    let reply = clock
+        .deadline(DeadlineKind::ReplyExtended)
+        .map(|d| d.kind)
+        .unwrap_or(DeadlineKind::Reply);
+    let cap = clock
+        .deadlines
+        .iter()
+        .filter(|d| FACT_REQUEST_CAPS.contains(&d.kind))
+        .filter(|d| {
+            !matches!(d.kind, DeadlineKind::Reply | DeadlineKind::ReplyExtended) || d.kind == reply
+        })
+        .filter(|d| d.due >= sent_on && d.due < policy_due)
+        .min_by_key(|d| d.due);
+    Ok(FactRequestDue {
+        due: cap.map_or(policy_due, |d| d.due),
+        policy_due,
+        capped_by: cap.map(|d| d.kind),
+    })
 }

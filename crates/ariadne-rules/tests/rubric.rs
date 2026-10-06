@@ -208,8 +208,12 @@ fn an_aml_refusal_needs_documents_and_the_commission() {
         decision: Some((AmlDecisionKind::RefuseOperation, d("2026-04-30"))),
         documents_submitted_on: None,
         commission_applied_on: None,
+        commission_request_received_on: None,
+        commission_request_working_days: None,
+        commission_decided_on: None,
         high_risk_measures_on: None,
         high_risk_notice_received_on: None,
+        rating_review_received_on: None,
     });
     let c = clock(&case).unwrap();
     let reply = Reply {
@@ -226,6 +230,47 @@ fn an_aml_refusal_needs_documents_and_the_commission() {
         codes(&rubric(&reply, &case, &c)),
         [("client_option_missing", Some("apply_to_commission"))]
     );
+}
+
+#[test]
+fn a_reply_states_when_the_bank_of_russia_reviews_a_rating() {
+    // A legal entity asked the Bank of Russia to revise its high-risk
+    // rating; the Bank of Russia received the application on Monday
+    // 1 June 2026 and answers by 23 June (115-FZ art. 7.8 item 1.1). A
+    // reply on 2 June that leaves the date out is flagged; with it, the
+    // finding goes.
+    let mut case = Case::new(Stream::AmlRefusal, d("2026-06-01"));
+    case.applicant = ariadne_rules::clock::Applicant::LegalEntity;
+    case.aml = Some(AmlFacts {
+        decision: None,
+        documents_submitted_on: None,
+        commission_applied_on: None,
+        commission_request_received_on: None,
+        commission_request_working_days: None,
+        commission_decided_on: None,
+        high_risk_measures_on: None,
+        high_risk_notice_received_on: None,
+        rating_review_received_on: Some(d("2026-06-01")),
+    });
+    let c = clock(&case).unwrap();
+    let mut reply = Reply {
+        replied_on: d("2026-06-02"),
+        grounds: vec![ground(Act::AntiMoneyLaundering, "7.8", "1.1")],
+        reasons: vec![],
+        next_steps: vec!["Дождитесь решения Банка России.".into()],
+        client_options: vec![],
+        stated_deadlines: vec![],
+        text: "Банк России рассмотрит ваше заявление. Дождитесь его решения.".into(),
+    };
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [("deadline_missing", Some("high_risk_rating_review"))]
+    );
+    reply.stated_deadlines = vec![StatedDeadline {
+        kind: K::HighRiskRatingReview,
+        due: d("2026-06-23"),
+    }];
+    assert_eq!(rubric(&reply, &case, &c), []);
 }
 
 #[test]
