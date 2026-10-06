@@ -131,6 +131,9 @@ export class DeskEngine {
         extension: new Uint8Array(n),
         assignee: new Uint8Array(n),
         sentOn: new Int32Array(n),
+        breach: new Uint8Array(n),
+        copies: new Uint8Array(n),
+        rules: new Uint8Array(n),
         updatedAt: new Float64Array(n),
         notes: notes ? [] : undefined,
       };
@@ -142,10 +145,13 @@ export class DeskEngine {
         msg.extension[k] = store.extension[row] ?? 0;
         msg.assignee[k] = store.assignee[row] ?? 0;
         msg.sentOn[k] = store.sentOn[row] ?? -1;
+        msg.breach[k] = store.breach[row] ?? 0;
+        msg.copies[k] = store.copies[row] ?? 0;
+        msg.rules[k] = store.rules[row] ?? 0;
         msg.updatedAt[k] = store.updatedAt[row] ?? 0;
         msg.notes?.push(getNote(store, row));
       }
-      const buffers = [msg.rows, msg.stage, msg.outcome, msg.ground, msg.extension, msg.assignee, msg.sentOn, msg.updatedAt];
+      const buffers = [msg.rows, msg.stage, msg.outcome, msg.ground, msg.extension, msg.assignee, msg.sentOn, msg.breach, msg.copies, msg.rules, msg.updatedAt];
       this.post(msg, buffers.map((b) => b.buffer as ArrayBuffer));
     } else {
       this.local?.rowsEdited(rows);

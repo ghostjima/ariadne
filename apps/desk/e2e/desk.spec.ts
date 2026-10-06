@@ -134,7 +134,7 @@ test("a header sorts through the worker, ascending then descending", async ({ pa
 
 test("a refusal needs a legal ground of its own stream; the reviewer sends a reply to signature only decided, and never returns it from a cell", async ({ page }) => {
   // 161-FZ replies under legal review, as the reviewer sees them.
-  await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [] } })}`, "");
+  await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [], copy: [] } })}`, "");
   await expect(grid(page)).not.toHaveAttribute("aria-busy");
   // The body's cells only: the header row carries data-cell too.
   const body = grid(page).locator(".stoa-data-grid__body");
@@ -183,7 +183,7 @@ test("a money claim under 123-FZ is never extended; a note over 200 characters i
   // Open money claims, the smallest claim first: within the ombudsman's limit.
   const view = viewParam({
     columns: ["id", "client", "stream", "claim", "extension", "note"],
-    filters: { stage: [0, 1, 2, 3, 4], stream: [1], source: [], deadline: [] },
+    filters: { stage: [0, 1, 2, 3, 4], stream: [1], source: [], deadline: [], copy: [] },
     sort: { id: "claim", desc: false },
   });
   await open(page, `view=${view}`, "");
@@ -271,7 +271,7 @@ test("a colleague's change to the cell being edited opens a conflict dialog", as
 
 test("the focus stays on the active cell while rows change under it", async ({ page }) => {
   // Cases before review, each of which the colleague can move on.
-  await open(page, `view=${viewParam({ filters: { stage: [0, 1, 2], stream: [], source: [], deadline: [] } })}`, "");
+  await open(page, `view=${viewParam({ filters: { stage: [0, 1, 2], stream: [], source: [], deadline: [], copy: [] } })}`, "");
   await expect(grid(page)).not.toHaveAttribute("aria-busy");
   // Sorted by stage, a colleague's stage change moves rows around.
   await page.getByRole("columnheader", { name: "Stage" }).click();

@@ -55,7 +55,7 @@ export type Strings = {
   roleHidden: (columns: string) => string;
 
   filtersLabel: string;
-  groups: { stage: string; deadline: string; stream: string; source: string };
+  groups: { stage: string; deadline: string; stream: string; source: string; copy: string };
   search: string;
   searchHint: string;
   clearFilters: string;
@@ -306,7 +306,7 @@ const en: Strings = {
   roleHidden: (columns) => `Hidden for this role: ${columns}.`,
 
   filtersLabel: "Filters",
-  groups: { stage: "Stage", deadline: "Deadline", stream: "Stream", source: "Source" },
+  groups: { stage: "Stage", deadline: "Deadline", stream: "Stream", source: "Source", copy: "Copies" },
   search: "Search",
   searchHint: "Case, applicant, subject, operation, assignee or note",
   clearFilters: "Clear filters",
@@ -576,7 +576,7 @@ const ruStrings: Strings = {
   roleHidden: (columns) => `Скрыто для этой роли: ${columns}.`,
 
   filtersLabel: "Фильтры",
-  groups: { stage: "Этап", deadline: "Срок", stream: "Поток", source: "Источник" },
+  groups: { stage: "Этап", deadline: "Срок", stream: "Поток", source: "Источник", copy: "Копии" },
   search: "Поиск",
   searchHint: "Номер, заявитель, тема, операция, исполнитель или заметка",
   clearFilters: "Сбросить фильтры",

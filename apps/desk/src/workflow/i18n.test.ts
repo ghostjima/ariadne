@@ -36,7 +36,8 @@ describe("the words of a case's work", () => {
     }
   });
 
-  it("the Russian table has no Latin words", () => {
-    expect(texts(workflowStrings.ru).flatMap((s) => s.match(/[A-Za-z]+/g) ?? [])).toEqual([]);
+  it("the Russian table has no Latin words, but for the file type and the file name", () => {
+    const allowed = new Set(["CSV", "proverka", "txt"]);
+    expect(texts(workflowStrings.ru).flatMap((s) => s.match(/[A-Za-z]+/g) ?? []).filter((w) => !allowed.has(w))).toEqual([]);
   });
 });

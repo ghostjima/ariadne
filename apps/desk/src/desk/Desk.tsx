@@ -58,7 +58,12 @@ import {
   Stage,
   applyRemoteEdit,
   applyTransition,
+  appendJournal,
   deskNow,
+  dispatchReply,
+  extendDeadline,
+  markBreach,
+  markCopySent,
   beginEdit,
   canBulk,
   canExport,
@@ -81,6 +86,7 @@ import {
   viewToUrl,
   visibleColumns,
   type CellValue,
+  type CopyKind,
   type Density,
   type EditColumn,
   type EditSession,
@@ -125,7 +131,7 @@ const PRESETS = [START_VIEW, ...PRESET_VIEWS.filter((v) => v !== START_VIEW)];
 const EDITABLE: readonly string[] = ["stage", "outcome", "ground", "extension", "assignee", "note"];
 const isEditColumn = (column: string): column is EditColumn => EDITABLE.includes(column);
 /** The filter groups, in the order shown; a chip's id is "group:code". */
-const GROUPS = ["stage", "deadline", "stream", "source"] as const satisfies readonly (keyof ViewFilters)[];
+const GROUPS = ["stage", "deadline", "stream", "source", "copy"] as const satisfies readonly (keyof ViewFilters)[];
 
 /** Row keys, one string per store row, made once. */
 let keys: string[] = [];
@@ -150,7 +156,7 @@ function chipIds(filters: ViewFilters): string[] {
 
 /** FilterBar ids back to the view's filters. */
 function filtersOf(ids: readonly string[]): ViewFilters {
-  const out: ViewFilters = { stage: [], stream: [], source: [], deadline: [] };
+  const out: ViewFilters = { stage: [], stream: [], source: [], deadline: [], copy: [] };
   for (const id of ids) {
     const [group, code] = id.split(":");
     if ((GROUPS as readonly string[]).includes(group ?? "")) out[group as keyof ViewFilters].push(Number(code));
@@ -471,6 +477,9 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     if (from === Stage.LegalReview && to === Stage.AwaitingSignature && edit && isUndecided(edit.text)) return { code: "letter-undecided" };
     if (from === Stage.AwaitingSignature && to === Stage.Sent && !signed) return { code: "letter-not-signed" };
     if (from === Stage.AwaitingSignature && to === Stage.Drafting && signed) return { code: "letter-signed" };
+    // A signed reply goes out by its dispatch, with its send delay and its
+    // copies, from the case.
+    if (from === Stage.AwaitingSignature && to === Stage.Sent) return { code: "dispatch-from-case" };
     return null;
   };
   stageCheck.current = (row, value) => {
@@ -532,6 +541,73 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     const said = workflowStrings[lang].signature.deferred(rowId(row));
     announce(said);
     toasts.add({ tone: "info", text: said, timeout: 6000 });
+    return null;
+  };
+
+  // Dispatch: confirmed by a person, the reply waits out its send delay,
+  // in which it can be cancelled, then leaves with the copies it owes.
+  const pendingDispatch = useRef(new Map<number, { until: number; delayMs: number; timer: ReturnType<typeof setTimeout> }>());
+  const [, setPendingVersion] = useState(0);
+  const latestSend = useRef<(row: number) => void>(() => undefined);
+  latestSend.current = (row: number) => {
+    pendingDispatch.current.delete(row);
+    setPendingVersion((v) => v + 1);
+    const result = dispatchReply(store, row, { role: "signatory", actor: selfActor("signatory"), at: deskNow(Date.now()) });
+    if ("error" in result) return;
+    engine.sync([row], false);
+    bump();
+    const said = workflowStrings[lang].dispatch.sent(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 8000 });
+  };
+  const scheduleDispatch = (row: number) => {
+    const delayMs = config.sendDelaySeconds * 1000;
+    const timer = setTimeout(() => latestSend.current(row), delayMs);
+    pendingDispatch.current.set(row, { until: Date.now() + delayMs, delayMs, timer });
+    setPendingVersion((v) => v + 1);
+    announce(workflowStrings[lang].dispatch.pending(String(config.sendDelaySeconds)));
+  };
+  const cancelDispatch = (row: number) => {
+    const pending = pendingDispatch.current.get(row);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingDispatch.current.delete(row);
+    setPendingVersion((v) => v + 1);
+    const stage = store.stage[row] ?? 0;
+    appendJournal(store, row, { at: deskNow(Date.now()), action: "dispatch_cancelled", from: stage, to: stage, actor: selfActor("signatory") });
+    bump();
+    const said = workflowStrings[lang].dispatch.cancelled(rowId(row));
+    announce(said);
+    toasts.add({ tone: "info", text: said, timeout: 6000 });
+  };
+  useEffect(
+    () => () => {
+      for (const p of pendingDispatch.current.values()) clearTimeout(p.timer);
+    },
+    [],
+  );
+  const markCopy = (row: number, kind: CopyKind) => {
+    if (markCopySent(store, row, kind, { actor: selfActor(role), at: deskNow(Date.now()) })) return;
+    engine.sync([row], false);
+    bump();
+    const said = workflowStrings[lang].dispatch.markedSent(workflowStrings[lang].dispatch.copy[kind]);
+    announce(said);
+  };
+  const breach = (row: number, found: boolean) => {
+    const refused = markBreach(store, row, found, { actor: selfActor(role), at: deskNow(Date.now()) });
+    if (refused) return workflowStrings[lang].dispatch.breachRefused;
+    engine.sync([row], false);
+    bump();
+    return null;
+  };
+  const extend = (row: number, reason: string) => {
+    const refused = extendDeadline(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()), reason });
+    if (refused) return refused;
+    engine.sync([row], false);
+    bump();
+    const said = workflowStrings[lang].dispatch.extended(rowId(row), formats.day(store.dueExt[row] ?? 0));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
     return null;
   };
 
@@ -788,6 +864,14 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onField={(field, value) => applyEdit(openCase, field, String(value))}
           onSign={(record) => sign(openCase, record)}
           onDefer={(record) => defer(openCase, record)}
+          pending={pendingDispatch.current.get(openCase) ?? null}
+          sendDelay={config.sendDelaySeconds}
+          onDispatch={() => scheduleDispatch(openCase)}
+          onCancelDispatch={() => cancelDispatch(openCase)}
+          onMarkCopy={(kind) => markCopy(openCase, kind)}
+          onBreach={(found) => breach(openCase, found)}
+          onExtend={(reason) => extend(openCase, reason)}
+          onExported={() => toasts.add({ tone: "positive", text: workflowStrings[lang].dispatch.exported, timeout: 5000 })}
         />
       ) : openCase !== null && load.loading ? (
         <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />

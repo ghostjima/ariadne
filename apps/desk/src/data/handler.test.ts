@@ -29,6 +29,9 @@ function sync(row: number): SyncRequest {
     extension: Uint8Array.of(store.extension[row]!),
     assignee: Uint8Array.of(store.assignee[row]!),
     sentOn: Int32Array.of(store.sentOn[row]!),
+    breach: Uint8Array.of(store.breach[row]!),
+    copies: Uint8Array.of(store.copies[row]!),
+    rules: Uint8Array.of(store.rules[row]!),
     updatedAt: Float64Array.of(0),
   };
 }

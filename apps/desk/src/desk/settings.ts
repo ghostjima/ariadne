@@ -18,7 +18,13 @@ export type UrlConfig = {
   useWorker: boolean;
   /** Mean seconds between a colleague's edits; null switches them off. */
   colleagueSeconds: number | null;
+  /** Seconds a dispatched reply waits before it leaves (?sendDelay=). */
+  sendDelaySeconds: number;
 };
+
+/** The send delay of a dispatch, by default: the window in which it can
+ * be cancelled. A demo value, not a rule. */
+export const SEND_DELAY_SECONDS = 30;
 
 export function readUrlConfig(search: string = location.search): UrlConfig {
   const params = new URLSearchParams(search);
@@ -38,6 +44,7 @@ export function readUrlConfig(search: string = location.search): UrlConfig {
       : [],
     useWorker: params.get("worker") !== "off",
     colleagueSeconds: colleague === "off" || !Number.isFinite(seconds) || seconds <= 0 ? null : seconds,
+    sendDelaySeconds: sendDelay(params.get("sendDelay")),
   };
 }
 
@@ -64,4 +71,9 @@ export function setParam(name: string, value: string | null): void {
   if (value === null) url.searchParams.delete(name);
   else url.searchParams.set(name, value);
   history.replaceState(history.state, "", url);
+}
+
+function sendDelay(raw: string | null): number {
+  const n = raw === null ? SEND_DELAY_SECONDS : Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 600 ? n : SEND_DELAY_SECONDS;
 }
