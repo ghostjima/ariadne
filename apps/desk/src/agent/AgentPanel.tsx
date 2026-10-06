@@ -3,7 +3,7 @@
 // for, the log, and a summary at the end. The run streams from the desk's
 // Service Worker (service.ts); the consent rule is the engine's. The
 // panel's own keys (R runs, S stops, P pauses) work while it is shown.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { useSelector } from "@xstate/react";
 import {
@@ -21,6 +21,7 @@ import {
   type ToastQueue,
 } from "@ghostjima/stoa-react";
 import { CASE_STAGES, stepStatusOf, type Autonomy, type PlanStateValue, type ReplyDraft } from "@ariadne/runner";
+import { confirmedInRun } from "../workflow/caseFile";
 import type { CaseFacts } from "@ariadne/rules";
 import { POOLS } from "../data/query";
 import { makeFmt } from "./format";
@@ -57,9 +58,17 @@ export type AgentPanelProps = {
   onHelpOpenChange: (open: boolean) => void;
   /** The panel is in view (not a tab behind the card): its run keys work. */
   visible: boolean;
+  /** The case's stage as the register holds it now: past drafting (legal
+   * review onwards) there is nothing to run, and no Run is shown. */
+  stage: number;
+  /** Under the finished handover step: whether it is on the case. */
+  handover?: (run: { draft: ReplyDraft | null; confirmed: boolean; startedAt: number }) => ReactNode;
+  /** The handover of this run is on the case: its step is not undone from
+   * the run any more (a return for rework is the reviewer's). */
+  handoverFinal?: (startedAt: number) => boolean;
 };
 
-export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, helpOpen, onHelpOpenChange, visible }: AgentPanelProps) {
+export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, helpOpen, onHelpOpenChange, visible, stage, handover, handoverFinal }: AgentPanelProps) {
   const t = strings[lang];
   const f = makeFmt(LOCALES[lang]);
   const x: Text = useMemo(() => ({ t, f, labels: POOLS[lang].labels, lang }), [t, f, lang]);
@@ -192,8 +201,9 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
     }
   }, [planState, ctx.stopRequested, stream.status, steps, t, f]);
 
-  // A reply past drafting (legal review onwards) has nothing left to draft.
-  const pastDrafting = CASE_STAGES.indexOf(ctx.brief.stage) >= CASE_STAGES.indexOf("legal_review");
+  // A reply past drafting (legal review onwards) has nothing left to draft:
+  // the register's stage decides, as it stands now (a handover moves it).
+  const pastDrafting = stage >= CASE_STAGES.indexOf("legal_review");
   const canRun = draft && !pastDrafting && ctx.steps.length > 0 && (status === "ready" || status === "page");
   const canStop = session.canStop();
   const run = () => {
@@ -291,8 +301,11 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
         </Disclosure>
       );
     if (summary?.code === "draft_checked") return <ReplyCheck x={x} draft={writtenDraft} facts={facts} />;
+    if (summary?.code === "handed_to_review" && handover) return handover({ draft: writtenDraft, confirmed: confirmedInRun(ctx.log, stepId), startedAt: ctx.startedAt ?? 0 });
     return null;
   };
+  const final = (stepId: string) =>
+    handoverFinal !== undefined && steps.find((s) => s.id === stepId)?.snapshot.context.result?.summary.code === "handed_to_review" && handoverFinal(ctx.startedAt ?? 0);
 
   const decisionOpen = stream.status === "waiting" && !ctx.stopRequested && stream.waiting !== null && !stream.waiting.accepts.includes("retry");
   useEffect(() => {
@@ -334,11 +347,12 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
             notice={
               pastDrafting ? (
                 <Callout tone="info" role="none">
-                  {t.task.pastDrafting(stageName(x, ctx.brief.stage))}
+                  {t.task.pastDrafting(stageName(x, CASE_STAGES[stage] ?? ctx.brief.stage))}
                 </Callout>
               ) : null
             }
             canRun={canRun}
+            showRun={!pastDrafting}
             onRun={run}
             onRestore={() => session.plan.send({ type: "RESTORE" })}
             onRemove={(id) => session.plan.send({ type: "REMOVE_STEP", id })}
@@ -371,6 +385,7 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
             onUndo={undo}
             notice={status === "page" ? serviceView : null}
             produced={produced}
+            isFinal={final}
           />
         )}
         <div className="agent__side">

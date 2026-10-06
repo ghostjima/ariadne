@@ -49,9 +49,9 @@ export type Strings = {
   viewNameErrors: { empty: string; tooLong: (max: string, length: string) => string; isPreset: string };
 
   role: string;
-  roles: { operator: string; signatory: string; supervisor: string };
+  roles: { operator: string; reviewer: string; signatory: string; supervisor: string };
   /** What a restricted role works on and may not do. */
-  roleNotes: { operator: (name: string) => string; signatory: (name: string) => string };
+  roleNotes: { operator: (name: string) => string; reviewer: (name: string) => string; signatory: (name: string) => string };
   roleHidden: (columns: string) => string;
 
   filtersLabel: string;
@@ -94,6 +94,8 @@ export type Strings = {
     valueUnknown: string;
     roleCannotEdit: (column: string) => string;
     stageNotForRole: string;
+    transitionNotAllowed: string;
+    reasonRequired: string;
     replyNeedsOutcome: string;
     refusalNeedsGround: string;
     groundOtherStream: string;
@@ -295,10 +297,11 @@ const en: Strings = {
   },
 
   role: "Role",
-  roles: { operator: "Operator", signatory: "Signatory", supervisor: "Supervisor" },
+  roles: { operator: "Operator", reviewer: "Reviewer", signatory: "Signatory", supervisor: "Supervisor" },
   roleNotes: {
-    operator: (name) => `The operator works the cases assigned to ${name}: facts, the decision and its ground, then legal review and signature. Sending, extensions, bulk changes and export are not theirs.`,
-    signatory: (name) => `The signatory signs and sends the replies assigned to ${name}, or returns one to drafting.`,
+    operator: (name) => `The operator works the cases assigned to ${name}: facts, the decision and its ground, then the handover to legal review. Approval, sending, extensions, bulk changes and export are not theirs.`,
+    reviewer: (name) => `The legal reviewer (${name}) sees every case, approves a reply for signature or returns it for rework with a reason, and states the decision and its ground.`,
+    signatory: (name) => `The signatory signs and sends the replies assigned to ${name}, or returns one for rework with a reason.`,
   },
   roleHidden: (columns) => `Hidden for this role: ${columns}.`,
 
@@ -341,7 +344,9 @@ const en: Strings = {
     valueUnknown: "Choose one of the listed values.",
     roleCannotEdit: (column) => `This role does not change ${column}.`,
     stageNotForRole: "This role cannot move a case to that stage.",
-    replyNeedsOutcome: "Decide the outcome before legal review.",
+    transitionNotAllowed: "A case does not go to that stage from this one.",
+    reasonRequired: "A return for rework needs a reason: return the case from its page.",
+    replyNeedsOutcome: "Decide the outcome before signature.",
     refusalNeedsGround: "A refusal needs a legal ground. Choose the ground first.",
     groundOtherStream: "This ground belongs to another stream: 161-FZ and 115-FZ grounds are not mixed.",
     sendNeedsSignature: "A reply goes out only after the signatory has it.",
@@ -562,10 +567,11 @@ const ruStrings: Strings = {
   },
 
   role: "Роль",
-  roles: { operator: "Оператор", signatory: "Подписант", supervisor: "Руководитель" },
+  roles: { operator: "Оператор", reviewer: "Юрист", signatory: "Подписант", supervisor: "Руководитель" },
   roleNotes: {
-    operator: (name) => `Оператор ведёт обращения, назначенные на исполнителя ${name}: факты, решение и его основание, затем юридическая проверка и подпись. Отправка, продление, массовые изменения и выгрузка ему недоступны.`,
-    signatory: (name) => `Подписант (${name}) подписывает и отправляет назначенные ему ответы или возвращает ответ на доработку.`,
+    operator: (name) => `Оператор ведёт обращения, назначенные на исполнителя ${name}: факты, решение и его основание, затем передача на юридическую проверку. Согласование, отправка, продление, массовые изменения и выгрузка ему недоступны.`,
+    reviewer: (name) => `Юрист (${name}) видит все обращения, согласует ответ на подпись или возвращает его на доработку с причиной, указывает решение и его основание.`,
+    signatory: (name) => `Подписант (${name}) подписывает и отправляет назначенные ему ответы или возвращает ответ на доработку с причиной.`,
   },
   roleHidden: (columns) => `Скрыто для этой роли: ${columns}.`,
 
@@ -607,7 +613,9 @@ const ruStrings: Strings = {
     valueUnknown: "Выберите одно из значений списка.",
     roleCannotEdit: (column) => `Эта роль не меняет поле «${column}».`,
     stageNotForRole: "Эта роль не может перевести обращение на этот этап.",
-    replyNeedsOutcome: "До юридической проверки нужно принять решение.",
+    transitionNotAllowed: "С этого этапа обращение не переходит на выбранный.",
+    reasonRequired: "Возврат на доработку требует причины: верните обращение на его странице.",
+    replyNeedsOutcome: "До подписи нужно принять решение.",
     refusalNeedsGround: "Для отказа нужно правовое основание. Сначала выберите основание.",
     groundOtherStream: "Это основание другого потока: основания 161-ФЗ и 115-ФЗ не смешиваются.",
     sendNeedsSignature: "Ответ отправляется только после передачи на подпись.",

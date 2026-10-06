@@ -20,10 +20,14 @@ the browser, in Russian (the default) and English:
   legal deadline counted by the rules engine: the open cases by time left
   in working days, views (due within 3 working days, overdue, forwarded
   by the Bank of Russia, waiting for facts, awaiting signature), filters
-  with counts, operator, signatory and supervisor roles, edits the rules
-  check, bulk reassignment with undo, edit conflicts with a simulated
+  with counts, operator, legal reviewer, signatory and supervisor roles,
+  edits the rules check, bulk reassignment with undo, edit conflicts with a simulated
   colleague, and CSV export.
-- **The open case** in one window: the complaint, the applicant, the
+- **The open case** in one window: its stage, the transitions the role
+  may take from it (the operator hands over, the reviewer approves or
+  returns for rework with a reason, the signatory sends or returns, the
+  supervisor closes) and its journal of who did what, when and why; the
+  complaint, the applicant, the
   operation, the flags around it (the OD-2506 sign in the order's own
   words, or the 115-FZ category), the timeline of its channels, linked
   cases, and how the reply's last day was worked out, each step with its
@@ -32,7 +36,8 @@ the browser, in Russian (the default) and English:
   open case it proposes a plan: classify the complaint, request the facts
   from antifraud, AML compliance or operations with a deadline of their
   own, draft the reply citing the law from the rules engine, check the
-  draft with the rubric, hand it to legal review. The person edits and
+  draft with the rubric, hand it to legal review (the case moves there,
+  with the draft, once a person confirms the handover). The person edits and
   approves the plan, confirms the risky steps (drafting a reply always
   asks), stops the run at any moment, and undoes what was done. The
   assistant is given the case's codes, dates and amounts, never the
@@ -74,12 +79,12 @@ The workflows the desk is built around, and what exists of each today:
 | Workflow | Today |
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
-| Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, signatory and supervisor roles |
+| Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, legal reviewer, signatory and supervisor roles |
 | Case card: client, operation, flags, linked cases, fact requests | built: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day; the structured fact request is the assistant's step, with its own deadline |
 | Draft: the assistant proposes a plan and a reply | built as the agent run for the open case: classify, request facts, draft the reply from templates over the case's facts with the act and article from the rules engine, check it with the rubric, hand it to legal review; the consent rule, confirmations with the draft, stop and undo windows |
 | Extension of the deadline, with a reason and an approver | in part: an extension of ten working days to request documents, approved by the supervisor, refused by the rules engine for a money claim under 123-FZ and after the last day for its notice |
-| Review and signature, dispatch and copies | not built |
-| Journal and metrics | the agent run keeps a session log of every event and decision, which can be copied as text |
+| Review and signature, dispatch and copies | in part: the stages as explicit states with the transitions of each role, and returns for rework with a reason; the review screen, the signature and dispatch are not built |
+| Journal and metrics | every transition of a case in its journal, with who, when and why; the agent run keeps a session log of every event and decision, which can be copied as text |
 
 ## Constraints
 
@@ -156,8 +161,8 @@ ghostjima.github.io/ariadne/.
 - Review and signature as states of the case: the reviewer's edits
   against the assistant's draft, then signature and dispatch, with the
   copy to the Bank of Russia.
-- The assistant's run changing the register: today what it does is
-  recorded in its own run and log, and the register is left as it was.
+- The assistant's handover changes the register once a person confirms
+  it; the rest of its run stays in its own run and log.
 
 ## Validation plan and target metrics
 

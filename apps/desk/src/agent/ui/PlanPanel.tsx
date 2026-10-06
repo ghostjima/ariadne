@@ -16,6 +16,8 @@ export type PlanPanelProps = {
   /** Shown above the steps: why Run cannot be pressed for this case. */
   notice?: ReactNode;
   canRun: boolean;
+  /** Run is shown: a case past drafting has none. */
+  showRun?: boolean;
   onRun: () => void;
   onRestore: () => void;
   onReorder: (ids: string[]) => void;
@@ -53,7 +55,7 @@ function AskFirst({ x, step, autonomy, onAskFirst }: { x: Text; step: PlanStep; 
   );
 }
 
-export function PlanPanel({ x, steps, autonomy, service, notice, canRun, onRun, onRestore, onReorder, onRemove, onAskFirst }: PlanPanelProps) {
+export function PlanPanel({ x, steps, autonomy, service, notice, canRun, showRun = true, onRun, onRestore, onReorder, onRemove, onAskFirst }: PlanPanelProps) {
   const { t, f } = x;
   const position = new Map(steps.map((s, i) => [s.id, f.int(i + 1)]));
   const conflicts = findConflicts(steps);
@@ -88,9 +90,11 @@ export function PlanPanel({ x, steps, autonomy, service, notice, canRun, onRun, 
               the steps scroll under it, as the run's own controls do. */}
           <div className="plan-bar">
             <div className="actions">
-              <Button variant="primary" onPress={onRun} isDisabled={!canRun} shortcut={{ key: "r" }}>
-                {t.plan.run}
-              </Button>
+              {showRun && (
+                <Button variant="primary" onPress={onRun} isDisabled={!canRun} shortcut={{ key: "r" }}>
+                  {t.plan.run}
+                </Button>
+              )}
               <Button variant="secondary" onPress={onRestore}>
                 {t.plan.restore}
               </Button>

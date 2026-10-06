@@ -70,7 +70,9 @@ test("the demo's own controls sit apart from the desk's, and say what the simula
   for (const role of ["Operator", "Signatory", "Supervisor"]) await expect(demo.getByRole("radio", { name: role })).toBeVisible();
   await expect(page.getByRole("toolbar", { name: "Actions" }).getByRole("button", { name: "Colleague’s edit" })).toHaveCount(0);
   await demo.getByRole("button", { name: "Colleague’s edit" }).click();
-  await expect(toasts(page)).toContainText("A colleague set Stage");
+  // A case moved on to its next stage, or, where it cannot move on (a
+  // closed one), a note.
+  await expect(toasts(page)).toContainText(/A colleague set (Stage|Note)/);
   await open(page, "colleague=off");
   await expect(page.getByRole("region", { name: "About this demo" })).toContainText("The simulated colleague is off on this page");
 });
@@ -130,24 +132,30 @@ test("a header sorts through the worker, ascending then descending", async ({ pa
   await expect(cell(page, 0, 2)).toHaveText("Alexei Belozyorov");
 });
 
-test("a refusal needs a legal ground of its own stream, and goes to legal review once decided", async ({ page }) => {
-  // Drafts of 161-FZ cases, with the decision and the ground.
-  await open(page, `view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [2], stream: [2], source: [], deadline: [] } })}`, "");
+test("a refusal needs a legal ground of its own stream; the reviewer sends a reply to signature only decided, and never returns it from a cell", async ({ page }) => {
+  // 161-FZ replies under legal review, as the reviewer sees them.
+  await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [] } })}`, "");
   await expect(grid(page)).not.toHaveAttribute("aria-busy");
   // The body's cells only: the header row carries data-cell too.
   const body = grid(page).locator(".stoa-data-grid__body");
   const outcomes = await body.locator('[data-cell$=":5"]').allTextContents();
   const grounds = await body.locator('[data-cell$=":6"]').allTextContents();
-  const row = outcomes.findIndex((t, k) => t === "Not decided" && grounds[k] === "None");
+  const row = outcomes.findIndex((t, k) => t === "Uphold" && grounds[k] === "None");
   expect(row).toBeGreaterThanOrEqual(0);
   // Refuse without a ground: refused, with the reason in the editor.
   await pick(page, row, 5, "Refuse");
   await expect(grid(page).getByRole("alert")).toHaveText("A refusal needs a legal ground. Choose the ground first.");
   await page.keyboard.press("Escape");
   await expect(cell(page, row, 5)).toBeFocused();
-  // Legal review before a decision: refused.
-  await pick(page, row, 4, "Legal review");
-  await expect(grid(page).getByRole("alert")).toHaveText("Decide the outcome before legal review.");
+  // Undecided, the reply does not go to signature.
+  await pick(page, row, 5, "Not decided");
+  await expect(cell(page, row, 5)).toHaveText("Not decided");
+  await pick(page, row, 4, "Awaiting signature");
+  await expect(grid(page).getByRole("alert")).toHaveText("Decide the outcome before signature.");
+  await page.keyboard.press("Escape");
+  // A return for rework needs a reason, which only the case page asks for.
+  await pick(page, row, 4, "Drafting");
+  await expect(grid(page).getByRole("alert")).toHaveText("A return for rework needs a reason: return the case from its page.");
   await page.keyboard.press("Escape");
   // A 115-FZ ground on a 161-FZ case: refused; the 161-FZ one is saved.
   await pick(page, row, 6, "115-FZ, art. 7, item 11");
@@ -158,17 +166,17 @@ test("a refusal needs a legal ground of its own stream, and goes to legal review
   await pick(page, row, 5, "Refuse");
   await expect(cell(page, row, 5)).toHaveText("Refuse");
   await expect(page.locator("[role=status]").filter({ hasText: "Decision is now" }).first()).toContainText("Decision is now “Refuse”.");
-  // Decided, with its ground: on to legal review, which takes the case out
-  // of this view of drafts.
-  const drafts = (await page.getByTestId("row-count").textContent())!;
+  // Decided, with its ground: on to signature, which takes the case out of
+  // this view of replies under review.
+  const review = (await page.getByTestId("row-count").textContent())!;
   const id = (await cell(page, row, 1).textContent())!;
-  await pick(page, row, 4, "Legal review");
-  await expect(page.locator("[role=status]").filter({ hasText: "Stage is now" }).first()).toContainText(`${id}: Stage is now “Legal review”.`);
-  await expect(page.getByTestId("row-count")).not.toHaveText(drafts);
-  // Ctrl or Cmd with Z takes the last edit back, and the draft returns.
+  await pick(page, row, 4, "Awaiting signature");
+  await expect(page.locator("[role=status]").filter({ hasText: "Stage is now" }).first()).toContainText(`${id}: Stage is now “Awaiting signature”.`);
+  await expect(page.getByTestId("row-count")).not.toHaveText(review);
+  // Ctrl or Cmd with Z takes the last edit back, and the reply returns.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(toasts(page)).toContainText("Undone on 1 case.");
-  await expect(page.getByTestId("row-count")).toHaveText(drafts);
+  await expect(page.getByTestId("row-count")).toHaveText(review);
 });
 
 test("a money claim under 123-FZ is never extended; a note over 200 characters is refused", async ({ page }) => {
@@ -262,7 +270,9 @@ test("a colleague's change to the cell being edited opens a conflict dialog", as
 });
 
 test("the focus stays on the active cell while rows change under it", async ({ page }) => {
-  await open(page);
+  // Cases before review, each of which the colleague can move on.
+  await open(page, `view=${viewParam({ filters: { stage: [0, 1, 2], stream: [], source: [], deadline: [] } })}`, "");
+  await expect(grid(page)).not.toHaveAttribute("aria-busy");
   // Sorted by stage, a colleague's stage change moves rows around.
   await page.getByRole("columnheader", { name: "Stage" }).click();
   await expect(page.getByRole("columnheader", { name: "Stage" })).toHaveAttribute("aria-sort", "ascending");

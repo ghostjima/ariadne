@@ -1,4 +1,5 @@
-// One case, in one window: its card, and the assistant beside it. The
+// One case, in one window: the work on it (its stage, what the role may do
+// now, its journal) and its card, and the assistant beside them. The
 // header says which case, where it stands and how long is left; Back to
 // the queue (Q) returns to the row it was opened from. On a wide screen the
 // card and the assistant sit side by side; on a narrower one they are two
@@ -6,7 +7,8 @@
 import { useEffect, useRef, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
 import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, useShortcuts, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
-import { caseFacts, clientName, isAnswered, rowId, workingDaysLeft, type ColumnStore } from "@ariadne/grid";
+import { Stage, caseFacts, clientName, isAnswered, rowId, wasReturned, workingDaysLeft, type ColumnStore, type Role, type TransitionError } from "@ariadne/grid";
+import type { ReplyDraft } from "@ariadne/runner";
 import { AgentPanel } from "../agent/AgentPanel";
 import { strings as agentStrings } from "../agent/i18n";
 import { sessionFor, type RunService } from "../agent/service";
@@ -14,6 +16,10 @@ import { POOLS } from "../data/query";
 import { DUE_SOON, stageTone } from "../desk/columns";
 import type { Lang, Strings } from "../i18n";
 import { CaseCard } from "./CaseCard";
+import { CaseWork, actsOn, type TransitionRequest } from "../workflow/CaseWork";
+import { Handover } from "../workflow/Handover";
+import type { CaseFiles } from "../workflow/caseFile";
+import { workflowStrings } from "../workflow/i18n";
 import { caseBrief } from "./brief";
 
 /** The rules module, loaded once for the page: the card asks it for the
@@ -41,9 +47,15 @@ export type CaseViewProps = {
   toasts: ToastQueue;
   onBack: () => void;
   onOpenCase: (row: number) => void;
+  role: Role;
+  /** What the desk keeps with each case: the draft handed over. */
+  files: CaseFiles;
+  onTransition: (request: TransitionRequest) => TransitionError | null;
+  /** Records the assistant's handover a person confirmed. */
+  onHandover: (draft: ReplyDraft, run: number) => void;
 };
 
-export function CaseView({ store, row, lang, t, version, service, toasts, onBack, onOpenCase }: CaseViewProps) {
+export function CaseView({ store, row, lang, t, version, service, toasts, onBack, onOpenCase, role, files, onTransition, onHandover }: CaseViewProps) {
   const ready = useRules();
   const breakpoint = useBreakpoint();
   const wide = breakpoint === "wide";
@@ -70,8 +82,12 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
   // until the panel is there (the rules module is still loading), the view
   // listens for Q itself, so Back to the queue works from the first moment.
   useShortcuts(shortcuts, { enabled: session === null });
+  const operator = role === "operator" && actsOn(store, row, role);
   const card = ready ? (
-    <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
+    <div className="case__main">
+      <CaseWork store={store} row={row} role={role} lang={lang} t={t} version={version} onTransition={onTransition} />
+      <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
+    </div>
   ) : (
     <ProgressBar label={c.region(id, name)} isIndeterminate />
   );
@@ -101,6 +117,22 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
           helpOpen={helpOpen}
           onHelpOpenChange={setHelpOpen}
           visible={wide || tab === "assistant"}
+          stage={stage}
+          handover={({ draft, confirmed, startedAt }) => (
+            <Handover
+              store={store}
+              row={row}
+              files={files}
+              lang={lang}
+              t={t}
+              run={startedAt}
+              draft={draft}
+              operator={operator}
+              confirmed={confirmed}
+              onRecord={() => draft && onHandover(draft, startedAt)}
+            />
+          )}
+          handoverFinal={(startedAt) => files.get(row)?.draft?.run === startedAt}
         />
       ) : (
         <ProgressBar label={agentStrings[lang].service.starting} isIndeterminate />
@@ -120,6 +152,11 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
         <div className="case__status">
           <Tag size="small">{labels.stream[store.stream[row] ?? 0]}</Tag>
           <StatusBadge tone={stageTone(stage) ?? "neutral"}>{labels.stage[stage]}</StatusBadge>
+          {ready && stage === Stage.Drafting && wasReturned(store, row) && (
+            <Tag size="small" tone="warning">
+              {workflowStrings[lang].returned}
+            </Tag>
+          )}
           {!isAnswered(store, row) && <Countdown left={workingDaysLeft(store, row)} unit="workingDays" warnAt={DUE_SOON} />}
         </div>
         {breakpoint !== "narrow" && (

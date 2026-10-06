@@ -53,9 +53,12 @@ import {
   SCALE_CHUNK,
   SCALE_ROWS,
   SELF_ASSIGNEE,
+  SELF_REVIEWER,
   SELF_SIGNATORY,
   Stage,
   applyRemoteEdit,
+  applyTransition,
+  deskNow,
   beginEdit,
   canBulk,
   canExport,
@@ -73,6 +76,7 @@ import {
   rowId,
   rowOfId,
   saveView,
+  selfActor,
   viewToUrl,
   visibleColumns,
   type CellValue,
@@ -85,6 +89,10 @@ import {
 } from "@ariadne/grid";
 import { useRunService } from "../agent/service";
 import { CaseView } from "../case/CaseView";
+import type { TransitionRequest } from "../workflow/CaseWork";
+import { recordHandover, type CaseFiles } from "../workflow/caseFile";
+import { workflowStrings } from "../workflow/i18n";
+import type { ReplyDraft } from "@ariadne/runner";
 import { DeskEngine, type QueryResult } from "../data/engine";
 import { POOLS } from "../data/query";
 import type { Lang, Strings } from "../i18n";
@@ -168,6 +176,9 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   // The grid's active cell, kept here so the queue comes back to it from
   // an open case; it starts where the grid starts it, at the first cell.
   const [activeCell, setActiveCell] = useState<DataGridCell>({ row: 0, column: 0 });
+  // What the desk keeps with each case beyond the register: the draft the
+  // assistant handed over.
+  const files = useRef<CaseFiles>(new Map());
   // The open case, by row; from the link (?case=C-000123) on load.
   const [openCase, setOpenCase] = useState<number | null>(() => (config.caseId ? rowOfId(config.caseId, store.size) : null));
 
@@ -329,7 +340,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
 
   /** Saves an edit through the history; returns the refusal, if any. */
   const applyEdit = (row: number, col: EditColumn, value: string): string | null => {
-    const now = Date.now();
+    const now = deskNow(Date.now());
     const res =
       col === "note"
         ? history.current.setNote(store, row, { kind: "text", text: normalizeDraft(col, value) }, role, now)
@@ -400,6 +411,26 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     if (conflict && !conflict.dismissed) setConflict({ ...conflict, dismissed: true });
   };
 
+  // Transitions taken from the open case, as the role's person; and the
+  // assistant's handover, once a person confirmed it.
+  const afterTransition = (row: number) => {
+    engine.sync([row], false);
+    bump();
+    const text = workflowStrings[lang].done(rowId(row), labels.stage[store.stage[row] ?? 0] ?? "");
+    announce(text);
+    toasts.add({ tone: "positive", text, timeout: 6000 });
+  };
+  const transition = (row: number, request: TransitionRequest) => {
+    const result = applyTransition(store, row, request.action, { role, actor: selfActor(role), at: deskNow(Date.now()), reason: request.reason, comment: request.comment });
+    if ("error" in result) return result.error;
+    afterTransition(row);
+    return null;
+  };
+  const handover = (row: number, draft: ReplyDraft, run: number) => {
+    const result = recordHandover(store, row, files.current, { draft, run, person: SELF_ASSIGNEE, at: deskNow(Date.now()) });
+    if ("entry" in result) afterTransition(row);
+  };
+
   // The simulated colleague.
   const tick = useRef(0);
   const simulate = () => {
@@ -407,7 +438,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     const s = sessionRef.current;
     const edit = planColleagueEdit(store, visible, tick.current++, s);
     if (!edit) return;
-    applyRemoteEdit(store, edit, Date.now());
+    applyRemoteEdit(store, edit, deskNow(Date.now()));
     engine.sync([edit.row], edit.cell.col === "note");
     bump();
     const id = rowId(edit.row);
@@ -446,7 +477,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   }, [selection, result, store]);
 
   const undoLast = () => {
-    const r = history.current.undo(store);
+    const r = history.current.undo(store, { now: deskNow(Date.now()) });
     if (!r) {
       announce(t.nothingToUndo);
       return;
@@ -465,7 +496,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const applyBulk = () => {
     setDialog(null);
     if (selectedRows.length === 0 || !canBulk(role)) return;
-    const res = history.current.setField(store, selectedRows, "assignee", bulkAssignee, role, Date.now());
+    const res = history.current.setField(store, selectedRows, "assignee", bulkAssignee, role, deskNow(Date.now()));
     const skipped = res.rejected.length;
     // The selection bar goes with the selection; the focus goes back to
     // the grid's active cell.
@@ -623,6 +654,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
         onChange={changeRole}
         choices={[
           { id: "operator", label: t.roles.operator },
+          { id: "reviewer", label: t.roles.reviewer },
           { id: "signatory", label: t.roles.signatory },
           { id: "supervisor", label: t.roles.supervisor },
         ]}
@@ -644,6 +676,10 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           toasts={toasts}
           onBack={backToQueue}
           onOpenCase={openCaseOf}
+          role={role}
+          files={files.current}
+          onTransition={(request) => transition(openCase, request)}
+          onHandover={(draft, run) => handover(openCase, draft, run)}
         />
       ) : openCase !== null && load.loading ? (
         <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />
@@ -758,7 +794,11 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           {role !== "supervisor" && (
             // What the role works on and may not do; the supervisor may do all.
             <Callout tone="info" role="none">
-              {role === "operator" ? t.roleNotes.operator(pools.assignees[SELF_ASSIGNEE] ?? "") : t.roleNotes.signatory(pools.signatories[SELF_SIGNATORY] ?? "")}
+              {role === "operator"
+                ? t.roleNotes.operator(pools.assignees[SELF_ASSIGNEE] ?? "")
+                : role === "reviewer"
+                  ? t.roleNotes.reviewer(pools.reviewers[SELF_REVIEWER] ?? "")
+                  : t.roleNotes.signatory(pools.signatories[SELF_SIGNATORY] ?? "")}
               {hidden.length > 0 && ` ${t.roleHidden(hidden.map((id) => labels.columns[id] ?? id).join(", "))}`}
             </Callout>
           )}
