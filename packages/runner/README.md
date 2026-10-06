@@ -31,9 +31,10 @@ rules. The complaint's text never reaches the engine: the protocol
 refuses a brief with any string that is not one of its codes or a date,
 so nothing an applicant writes can instruct the run.
 
-Status: early. One scripted scenario (95 tests). The timings in
-[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) say how they were taken and
-on which commit; not measured in a browser.
+Status: early. One scripted scenario (95 tests). Measured in Node on an
+Apple M4 Pro: a plan generates in about 1 us and a complete run replays
+in about 4 to 14 us; method, stamps and spread in
+[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
 
 ## How a run works
 
