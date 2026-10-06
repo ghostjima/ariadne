@@ -189,7 +189,14 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
     const category = AML_REASON_CODES[(store.reason[i] ?? 1) - 1];
     const kind = category ? AML_DECISION[category] : undefined;
     if (kind) facts.aml = { decision: { kind, on } };
-    else if (category === "aml_high_risk_measures") facts.aml = { highRiskMeasuresOn: on };
+    /* The client's six months to apply to the commission run from the day
+       the notice of the measures was received (115-FZ art. 7.8 item 1).
+       The register does not know that day; the client complains about the
+       measures, so had the notice by then. Conservative reading: the
+       notice is taken as received on the day the measures were applied,
+       the earliest it could have been, which gives the earliest end of the
+       six months a reply can state. */
+    else if (category === "aml_high_risk_measures") facts.aml = { highRiskMeasuresOn: on, highRiskNoticeReceivedOn: on };
   }
   return facts;
 }

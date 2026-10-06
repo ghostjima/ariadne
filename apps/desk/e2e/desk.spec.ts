@@ -23,21 +23,21 @@ test("1,200 cases reach the grid through the worker, their deadlines counted by 
 
 test("the desk opens on the open cases, the least time left first", async ({ page }) => {
   await page.goto("/?colleague=off&lang=en");
-  await expect(count(page)).toHaveText("210 of 1,200 cases", { timeout: 15_000 });
+  await expect(count(page)).toHaveText("215 of 1,200 cases", { timeout: 15_000 });
   await expect(page.getByRole("button", { name: /View$/ })).toContainText("Open cases");
   await expect(page.getByRole("columnheader", { name: "Time left" })).toHaveAttribute("aria-sort", "ascending");
   const headers = await page.getByRole("columnheader").allTextContents();
   expect(headers.slice(1, 6)).toEqual(["Case", "Applicant", "Stream", "Stage", "Time left"]);
-  await expect(cell(page, 0, 1)).toHaveText("C-000835");
+  await expect(cell(page, 0, 1)).toHaveText("C-000957");
   // The time left in DeadlineCell's words, with its symbol: a cross once
   // overdue, an exclamation mark within 3 working days.
-  await expect(cell(page, 0, 5)).toHaveText("✗10 working days overdue");
-  await expect(cell(page, 0, 4)).toHaveText("!Awaiting signature");
+  await expect(cell(page, 0, 5)).toHaveText("✗1 working day overdue");
+  await expect(cell(page, 0, 4)).toHaveText("Drafting");
   for (const name of ["Reply sent", "Closed", "Answered"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name} \\d`) })).toHaveAttribute("aria-pressed", "false");
   }
   await expect(page.getByRole("button", { name: /^Registered \d/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("region", { name: "About this demo" })).toContainText("1,200 invented complaints, 210 of them open");
+  await expect(page.getByRole("region", { name: "About this demo" })).toContainText("1,200 invented complaints, 215 of them open");
   await page.getByRole("button", { name: /View$/ }).click();
   await expect(page.getByRole("option").first()).toHaveText("Open cases");
 });
@@ -45,11 +45,11 @@ test("the desk opens on the open cases, the least time left first", async ({ pag
 test("the working views: due within 3 working days, overdue, forwarded, waiting for facts, awaiting signature", async ({ page }) => {
   await open(page);
   const views: [string, string][] = [
-    ["Due within 3 working days", "22 of 1,200 cases"],
-    ["Overdue", "17 of 1,200 cases"],
-    ["Forwarded by the Bank of Russia", "42 of 1,200 cases"],
-    ["Waiting for facts", "51 of 1,200 cases"],
-    ["Awaiting signature", "37 of 1,200 cases"],
+    ["Due within 3 working days", "24 of 1,200 cases"],
+    ["Overdue", "4 of 1,200 cases"],
+    ["Forwarded by the Bank of Russia", "38 of 1,200 cases"],
+    ["Waiting for facts", "61 of 1,200 cases"],
+    ["Awaiting signature", "30 of 1,200 cases"],
   ];
   for (const [name, rows] of views) {
     await page.getByRole("button", { name: /View$/ }).click();
@@ -78,11 +78,11 @@ test("the demo's own controls sit apart from the desk's, and say what the simula
 test("a stage chip filters by its count, and chips of other groups combine with it", async ({ page }) => {
   await open(page);
   const closed = page.getByRole("button", { name: /^Closed \d/ });
-  await expect(closed.locator(".stoa-filter-chip__count")).toHaveText("588");
+  await expect(closed.locator(".stoa-filter-chip__count")).toHaveText("664");
   await closed.click();
   await expect(closed).toHaveAttribute("aria-pressed", "true");
-  await expect(count(page)).toHaveText("588 of 1,200 cases");
-  await expect(grid(page)).toHaveAttribute("aria-rowcount", "589");
+  await expect(count(page)).toHaveText("664 of 1,200 cases");
+  await expect(grid(page)).toHaveAttribute("aria-rowcount", "665");
   for (let r = 0; r < 5; r++) await expect(cell(page, r, 4)).toHaveText("✓Closed");
   // A second group narrows; its chips count within the first.
   const block = page.getByRole("button", { name: /^Block, 161-FZ \d/ });
@@ -324,7 +324,7 @@ test("after the selection bar closes, by an action or by Clear selection, the fo
 test("the operator works their own cases; the signatory the replies they sign; neither reassigns or exports", async ({ page }) => {
   await open(page);
   await page.getByRole("radio", { name: "Operator" }).click();
-  await expect(count(page)).toHaveText("136 of 1,200 cases");
+  await expect(count(page)).toHaveText("164 of 1,200 cases");
   expect(new URL(page.url()).searchParams.get("role")).toBe("operator");
   await expect(page.getByText("The operator works the cases assigned to V. Lanskaya")).toBeVisible();
   await expect(page.getByText("Hidden for this role: Assignee.")).toBeVisible();
@@ -334,7 +334,7 @@ test("the operator works their own cases; the signatory the replies they sign; n
   await page.keyboard.press("Space");
   await expect(page.getByText("Reassigning cases needs the supervisor role.")).toBeVisible();
   await page.getByRole("radio", { name: "Signatory" }).click();
-  await expect(count(page)).toHaveText("374 of 1,200 cases");
+  await expect(count(page)).toHaveText("400 of 1,200 cases");
   await expect(page.getByText("The signatory signs and sends the replies assigned to V. Izotova")).toBeVisible();
   await page.getByRole("radio", { name: "Supervisor" }).click();
   await expect(count(page)).toHaveText(ALL);
@@ -367,7 +367,7 @@ test("views: a preset, a saved view that survives a reload, a link, and deletion
   await expect(toasts(page)).toContainText("View “Late or nearly” saved.");
   await expect(page.getByText("Modified")).toHaveCount(0);
   const saved = (await count(page).textContent())!;
-  expect(saved).toBe("39 of 1,200 cases");
+  expect(saved).toBe("28 of 1,200 cases");
   expect(saved).not.toBe(overdue);
 
   await page.reload();
@@ -390,7 +390,7 @@ test("views: a preset, a saved view that survives a reload, a link, and deletion
   // The desk goes back to the view it opens on; the focus, on the Delete
   // view button that went with the saved view, moves on to the next
   // action rather than to the page's body.
-  await expect(count(page)).toHaveText("210 of 1,200 cases");
+  await expect(count(page)).toHaveText("215 of 1,200 cases");
   await expect(page.getByRole("toolbar", { name: "Actions" }).getByRole("button", { name: "Columns" })).toBeFocused();
   await expect(page.getByRole("button", { name: /View$/ })).toContainText("Open cases");
   await page.getByRole("button", { name: /View$/ }).click();
@@ -420,16 +420,16 @@ test("Stoa's column chooser shows, hides and reorders columns; the case and the 
 test("CSV export writes the current view", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: /^Closed \d/ }).click();
-  await expect(count(page)).toHaveText("588 of 1,200 cases");
+  await expect(count(page)).toHaveText("664 of 1,200 cases");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const file = await download;
   expect(file.suggestedFilename()).toBe("complaints.csv");
   const lines = (await readFile((await file.path())!, "utf8")).split("\r\n");
   expect(lines[0]).toBe("﻿Case;Applicant;Stream;Stage;Time left;Reply due;Source;Assignee");
-  expect(lines).toHaveLength(589);
+  expect(lines).toHaveLength(665);
   expect(lines.slice(1).every((l) => l.split(";")[3] === "Closed")).toBe(true);
-  await expect(toasts(page)).toContainText("Exported 588 rows.");
+  await expect(toasts(page)).toContainText("Exported 664 rows.");
   // By keyboard, on a narrower view.
   await page.getByRole("button", { name: /^Bank of Russia \d/ }).click();
   const n = Number((await page.getByRole("button", { name: /^Bank of Russia \d/ }).locator(".stoa-filter-chip__count").textContent())!);
@@ -445,12 +445,12 @@ test("the scale mode holds 50,000 cases, and CSV stops at 5,000 rows", async ({ 
   await open(page, "rows=50000", "50,000 of 50,000 cases");
   await expect(page.getByRole("region", { name: "About this demo" })).toContainText("50,000 invented complaints");
   await page.getByRole("button", { name: /^Closed \d/ }).click();
-  await expect(count(page)).toHaveText("24,791 of 50,000 cases");
+  await expect(count(page)).toHaveText("26,914 of 50,000 cases");
   const capped = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const lines = (await readFile((await (await capped).path())!, "utf8")).split("\r\n");
   expect(lines).toHaveLength(5_001);
-  await expect(toasts(page)).toContainText("Exported the first 5,000 of 24,791 rows.");
+  await expect(toasts(page)).toContainText("Exported the first 5,000 of 26,914 rows.");
 });
 
 test("app shortcuts: help, search, grid, clear", async ({ page }) => {

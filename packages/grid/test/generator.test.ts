@@ -16,16 +16,18 @@ import {
   COLUMNS,
   CORPUS_CHUNK,
   CORPUS_ROWS,
+  DeadlineClass,
   DEFAULT_SEED,
   SCALE_CHUNK,
   SCALE_ROWS,
   STAGE_COUNT,
   STREAM_COUNT,
   Stage,
+  Stream,
   WINDOW_DAYS,
 } from "../src/schema.js";
 import { dayNumber } from "../src/days.js";
-import { COLUMN_KEYS, isAnswered } from "../src/store.js";
+import { COLUMN_KEYS, deadlineClass, isAnswered, workingDaysLeft } from "../src/store.js";
 import { buildSearchIndex, rowText } from "../src/text.js";
 import { pools as ru } from "../src/pools/ru.js";
 import { storeDigest } from "./digest.js";
@@ -90,6 +92,45 @@ describe("generator", () => {
     expect(young).toBe(30);
   });
 
+  it("spreads the open cases against the day the data is taken: most within the term, a minority due soon, a few overdue", () => {
+    const store = generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK);
+    const count = [0, 0, 0, 0];
+    let deepest = 0;
+    for (let i = 0; i < store.size; i++) {
+      const k = deadlineClass(store, i);
+      count[k] = (count[k] ?? 0) + 1;
+      if (k === DeadlineClass.Overdue) deepest = Math.min(deepest, workingDaysLeft(store, i));
+    }
+    const [overdue, soon, later] = [count[DeadlineClass.Overdue]!, count[DeadlineClass.DueSoon]!, count[DeadlineClass.Later]!];
+    const open = overdue + soon + later;
+    expect(later / open).toBeGreaterThan(0.75);
+    expect(soon / open).toBeGreaterThan(0.07);
+    expect(soon / open).toBeLessThan(0.2);
+    expect(overdue).toBeGreaterThanOrEqual(2);
+    expect(overdue / open).toBeLessThan(0.04);
+    /* Overdue by a working day or a few, never by weeks */
+    expect(deepest).toBeGreaterThanOrEqual(-5);
+  });
+
+  it("the same holds for other seeds, and for the scale mode", () => {
+    for (const [seed, total, chunk] of [[1, CORPUS_ROWS, CORPUS_CHUNK], [99, CORPUS_ROWS, CORPUS_CHUNK], [DEFAULT_SEED, SCALE_ROWS, SCALE_CHUNK]] as const) {
+      const store = generateAll(seed, total, chunk);
+      const count = [0, 0, 0, 0];
+      for (let i = 0; i < store.size; i++) count[deadlineClass(store, i)]! += 1;
+      const open = count[0]! + count[1]! + count[2]!;
+      expect(count[DeadlineClass.Later]! / open, `seed ${seed}, ${total} rows`).toBeGreaterThan(0.7);
+      expect(count[DeadlineClass.Overdue]! / open, `seed ${seed}, ${total} rows`).toBeLessThan(0.05);
+    }
+  });
+
+  it("a blocked operation is complained about within days of the block", () => {
+    const store = generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK);
+    const gaps: number[] = [];
+    for (let i = 0; i < store.size; i++) if (store.stream[i] === Stream.Antifraud && store.linked[i] === -1) gaps.push(store.received[i]! - store.opOn[i]!);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(6);
+    expect(gaps.filter((g) => g <= 1).length / gaps.length).toBeGreaterThan(0.8);
+  });
+
   it("generates the 50,000 rows of the scale mode with every field populated", () => {
     const store = generateAll(DEFAULT_SEED, SCALE_ROWS, SCALE_CHUNK);
     expect(store.size).toBe(50_000);
@@ -128,7 +169,12 @@ describe("generator", () => {
        column changed, and the deadlines now come from ariadne-rules.
        Re-pinned when a refused card, e-money or Faster Payments operation
        stopped naming 161-FZ art. 8 part 3.10 (the second action) instead
-       of part 3.4 (the first): the ground of those rows changed. */
+       of part 3.4 (the first): the ground of those rows changed.
+       Re-pinned again when the open cases were spread against the day the
+       data is taken (most within the term, a minority due within three
+       working days, a few overdue) and blocked operations were complained
+       about within days: the stage, extension, operation day and reply
+       day of many rows changed. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
@@ -151,4 +197,4 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "3979a4ad";
+const GOLDEN_DIGEST = "901fd3c2";

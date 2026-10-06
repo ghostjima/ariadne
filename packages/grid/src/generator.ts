@@ -9,6 +9,7 @@ import {
   Applicant,
   CHUNK_SIZE,
   COMPANY_COUNT,
+  DUE_SOON_WORKING_DAYS,
   Channel,
   ELECTRONIC_CHANNELS,
   Extension,
@@ -151,16 +152,37 @@ function amount(rng: () => number, low: number, high: number): number {
   return v >= 10_000 ? Math.round(v / 100) * 100 : Math.round(v / 10) * 10;
 }
 
-/* The stage a complaint has reached, from its age in working days */
-function drawStage(r: number, age: number): number {
+/*
+  Whether a case is still open on AS_OF, and where it stands. A desk that
+  keeps its deadlines answers most complaints within the term: a case is
+  open while its reply term runs (the closer the last day, the likelier it
+  has been answered), a few are extended to request documents, and a few
+  are overdue by a working day or a few. The shares are this generator's
+  own, chosen so that the open cases on AS_OF are mostly within the term, a
+  minority due within DUE_SOON_WORKING_DAYS and a few overdue; they are not
+  measured from any bank.
+*/
+/* Share of cases still open, by working days left to the reply's last day */
+function openShare(left: number): number {
+  if (left >= 10) return 0.96;
+  if (left > DUE_SOON_WORKING_DAYS) return 0.82;
+  return 0.6;
+}
+/* Share of cases past the last day that are still open (overdue) */
+function overdueShare(left: number): number {
+  if (left >= -3) return 0.1;
+  if (left >= -5) return 0.03;
+  return 0;
+}
+/* Share of cases past the original last day kept open by an extension */
+const EXTENDED_OPEN_SHARE = 0.12;
+
+/* The stage of an open case, from its age in working days */
+function openStage(r: number, age: number): number {
   if (age <= 1) return r < 0.65 ? Stage.Registered : Stage.WaitingForFacts;
   if (age <= 5) return weighted(r, [0.08, 0.45, 0.32, 0.15]);
-  if (age <= 10) return weighted(r, [0, 0.22, 0.3, 0.2, 0.16, 0.12]);
-  if (age <= 15) return weighted(r, [0, 0.08, 0.12, 0.12, 0.13, 0.4, 0.15]);
-  /* Past the reply term: a few recent ones are still open (extended, or
-     overdue by days rather than months) */
-  if (age <= 25 && r < 0.15) return Stage.WaitingForFacts + Math.floor((r / 0.15) * 4);
-  return r < 0.4 ? Stage.Sent : Stage.Closed;
+  if (age <= 10) return weighted(r, [0, 0.25, 0.35, 0.22, 0.18]);
+  return weighted(r, [0, 0.12, 0.28, 0.3, 0.3]);
 }
 
 /* `total` spreads the arrivals over the window: row r of `total` arrives on
@@ -203,7 +225,10 @@ export function generateChunk(seed: number, start: number, count: number, total:
 
     if (stream === Stream.Antifraud) {
       applicant = rng() < 0.97 ? Applicant.Individual : Applicant.LegalEntity;
-      opOn = received - pick(7);
+      /* A blocked transfer or payment is complained about at once: the
+         same day or the next, a few later */
+      const delay = rng();
+      opOn = received - (delay < 0.7 ? 0 : delay < 0.9 ? 1 : 2 + pick(5));
       let sign = weighted(rng(), SIGN_WEIGHTS);
       if ((signFrom[sign] ?? 0) > opOn) sign = 5;
       reason = sign + 1;
@@ -284,13 +309,29 @@ export function generateChunk(seed: number, start: number, count: number, total:
     const leftBase = workingDaysFrom(AS_OF_DAY, clock.due);
     const leftExt = allowed ? workingDaysFrom(AS_OF_DAY, clock.dueExt) : leftBase;
 
-    const stage = drawStage(rng(), age);
-    const answered = stage >= Stage.Sent;
+    /* Open or answered; an open case past its original last day is either
+       extended (the extension allowed and still running) or overdue */
+    const or = rng();
+    const xr = rng();
     let extension: number = Extension.None;
+    let open: boolean;
+    if (age <= 2) open = true;
+    else if (leftBase >= 0) open = or < openShare(leftBase);
+    else if (allowed && leftExt >= 0 && xr < EXTENDED_OPEN_SHARE) {
+      open = true;
+      extension = Extension.Extended;
+    } else open = or < overdueShare(leftBase);
+    const stageDraw = rng();
+    let stage: number;
+    if (!open) stage = stageDraw < (age <= 25 ? 0.6 : 0.3) ? Stage.Sent : Stage.Closed;
+    else if (leftBase < 0) stage = extension === Extension.Extended ? weighted(stageDraw, [0, 0.6, 0.4]) : weighted(stageDraw, [0, 0.3, 0.4, 0.3]);
+    else stage = openStage(stageDraw, age);
+    const answered = stage >= Stage.Sent;
+    /* Extended while the facts are awaited, before the original last day;
+       and some of the answered ones were extended on their way */
     const er = rng();
-    if (allowed) {
-      if (!answered && stage <= Stage.Drafting && age >= 8 && er < 0.35) extension = Extension.Extended;
-      else if (!answered && age > 15 && er < 0.5) extension = Extension.Extended;
+    if (allowed && extension === Extension.None) {
+      if (!answered && stage === Stage.WaitingForFacts && age >= 8 && er < 0.3) extension = Extension.Extended;
       else if (answered && er < 0.08) extension = Extension.Extended;
     }
     const lastDay = extension === Extension.Extended ? clock.dueExt : clock.due;

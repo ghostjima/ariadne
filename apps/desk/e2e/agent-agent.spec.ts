@@ -2,11 +2,12 @@
 // plan, running it, the confirmations, Stop, Pause, the undo window, the
 // agent's request to change a step, the reply it drafts and the rubric's
 // check, the shortcuts and the log. The run is about one complaint; most
-// tests open C-001200, whose fact request times out once (scenario 7).
+// tests open C-001191, whose fact request times out once (scenario 7).
 import { expect, test, type Page } from "@playwright/test";
 import { strings } from "../src/agent/i18n";
 import {
   LINKED_CASE,
+  PAST_DRAFTING_CASE,
   dialog,
   en,
   expectNoSeriousViolations,
@@ -30,7 +31,7 @@ const TITLES = [
 test("the plan is edited with the keyboard: moved, marked, removed, flagged out of order, emptied and restored", async ({ page }) => {
   await page.goto(agentUrl());
   await ready(page);
-  await expect(page.locator(".task")).toContainText("Prepare the reply in case C-001200");
+  await expect(page.locator(".task")).toContainText("Prepare the reply in case C-001191");
   const plan = page.getByRole("grid", { name: en.plan.list });
   const rows = plan.getByRole("row");
   await expect(rows).toHaveCount(5);
@@ -106,7 +107,7 @@ test("a run by keyboard: R runs, the agent's request and the draft focus the saf
   await expect(alert.getByRole("heading")).toHaveText("Step 3: Draft the reply");
   await expect(alert.getByRole("button", { name: en.confirm.skip })).toBeFocused();
   await expect(alert.locator(".reply-draft")).toContainText("We have reviewed your complaint of");
-  await expect(alert.locator(".reply-draft")).toContainText("case C-001196.");
+  await expect(alert.locator(".reply-draft")).toContainText("case C-001096.");
   await expect(alert.locator(".reply-draft")).toContainText("Our position rests on the terms of your contract with the bank.");
   await expect(alert).toContainText("Nothing is sent: the draft goes to legal review, and a signatory sends the reply.");
   await expect(alert).toContainText("Nothing has been sent or changed yet.");
@@ -271,11 +272,11 @@ test("the agent asks to change a step: Allow takes the linked case's facts, and 
   const alert = await dialog(page);
   await expect(alert.getByRole("heading")).toHaveText("Step 2: the agent asks to change the plan");
   await expect(alert).toContainText("Request the facts from operations");
-  await expect(alert).toContainText("Linked case C-001142 already holds the facts this request asks for.");
-  await expect(alert).toContainText("Instead: Use the facts of linked case C-001142 (low risk).");
+  await expect(alert).toContainText("Linked case C-001054 already holds the facts this request asks for.");
+  await expect(alert).toContainText("Instead: Use the facts of linked case C-001054 (low risk).");
   await alert.getByRole("button", { name: en.deviation.allow }).click();
-  await expect(runSteps(page).nth(1)).toContainText("Use the facts of linked case C-001142");
-  await expect(runSteps(page).nth(1)).toContainText("Facts of case C-001142 used; no request sent.", { timeout: 15_000 });
+  await expect(runSteps(page).nth(1)).toContainText("Use the facts of linked case C-001054");
+  await expect(runSteps(page).nth(1)).toContainText("Facts of case C-001054 used; no request sent.", { timeout: 15_000 });
   // Taken from the file, not sent: nothing to time out, no window to close.
   await expect(runSteps(page).nth(1)).toContainText(en.step.undoPermanent);
   await expect(retryButton(page)).toHaveCount(0);
@@ -300,12 +301,12 @@ test("a whole run: the draft under its step, the rubric's check, a summary", asy
   }
   // Step 3 shows the reply it drafted; step 4 what the rubric found in it.
   const draft = runSteps(page).nth(2);
-  await expect(draft).toContainText("Reply in case C-001200 drafted.");
+  await expect(draft).toContainText("Reply in case C-001191 drafted.");
   await draft.getByText(en.rubric.draftShown).click();
   await expect(draft.locator(".reply-draft")).toContainText("Dear client,");
   await expect(draft.locator(".reply-draft")).toContainText("[The decision on the complaint: for the reviewer to state.]");
   await expect(runSteps(page).nth(3)).toContainText(en.rubric.clean);
-  await expect(runSteps(page).nth(4)).toContainText("Case C-001200 handed to legal review; the reply is due by Oct 27, 2026.");
+  await expect(runSteps(page).nth(4)).toContainText("Case C-001191 handed to legal review; the reply is due by Oct 27, 2026.");
   const summary = page.locator(".summary");
   await expect(summary).toContainText(en.summary.finished);
   await expect(summary.getByRole("term")).toHaveText([en.summary.done, en.summary.skipped, en.summary.undone, en.summary.asked, en.summary.errors, en.summary.duration, en.summary.events]);
@@ -319,8 +320,25 @@ test("a whole run: the draft under its step, the rubric's check, a summary", asy
   await expect(page.getByRole("grid", { name: en.plan.list }).getByRole("row")).toHaveCount(5);
 });
 
+test("a reply drafted for a case of the register states the deadlines still running on its day", async ({ page }) => {
+  // C-001196: a transfer by bank details suspended on the day the data is
+  // taken, its complaint received the same day; the suspension and the
+  // client's day to confirm the order still run.
+  await page.goto(agentUrl("scale=0.05&seed=8", "C-001196"));
+  await ready(page);
+  await page.getByRole("button", { name: en.plan.run }).click();
+  const alert = await dialog(page);
+  await expect(alert.getByRole("heading")).toHaveText("Step 3: Draft the reply");
+  const letter = alert.locator(".reply-draft");
+  await expect(letter).toContainText("The ground is 161-FZ, art. 8, part 3.4.");
+  await expect(letter).toContainText("The suspension ends on Oct 7, 2026.");
+  await expect(letter).toContainText("Please confirm the order by Oct 7, 2026.");
+  await page.keyboard.press("s");
+  await expectPlanState(page, "stopped");
+});
+
 test("a case past drafting: the plan is shown, Run is not offered, and the panel says why", async ({ page }) => {
-  await page.goto(agentUrl("", "C-001117"));
+  await page.goto(agentUrl("", PAST_DRAFTING_CASE));
   await expect(page.locator(".plan")).toContainText('This case is at "Awaiting signature": its reply is past drafting');
   await expect(page.getByRole("button", { name: en.plan.run })).toBeDisabled();
   await page.keyboard.press("r");
