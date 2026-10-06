@@ -14,6 +14,8 @@
 //!
 //! - [`calendar`]: the Russian production calendar for 2025 to 2027 and
 //!   counting in working days.
+//! - [`clock`]: the legal clocks of a complaint and of the antifraud and
+//!   anti-money-laundering facts around it, each deadline with its basis.
 //!
 //! ```
 //! use ariadne_rules::{calendar, Date};
@@ -26,6 +28,7 @@
 //! ```
 
 pub mod calendar;
+pub mod clock;
 pub mod date;
 mod error;
 pub mod sources;

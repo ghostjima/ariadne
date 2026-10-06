@@ -12,6 +12,18 @@ pub enum Error {
     /// while counting: before [`crate::calendar::first_day`] or after
     /// [`crate::calendar::last_day`].
     OutsideCalendar,
+    /// A day comes before the day it follows from: registered before
+    /// received, confirmed before the block, and so on.
+    DatesOutOfOrder,
+    /// An extension of zero working days.
+    InvalidExtension,
+    /// A money amount that is not a whole, non-negative number of kopecks.
+    InvalidAmount,
+    /// A code that names no known value.
+    UnknownCode,
+    /// A fact given without the day it needs: a blocked operation without
+    /// the day of the block, a decision without its day.
+    MissingDate,
 }
 
 impl Error {
@@ -20,6 +32,11 @@ impl Error {
         match self {
             Error::InvalidDate => "invalid_date",
             Error::OutsideCalendar => "outside_calendar",
+            Error::DatesOutOfOrder => "dates_out_of_order",
+            Error::InvalidExtension => "invalid_extension",
+            Error::InvalidAmount => "invalid_amount",
+            Error::UnknownCode => "unknown_code",
+            Error::MissingDate => "missing_date",
         }
     }
 }
