@@ -63,7 +63,21 @@ it that proposes and stops for a person at every risky step. In Russian
   5,000 rows.
 - **Keys**: `?` lists them, `/` goes to the search, G to the grid, O opens
   the case of the active row, X clears the filters, S saves the view, E
-  exports.
+  exports, M opens the supervisor's metrics.
+- **The supervisor's metrics** (the toolbar's Metrics, M, or
+  `?metrics=1`): time to first action (median and 90th percentile, in
+  working days from registration to the first journal step), deadline
+  breaches (replies sent late and open cases past their last day, with
+  the working days of each), the share of drafts signed with at most 20%
+  of their characters changed (from the draft and the signed text, by
+  the desk's text diff), the override rate (signatures with the decision
+  Override), returns for rework, and reopened and escalated cases (repeat
+  complaints, and repeats through the Bank of Russia), as Stoa's Metrics
+  under a StatBar of the register's counts, and a table per operator.
+  A letter signed in the page counts from its own texts; an answered case
+  of the register has its signed letter worked out from its draft with
+  edits drawn from the case. The view says it is computed from the
+  synthetic register, and how each measure is counted.
 
 Loading, a partial load failure (`?failChunk=1` fails one 400-row chunk
 once, with a retry), no matches, and running without a worker
@@ -281,7 +295,8 @@ role, the open case with its card and assistant, the work on a case
 with its journal, the return for rework with its refusal, the review
 of a letter with its findings and changes, the signature with a refused
 decision record, the dispatch's confirmation and its send delay, the
-supervisor's refused extension, and, in the assistant,
+supervisor's refused extension, the supervisor's metrics, and, in the
+assistant,
 the plan, the agent's request to change a step, a failed step, the
 reply's confirmation with its letter, a finished run with the draft, the
 rubric's check, its summary and toasts, New plan asking before it ends

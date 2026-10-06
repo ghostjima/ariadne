@@ -44,7 +44,7 @@ the browser, in Russian (the default) and English:
   complaint's text, so nothing an applicant writes can instruct it; it
   sends nothing to the client.
 
-The metrics are not built yet;
+Intake and registration are not built yet;
 [What comes next](#what-comes-next) says what is. There is no screenshot
 or public deployment yet; the desk runs locally as described under
 [Development](#development).
@@ -84,7 +84,7 @@ The workflows the desk is built around, and what exists of each today:
 | Draft: the assistant proposes a plan and a reply | built as the agent run for the open case: classify, request facts, draft the reply from templates over the case's facts with the act and article from the rules engine, check it with the rubric, hand it to legal review; the consent rule, confirmations with the draft, stop and undo windows |
 | Extension of the deadline, with a reason and an approver | built: an extension of ten working days to request documents by the supervisor, with its reason, refused by the rules engine for a money claim under 123-FZ (in words) and after the last day for its notice; a forwarded complaint's notice owes the Bank of Russia a copy that day |
 | Review and signature, dispatch and copies | in part: the stages as explicit states with the transitions of each role; the review of the letter (what the rubric finds, the changes against the assistant's draft, the reviewer's edit), approval or a return for rework with a reason; the signature with its decision record, the signed letter frozen; the dispatch a person confirms, with a cancellable send delay, and the same-day copies to the Bank of Russia and to a self-regulatory organisation, with their own view |
-| Journal and metrics | every transition of a case in its journal, with who, when and why, exported with the letter, the copies and the derivation of the reply day for an inspection; retention marked; the agent run keeps a session log of every event and decision, which can be copied as text |
+| Journal and metrics | built: every transition of a case in its journal, with who, when and why, exported with the letter, the copies and the derivation of the reply day for an inspection; retention marked; the supervisor's metrics over the register (time to first action, deadline breaches in working days, drafts signed with at most 20% changed, override rate, returns for rework, reopened and escalated cases), overall and per operator, labelled as computed from the synthetic register; the agent run keeps a session log of every event and decision, which can be copied as text |
 
 ## Constraints
 
@@ -158,17 +158,17 @@ ghostjima.github.io/ariadne/.
 
 ## What comes next
 
-- Supervisor metrics over the register: time to first action, deadline
-  breaches, drafts signed with few changes, overrides, returns, reopened
-  and escalated cases.
+- Intake and registration, with the stream of each complaint recognised.
 - The assistant's handover changes the register once a person confirms
   it; the rest of its run stays in its own run and log.
 
 ## Validation plan and target metrics
 
-None of this has been measured; each item is a hypothesis to be tested
-on the synthetic corpus with people who do this work, and target values
-are set only after a baseline exists.
+None of this has been measured with people; each item is a hypothesis
+to be tested with people who do this work, and target values are set
+only after a baseline exists. The supervisor's view of the desk computes
+each one over the synthetic register in the page, to show how it is
+counted; those figures describe the generator, not a bank.
 
 - Time from a complaint's arrival to the first action on it.
 - Deadline breaches, counted in working days.
