@@ -2,8 +2,8 @@
 // control that had it: never to the page's body, from which the next Tab
 // would start again at the top of the page. During a run that place is the
 // run's heading, one Tab before Stop.
-import { expect, test, type Page } from "@playwright/test";
-import { dialog, en, expectPlanState, ready, runSteps } from "./helpers";
+import { expect, type Page } from "@playwright/test";
+import { dialog, en, expectPlanState, ready, runSteps, test, throttleCpu } from "./helpers";
 
 /** What has the focus, in words; "body" when nothing does. */
 const focused = (page: Page) =>
@@ -20,46 +20,92 @@ async function expectAtRun(page: Page, what: string) {
   await expect(runHeading(page), what).toBeFocused();
 }
 
+/**
+ * Where a decision sends the focus, read from a record of where it lands
+ * rather than from where it is when the test looks. The run goes on after
+ * the decision, and its next confirmation opens and takes the focus a few
+ * tens of milliseconds later, as it should; on a slow machine that happens
+ * before the test looks. The record starts when this is called: `act`
+ * presses the control, and the first place the focus lands afterwards must
+ * be the run's heading. A control pressed with the mouse is focused before
+ * the record starts, so that the press itself lands nowhere new.
+ */
+async function expectSentToRun(page: Page, what: string, act: () => Promise<void>) {
+  const start = await page.evaluate(() => {
+    const w = window as unknown as { focusLandings?: string[] };
+    if (!w.focusLandings) {
+      const landings: string[] = [];
+      w.focusLandings = landings;
+      document.addEventListener(
+        "focusin",
+        (e) => {
+          const el = e.target as Element;
+          landings.push(`${el.tagName.toLowerCase()} ${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40)}`);
+        },
+        true,
+      );
+    }
+    return w.focusLandings.length;
+  });
+  await act();
+  const first = () => page.evaluate((from) => (window as unknown as { focusLandings: string[] }).focusLandings[from] ?? "nowhere yet", start);
+  await expect.poll(first, { message: what }).toBe(`h2 ${en.run.panel}`);
+}
+
+/** The confirmation open now, by its own label: the run's next
+ * confirmation, which may open as soon as this one closes, does not match
+ * it. */
+async function openConfirmation(page: Page) {
+  const label = await (await dialog(page)).getAttribute("aria-labelledby");
+  return page.locator(`section.stoa-dialog[aria-labelledby="${label}"]`);
+}
+
 test("after Run the focus is at the run, and Tab goes on to Stop", async ({ page }) => {
   await page.goto("/?scale=0.05");
   await ready(page);
-  await page.getByRole("button", { name: en.plan.run }).click();
-  await expectAtRun(page, "after Run");
+  const run = page.getByRole("button", { name: en.plan.run });
+  await run.focus();
+  await expectSentToRun(page, "after Run", () => run.click());
+  // From the heading, Tab goes on to Stop. Seen while the run waits at
+  // step 4's failure, where nothing else moves the focus.
+  await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
+  await expect(page.getByRole("button", { name: en.step.retry, exact: true })).toBeFocused({ timeout: 15_000 });
+  await runHeading(page).focus();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: en.run.stop })).toBeFocused();
+  await expect(page.getByRole("button", { name: en.run.stop, exact: true })).toBeFocused();
 });
 
 test("a run's decisions keep the focus at the run, from Run to Stop", async ({ page }) => {
   await page.goto("/?scale=0.05");
   await ready(page);
-  await page.getByRole("button", { name: en.plan.run }).click();
-  await expectAtRun(page, "after Run");
+  const run = page.getByRole("button", { name: en.plan.run });
+  await run.focus();
+  await expectSentToRun(page, "after Run", () => run.click());
 
   // Step 3's letter: confirmed from the keyboard.
-  let alert = await dialog(page);
+  let alert = await openConfirmation(page);
   await page.keyboard.press("Tab");
-  await page.keyboard.press("Enter");
+  await expectSentToRun(page, "after a confirmation", () => page.keyboard.press("Enter"));
   await expect(alert).toBeHidden();
-  await expectAtRun(page, "after a confirmation");
 
   // Step 4 fails: Retry has the focus; once pressed, the run has it.
   const retry = page.getByRole("button", { name: en.step.retry, exact: true });
   await expect(retry).toBeFocused({ timeout: 15_000 });
-  await page.keyboard.press("Enter");
+  await expectSentToRun(page, "after Retry", () => page.keyboard.press("Enter"));
   await expect(retry).toHaveCount(0);
-  expect(await focused(page)).not.toBe("body");
 
   // Step 5: Escape skips it.
-  alert = await dialog(page);
-  await page.keyboard.press("Escape");
+  alert = await openConfirmation(page);
+  await expectSentToRun(page, "after Escape", () => page.keyboard.press("Escape"));
   await expect(alert).toBeHidden();
-  await expectAtRun(page, "after Escape");
 
-  // Step 7: S stops the run from the agent's request.
-  alert = await dialog(page);
+  // Step 7: S stops the run from the agent's request. Nothing comes after
+  // a stop, so the focus stays at the run.
+  alert = await openConfirmation(page);
   await page.keyboard.press("s");
   await expectPlanState(page, "stopped");
-  await expect(runHeading(page)).toBeFocused();
+  await expect(alert).toBeHidden();
+  await expectAtRun(page, "after S");
 });
 
 test("Skip and Stop on a failed step keep the focus at the run", async ({ page }) => {
@@ -67,17 +113,20 @@ test("Skip and Stop on a failed step keep the focus at the run", async ({ page }
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
-  await page.getByRole("button", { name: en.step.skip, exact: true }).click();
+  await expect(page.getByRole("button", { name: en.step.retry, exact: true })).toBeFocused({ timeout: 15_000 });
+  const skip = page.getByRole("button", { name: en.step.skip, exact: true });
+  await skip.focus();
+  await expectSentToRun(page, "after Skip", () => skip.click());
   await expect(runSteps(page).nth(3)).toContainText("Skipped");
-  await expectAtRun(page, "after Skip");
-  // The same failure in a new run: Stop this time.
+  // The same failure in a new run: Stop this time. Nothing comes after a
+  // stop, so the focus stays at the run.
   await page.goto("/?scale=0.05&seed=7");
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
   await page.getByRole("button", { name: en.step.stopRun, exact: true }).click();
   await expectPlanState(page, "stopped");
-  await expect(runHeading(page)).toBeFocused();
+  await expectAtRun(page, "after Stop");
 });
 
 test("Stop pressed in the run bar leaves the focus at the run", async ({ page }) => {
@@ -97,6 +146,9 @@ test("Undo on a step leaves the focus in place", async ({ page }) => {
   await ready(page);
   await page.getByRole("button", { name: en.plan.run }).click();
   await (await dialog(page)).getByRole("button", { name: en.confirm.confirm.email }).click();
+  // Step 4 fails next and its Retry takes the focus; once it has, the run
+  // waits and nothing else moves the focus before Undo is pressed.
+  await expect(page.getByRole("button", { name: en.step.retry, exact: true })).toBeFocused({ timeout: 15_000 });
   const undo = runSteps(page).nth(2).getByRole("button", { name: /^Undo: / });
   await undo.focus();
   await page.keyboard.press("Enter");
@@ -145,9 +197,10 @@ test("New plan confirmed in its dialog gives the focus to Run on the new plan", 
   await expect(page.getByRole("button", { name: en.plan.run })).toBeFocused();
 });
 
-test("the run service's buttons leave the focus in place when their notice goes", async ({ browser }) => {
+test("the run service's buttons leave the focus in place when their notice goes", async ({ browser, cpuThrottle }) => {
   const context = await browser.newContext({ serviceWorkers: "block" });
   const page = await context.newPage();
+  await throttleCpu(page, cpuThrottle);
   await page.goto("/");
   await expect(page.getByText(en.service.failedTitle)).toBeVisible();
   await page.getByRole("button", { name: en.service.usePage }).focus();

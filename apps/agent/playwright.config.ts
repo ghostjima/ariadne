@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import type { CpuOptions } from "./e2e/helpers";
 
 // The tests run against the production build, served by `vite preview`:
 // the Service Worker is the built one, at the path a deployment serves it
@@ -10,12 +11,24 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 4177);
 const URL = `http://localhost:${PORT}`;
 
-export default defineConfig({
+export default defineConfig<CpuOptions>({
   testDir: "e2e",
   timeout: 60_000,
   forbidOnly: !!process.env.CI,
   use: { baseURL: URL, viewport: { width: 1440, height: 900 } },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    // Where the focus goes is decided between a press, React's commit and
+    // the stream's next event; on a slow machine those come in another
+    // order. The focus tests run again with the page's CPU slowed down six
+    // times (E2E_CPU_THROTTLE sets another rate), so that a test which
+    // passes only on a fast machine fails on every machine.
+    {
+      name: "chromium-slow-cpu",
+      testMatch: "focus.spec.ts",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, cpuThrottle: Number(process.env.E2E_CPU_THROTTLE ?? 6) },
+    },
+  ],
   webServer: {
     command: `pnpm exec vite build && pnpm exec vite preview --port ${PORT} --strictPort`,
     url: URL,

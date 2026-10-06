@@ -1,8 +1,31 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { strings } from "../src/i18n";
 
 export const en = strings.en;
+
+/** A project option: how many times slower than the machine the page's
+ * CPU runs (Chrome's own throttling), 1 for not at all. A CI runner is
+ * slower than a developer's machine; a rate above 1 makes every machine
+ * at least as slow, so a test that depends on speed fails everywhere. */
+export type CpuOptions = { cpuThrottle: number };
+
+/** Slows a page's CPU by `rate`, as DevTools' CPU throttling does. */
+export async function throttleCpu(page: Page, rate: number) {
+  if (rate <= 1) return;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+}
+
+/** Playwright's test, with each page's CPU slowed by the project's
+ * `cpuThrottle`. */
+export const test = base.extend<CpuOptions>({
+  cpuThrottle: [1, { option: true }],
+  page: async ({ page, cpuThrottle }, use) => {
+    await throttleCpu(page, cpuThrottle);
+    await use(page);
+  },
+});
 
 /** `scan`, when given, names the language and theme scanned; with `where`
  * as the state, it is recorded as an annotation that scripts/badges.mjs
