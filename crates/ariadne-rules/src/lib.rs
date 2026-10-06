@@ -11,9 +11,29 @@
 //!
 //! Errors and refusals cross every boundary as codes, never as sentences:
 //! the desk owns the wording in each interface language.
+//!
+//! - [`calendar`]: the Russian production calendar for 2025 to 2027 and
+//!   counting in working days.
+//!
+//! ```
+//! use ariadne_rules::{calendar, Date};
+//!
+//! // Registered on Monday 22 December 2025, a complaint has 15 working
+//! // days: the New Year holidays (31 December to 11 January) do not count.
+//! let registered = Date::parse("2025-12-22").unwrap();
+//! let due = calendar::add_working_days(registered, 15).unwrap();
+//! assert_eq!(due.to_string(), "2026-01-22");
+//! ```
 
+pub mod calendar;
+pub mod date;
+mod error;
+pub mod sources;
 #[cfg(feature = "wasm")]
 mod wasm;
+
+pub use date::{Date, Weekday};
+pub use error::Error;
 
 /// The crate version, as built.
 pub fn version() -> &'static str {
