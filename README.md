@@ -182,7 +182,8 @@ own output and stops, publishing nothing, when a value cannot be read.
   and node:test in the root scripts (`pnpm test`).
 - e2e: Playwright tests passed in Chromium against `vite preview` of
   each app's build, the agent's Service Worker included; the total, then
-  each app's count.
+  each app's count. The agent's focus tests count twice: they run again
+  with the page's CPU slowed down.
 - axe: axe-core 4.13.0 in the e2e, a serious or critical violation fails
   the run. Counted for each app as states times language and theme
   pairs (English, Russian and Arabic, light and dark): for the desk, the

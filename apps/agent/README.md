@@ -87,6 +87,10 @@ moves it to another port, as CI does:
 E2E_PORT=4181 pnpm e2e
 ```
 
+The focus tests run twice: as they are, and in the `chromium-slow-cpu`
+project with the page's CPU slowed six times by Chrome's own throttling,
+as on a slow CI runner; `E2E_CPU_THROTTLE` sets another rate.
+
 ## Accessibility
 
 What the tests check, and nothing wider: axe-core finds no serious or
