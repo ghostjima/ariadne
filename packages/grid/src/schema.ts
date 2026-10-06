@@ -83,7 +83,15 @@ export type GroundSpec = {
 };
 export const GROUNDS: readonly (GroundSpec | null)[] = [
   null,
+  /* 161-FZ art. 8 part 3.4: the first action on an operation that matches
+     a sign, for every kind of operation (sentence 1 suspends a transfer by
+     bank details for two days; sentence 2 refuses a card operation, an
+     e-money transfer or a Faster Payments transfer) */
   { id: "payment_8_3_4", act: "payment_system", article: "8", part: "3.4", streams: [Stream.Antifraud] },
+  /* Part 3.10: only the second action, when the Bank of Russia's database
+     answered after the client confirmed the order or repeated the
+     operation. The register holds no such second step, so the generator
+     never draws it; a person may still name it. */
   { id: "payment_8_3_10", act: "payment_system", article: "8", part: "3.10", streams: [Stream.Antifraud] },
   { id: "aml_operation_refused", act: "anti_money_laundering", article: "7", part: "11", streams: [Stream.Aml] },
   { id: "aml_account_refused", act: "anti_money_laundering", article: "7", part: "5.2, paragraph 2", streams: [Stream.Aml] },

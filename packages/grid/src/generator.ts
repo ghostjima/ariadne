@@ -133,6 +133,10 @@ const OUTCOME_WEIGHTS: readonly (readonly number[])[] = [
   [0.2, 0.1, 0.7],
 ];
 
+/* The ground of a first antifraud action, whatever the operation: 161-FZ
+   art. 8 part 3.4 (see GROUNDS) */
+const PAYMENT_FIRST_ACTION = 1;
+
 /* Share of complaints with an adversarial insertion */
 const INJECTION_SHARE = 0.03;
 /* Share of complaints linked to an earlier one about the same operation */
@@ -307,7 +311,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
       outcome = 1 + weighted(rng(), OUTCOME_WEIGHTS[stream] ?? OUTCOME_WEIGHTS[0]!);
       const gr = rng();
       if (outcome === Outcome.Refused && (stage >= Stage.LegalReview || gr < 0.6)) {
-        if (stream === Stream.Antifraud) ground = gr < 0.7 ? 1 : gr < 0.85 ? 2 : Ground.Contract;
+        if (stream === Stream.Antifraud) ground = gr < 0.85 ? PAYMENT_FIRST_ACTION : Ground.Contract;
         else if (stream === Stream.Aml) ground = gr < 0.9 ? AML_GROUND_OFFSET + (reason - 1) : Ground.Contract;
         else ground = Ground.Contract;
       }

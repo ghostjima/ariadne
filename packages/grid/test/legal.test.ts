@@ -193,4 +193,15 @@ describe("a case's whole clock", () => {
       expect(clock(caseFacts(store, i)).replyDue).toBe(isoDay(effectiveDue(store, i)));
     }
   });
+
+  it("a block rests on 161-FZ art. 8 part 3.4, the first action, for a transfer and for a card, e-money or Faster Payments operation alike", () => {
+    const first = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
+    const second = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
+    expect([GROUNDS[first]?.part, GROUNDS[second]?.part]).toEqual(["3.4", "3.10"]);
+    const blocked = rows((i) => store.stream[i] === Stream.Antifraud && store.ground[i] !== Ground.None);
+    expect(blocked.some((i) => store.operation[i] !== 3)).toBe(true);
+    /* The register holds no second action (a database answer after a
+       confirmation or a repeat), so none of its rows names part 3.10 */
+    for (const i of blocked) expect([first, Ground.Contract], `row ${i}`).toContain(store.ground[i]);
+  });
 });
