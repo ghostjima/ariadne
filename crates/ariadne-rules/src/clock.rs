@@ -271,6 +271,37 @@ pub enum DeadlineKind {
 }
 
 impl DeadlineKind {
+    /// Every kind.
+    pub const ALL: [DeadlineKind; 16] = {
+        use DeadlineKind::*;
+        [
+            Registration,
+            RegistrationNotice,
+            Reply,
+            ExtensionNotice,
+            ReplyExtended,
+            AntifraudSuspensionEnds,
+            AntifraudConfirmation,
+            AntifraudRepeatSuspensionEnds,
+            AntifraudAfterRepeatSuspension,
+            ExclusionDecision,
+            AntifraudRefund,
+            AmlReasonsNotice,
+            AmlDocumentsAnswer,
+            AmlCommissionDecision,
+            HighRiskNotice,
+            HighRiskCommissionApplication,
+        ]
+    };
+
+    /// The kind with a code, or [`Error::UnknownCode`].
+    pub fn parse(code: &str) -> Result<DeadlineKind, Error> {
+        DeadlineKind::ALL
+            .into_iter()
+            .find(|k| k.code() == code)
+            .ok_or(Error::UnknownCode)
+    }
+
     /// The stable code, in snake case.
     pub fn code(self) -> &'static str {
         use DeadlineKind::*;

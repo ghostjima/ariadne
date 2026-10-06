@@ -213,6 +213,37 @@ pub const AML_LAW_7_8: Source = Source {
     checked: "2026-10-06",
 };
 
+/// The Bank of Russia's Order No. OD-2506: the signs of a transfer
+/// without the client's voluntary consent, from 1 January 2026.
+pub const OD_2506: Source = Source {
+    id: "order_od_2506",
+    title: "Приказ Банка России от 05.11.2025 N ОД-2506 «Об установлении признаков осуществления перевода денежных средств без добровольного согласия клиента и отмене приказа Банка России от 27 июня 2024 года N ОД-1027»",
+    url: "https://cbr.ru/Crosscut/LawActs/File/10123",
+    revision: "2025-11-05",
+    checked: "2026-10-06",
+};
+
+/// The Bank of Russia's information letter on informing clients of
+/// restrictions: name the law and its provision, keep 161-FZ and 115-FZ
+/// apart, state the client's next steps.
+pub const RESTRICTIONS_LETTER: Source = Source {
+    id: "letter_in_01_59_98",
+    title: "Информационное письмо Банка России от 26.08.2025 N ИН-01-59/98 «Об информировании клиентов при ограничении операций и дистанционных способов распоряжения счетом»",
+    url: "https://www.garant.ru/products/ipo/prime/doc/412494092/",
+    revision: "2025-08-26",
+    checked: "2026-10-06",
+};
+
+/// The Bank of Russia's recommendations on replies to complaints: plain
+/// language, no long sentences, concrete terms.
+pub const BANK_OF_RUSSIA_REPLY_PAGE: Source = Source {
+    id: "cbr_reply_page",
+    title: "Банк России, «Рассмотрение обращений потребителей финансовых услуг»",
+    url: "https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/",
+    revision: "2026-10-06",
+    checked: "2026-10-06",
+};
+
 /// Every source the crate encodes.
 pub const ALL: &[Source] = &[
     LABOUR_CODE_112,
@@ -235,4 +266,7 @@ pub const ALL: &[Source] = &[
     AML_LAW_7,
     AML_LAW_7_7,
     AML_LAW_7_8,
+    OD_2506,
+    RESTRICTIONS_LETTER,
+    BANK_OF_RUSSIA_REPLY_PAGE,
 ];

@@ -8,6 +8,8 @@
 //! (`invalid_date`, `outside_calendar`, ...), never a sentence.
 
 use crate::clock::{self, Case};
+use crate::reasons::{self, Reason};
+use crate::rubric::{self, ClientOption, Reply};
 use crate::{calendar, Date, Error};
 use wasm_bindgen::prelude::*;
 
@@ -461,6 +463,278 @@ pub fn clock(input: &CaseInput) -> Result<ClockOutput, JsError> {
     Ok(to_output(&clock::clock(&case).map_err(js)?))
 }
 
+/// A threshold a sign states.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct ThresholdOutput {
+    pub value: u32,
+    /// `roubles`, `hours` or `months`.
+    pub unit: String,
+    /// `more_than`, `less_than`, `at_least` or `within`.
+    pub bound: String,
+    /// What it bounds, in English.
+    pub of: String,
+}
+
+/// A sign of Order No. OD-2506.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct SignOutput {
+    /// The sign's number in the order ("1.10").
+    pub number: String,
+    /// The reason code ("od2506_1_10").
+    pub code: String,
+    /// `transfers` or `digital_rubles`.
+    pub group: String,
+    pub summary: String,
+    #[wasm_bindgen(js_name = appliesFrom)]
+    pub applies_from: String,
+    pub thresholds: Vec<ThresholdOutput>,
+    /// The wording, transcribed from the order, in Russian.
+    pub wording: String,
+}
+
+/// The signs of the Bank of Russia's Order No. OD-2506, in the order's
+/// order.
+#[wasm_bindgen(js_name = od2506Signs)]
+pub fn od2506_signs() -> Vec<SignOutput> {
+    reasons::SIGNS
+        .iter()
+        .map(|s| SignOutput {
+            number: s.number.into(),
+            code: s.code.into(),
+            group: match s.group {
+                reasons::SignGroup::Transfers => "transfers",
+                reasons::SignGroup::DigitalRubles => "digital_rubles",
+            }
+            .into(),
+            summary: s.summary.into(),
+            applies_from: s.applies_from.into(),
+            thresholds: s
+                .thresholds
+                .iter()
+                .map(|t| ThresholdOutput {
+                    value: t.value as u32,
+                    unit: match t.unit {
+                        reasons::Unit::Roubles => "roubles",
+                        reasons::Unit::Hours => "hours",
+                        reasons::Unit::Months => "months",
+                    }
+                    .into(),
+                    bound: match t.bound {
+                        reasons::Bound::MoreThan => "more_than",
+                        reasons::Bound::LessThan => "less_than",
+                        reasons::Bound::AtLeast => "at_least",
+                        reasons::Bound::Within => "within",
+                    }
+                    .into(),
+                    of: t.of.into(),
+                })
+                .collect(),
+            wording: s.wording.into(),
+        })
+        .collect()
+}
+
+/// A 115-FZ reason category.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct AmlReasonOutput {
+    pub code: String,
+    pub source: String,
+    pub article: String,
+    pub part: String,
+    pub revision: String,
+}
+
+/// The 115-FZ reason categories.
+#[wasm_bindgen(js_name = amlReasons)]
+pub fn aml_reasons() -> Vec<AmlReasonOutput> {
+    reasons::AML_REASONS
+        .iter()
+        .map(|r| {
+            let (source, article, part) = r.basis();
+            AmlReasonOutput {
+                code: r.code().into(),
+                source: source.id.into(),
+                article: article.into(),
+                part: part.into(),
+                revision: source.revision.into(),
+            }
+        })
+        .collect()
+}
+
+/// The act a reply names.
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActCode {
+    PaymentSystem = "payment_system",
+    AntiMoneyLaundering = "anti_money_laundering",
+    Ombudsman = "ombudsman",
+    ComplaintLaw = "complaint_law",
+    OtherLaw = "other_law",
+    Contract = "contract",
+}
+
+/// A legal ground a reply names.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct GroundInput {
+    pub act: ActCode,
+    pub article: String,
+    pub part: String,
+}
+
+#[wasm_bindgen]
+impl GroundInput {
+    #[wasm_bindgen(constructor)]
+    pub fn new(act: ActCode, article: String, part: String) -> GroundInput {
+        GroundInput { act, article, part }
+    }
+}
+
+/// A deadline as a reply states it.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct StatedDeadlineInput {
+    /// A deadline code (`antifraud_confirmation`, ...).
+    pub kind: String,
+    pub due: String,
+}
+
+#[wasm_bindgen]
+impl StatedDeadlineInput {
+    #[wasm_bindgen(constructor)]
+    pub fn new(kind: String, due: String) -> StatedDeadlineInput {
+        StatedDeadlineInput { kind, due }
+    }
+}
+
+/// A reply, structured, for the rubric.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct ReplyInput {
+    #[wasm_bindgen(js_name = repliedOn)]
+    pub replied_on: String,
+    pub grounds: Vec<GroundInput>,
+    /// Reason codes (`od2506_1_6`, `aml_operation_refused`, ...).
+    pub reasons: Vec<String>,
+    #[wasm_bindgen(js_name = nextSteps)]
+    pub next_steps: Vec<String>,
+    /// Option codes (`confirm_order`, `apply_to_commission`, ...).
+    #[wasm_bindgen(js_name = clientOptions)]
+    pub client_options: Vec<String>,
+    #[wasm_bindgen(js_name = statedDeadlines)]
+    pub stated_deadlines: Vec<StatedDeadlineInput>,
+    pub text: String,
+}
+
+#[wasm_bindgen]
+impl ReplyInput {
+    /// A reply going out on `replied_on` with `text`, nothing else filled.
+    #[wasm_bindgen(constructor)]
+    pub fn new(replied_on: String, text: String) -> ReplyInput {
+        ReplyInput {
+            replied_on,
+            grounds: Vec::new(),
+            reasons: Vec::new(),
+            next_steps: Vec::new(),
+            client_options: Vec::new(),
+            stated_deadlines: Vec::new(),
+            text,
+        }
+    }
+}
+
+/// One finding of the rubric.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct FindingOutput {
+    /// A finding code (`grounds_mixed`, ...).
+    pub code: String,
+    /// The option or deadline code the finding is about.
+    pub subject: Option<String>,
+    pub sentence: Option<u32>,
+    pub words: Option<u32>,
+    /// The source the check rests on, and where in it.
+    pub source: String,
+    pub reference: String,
+}
+
+fn to_reply(r: &ReplyInput) -> Result<Reply, Error> {
+    Ok(Reply {
+        replied_on: Date::parse(&r.replied_on)?,
+        grounds: r
+            .grounds
+            .iter()
+            .map(|g| {
+                Ok(rubric::Ground {
+                    act: match g.act {
+                        ActCode::PaymentSystem => rubric::Act::PaymentSystem,
+                        ActCode::AntiMoneyLaundering => rubric::Act::AntiMoneyLaundering,
+                        ActCode::Ombudsman => rubric::Act::Ombudsman,
+                        ActCode::ComplaintLaw => rubric::Act::ComplaintLaw,
+                        ActCode::OtherLaw => rubric::Act::OtherLaw,
+                        ActCode::Contract => rubric::Act::Contract,
+                        ActCode::__Invalid => return Err(Error::UnknownCode),
+                    },
+                    article: g.article.clone(),
+                    part: g.part.clone(),
+                })
+            })
+            .collect::<Result<_, Error>>()?,
+        reasons: r
+            .reasons
+            .iter()
+            .map(|c| Reason::parse(c))
+            .collect::<Result<_, Error>>()?,
+        next_steps: r.next_steps.clone(),
+        client_options: r
+            .client_options
+            .iter()
+            .map(|c| ClientOption::parse(c))
+            .collect::<Result<_, Error>>()?,
+        stated_deadlines: r
+            .stated_deadlines
+            .iter()
+            .map(|s| {
+                Ok(rubric::StatedDeadline {
+                    kind: clock::DeadlineKind::parse(&s.kind)?,
+                    due: Date::parse(&s.due)?,
+                })
+            })
+            .collect::<Result<_, Error>>()?,
+        text: r.text.clone(),
+    })
+}
+
+fn rubric_pure(reply: &ReplyInput, input: &CaseInput) -> Result<Vec<FindingOutput>, Error> {
+    let case = to_case(input)?;
+    let c = clock::clock(&case)?;
+    Ok(rubric::rubric(&to_reply(reply)?, &case, &c)
+        .into_iter()
+        .map(|f| {
+            let (source, reference) = f.code.basis();
+            FindingOutput {
+                code: f.code.code().into(),
+                subject: f.subject.map(String::from),
+                sentence: f.sentence,
+                words: f.words,
+                source: source.id.into(),
+                reference: reference.into(),
+            }
+        })
+        .collect())
+}
+
+/// The rubric's findings for a reply to a case: the case's clock is
+/// computed from the same input.
+#[wasm_bindgen]
+pub fn rubric(reply: &ReplyInput, input: &CaseInput) -> Result<Vec<FindingOutput>, JsError> {
+    rubric_pure(reply, input).map_err(js)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -499,6 +773,63 @@ mod tests {
             .deadlines
             .iter()
             .any(|d| d.kind == "antifraud_confirmation" && d.for_others));
+    }
+
+    #[test]
+    fn the_rubric_runs_over_the_same_input() {
+        // The antifraud transfer of the rubric tests, suspended on 8 May
+        // 2026: a reply that names 161-FZ and the 115-FZ category mixes
+        // the two laws and leaves out the confirmation and its date.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-08".into());
+        i.blocked_operation = Some(OperationCode::Transfer);
+        i.blocked_on = Some("2026-05-08".into());
+        let mut r = ReplyInput::new("2026-05-08".into(), "Перевод приостановлен.".into());
+        r.grounds = vec![GroundInput::new(
+            ActCode::PaymentSystem,
+            "8".into(),
+            "3.4".into(),
+        )];
+        r.reasons = vec!["aml_operation_refused".into()];
+        r.next_steps = vec!["Подтвердите перевод.".into()];
+        r.stated_deadlines = vec![StatedDeadlineInput::new(
+            "antifraud_suspension_ends".into(),
+            "2026-05-09".into(),
+        )];
+        let f = rubric_pure(&r, &i).unwrap();
+        let codes: Vec<_> = f
+            .iter()
+            .map(|x| (x.code.as_str(), x.subject.as_deref()))
+            .collect();
+        assert_eq!(
+            codes,
+            [
+                ("grounds_mixed", None),
+                ("client_option_missing", Some("confirm_order")),
+                ("deadline_missing", Some("antifraud_confirmation"))
+            ]
+        );
+        assert_eq!(f[0].source, "letter_in_01_59_98");
+        r.client_options = vec!["call_us".into()];
+        assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
+        r.client_options.clear();
+        r.reasons = vec!["od2506_9_9".into()];
+        assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
+    }
+
+    #[test]
+    fn signs_and_categories_cross_whole() {
+        let signs = od2506_signs();
+        assert_eq!(signs.len(), 14);
+        let s = signs.iter().find(|s| s.number == "1.12").unwrap();
+        assert_eq!(s.thresholds[0].value, 200_000);
+        assert_eq!(
+            (
+                s.thresholds[0].unit.as_str(),
+                s.thresholds[0].bound.as_str()
+            ),
+            ("roubles", "more_than")
+        );
+        assert_eq!(aml_reasons().len(), 7);
     }
 
     #[test]
