@@ -62,6 +62,4 @@
   overflow-wrap: anywhere;
 }
 .reply-draft p { margin: 0; }
-.reply-shown summary { cursor: pointer; }
-.reply-shown[open] summary { margin-block-end: var(--stoa-space-2); }
 .rubric-findings { margin: 0; padding-inline-start: var(--stoa-space-5); display: grid; gap: var(--stoa-space-1); }

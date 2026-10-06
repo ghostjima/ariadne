@@ -10,6 +10,7 @@ import {
   AlertDialog,
   Button,
   Callout,
+  Disclosure,
   LiveRegion,
   ProgressBar,
   ShortcutsDialog,
@@ -285,10 +286,9 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
     const summary = view?.snapshot.context.result?.summary;
     if (summary?.code === "reply_drafted" && writtenDraft)
       return (
-        <details className="reply-shown">
-          <summary>{t.rubric.draftShown}</summary>
+        <Disclosure className="reply-shown" summary={t.rubric.draftShown}>
           <ReplyDraftView x={x} draft={writtenDraft} />
-        </details>
+        </Disclosure>
       );
     if (summary?.code === "draft_checked") return <ReplyCheck x={x} draft={writtenDraft} facts={facts} />;
     return null;
