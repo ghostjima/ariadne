@@ -8,8 +8,17 @@ import {
   type Clock,
 } from "@ariadne/rules";
 import { dayNumber, isoDay } from "./days.js";
-import { Applicant, EXTENSION_WORKING_DAYS, STREAM_RULES } from "./schema.js";
-import { RulesFlag } from "./store.js";
+import {
+  AML_REASON_CODES,
+  Applicant,
+  ELECTRONIC_CHANNELS,
+  EXTENSION_WORKING_DAYS,
+  Operation,
+  STREAM_RULES,
+  Source,
+  Stream,
+} from "./schema.js";
+import { RulesFlag, isExtended, type ColumnStore } from "./store.js";
 
 /*
   The register's questions to ariadne-rules, with their answers cached:
@@ -138,4 +147,49 @@ export function replyClock(f: ReplyFacts): ReplyClock {
   };
   clocks.set(key, out);
   return out;
+}
+
+/* What a stored row says about its reply clock */
+export function rowReplyFacts(store: ColumnStore, i: number): ReplyFacts {
+  const claim = store.claim[i] ?? 0;
+  return {
+    stream: store.stream[i] ?? 0,
+    applicant: store.applicant[i] ?? 0,
+    forwarded: store.source[i] === Source.BankOfRussia,
+    electronic: ELECTRONIC_CHANNELS.includes(store.channel[i] ?? 0),
+    received: store.received[i] ?? 0,
+    registered: store.registered[i] ?? 0,
+    claim,
+    standardForm: store.claimForm[i] === 1,
+    breachOn: claim > 0 ? (store.opOn[i] ?? -1) : -1,
+  };
+}
+
+/* The 115-FZ decisions ariadne-rules counts from, by category */
+const AML_DECISION: Partial<Record<(typeof AML_REASON_CODES)[number], "refuse_operation" | "refuse_account" | "terminate_account">> = {
+  aml_operation_refused: "refuse_operation",
+  aml_account_refused: "refuse_account",
+  aml_account_terminated: "terminate_account",
+};
+
+/* Everything a stored row knows, as ariadne-rules takes it: the reply's
+   facts, the extension as it stands, the operation an antifraud block
+   stopped (refused for a card, Faster Payments or e-money, suspended for a
+   transfer by bank details), and the 115-FZ decision or measures. The
+   case card asks the module for its whole clock with these. */
+export function caseFacts(store: ColumnStore, i: number): CaseFacts {
+  const facts = replyFacts(rowReplyFacts(store, i), isExtended(store, i));
+  const stream = store.stream[i] ?? 0;
+  const on = isoDay(store.opOn[i] ?? 0);
+  const operation = store.operation[i] ?? 0;
+  if (stream === Stream.Antifraud && operation !== Operation.None) {
+    facts.blocked = { operation: operation === Operation.BankTransfer ? "transfer" : "card_sbp_or_emoney", on };
+  }
+  if (stream === Stream.Aml) {
+    const category = AML_REASON_CODES[(store.reason[i] ?? 1) - 1];
+    const kind = category ? AML_DECISION[category] : undefined;
+    if (kind) facts.aml = { decision: { kind, on } };
+    else if (category === "aml_high_risk_measures") facts.aml = { highRiskMeasuresOn: on };
+  }
+  return facts;
 }
