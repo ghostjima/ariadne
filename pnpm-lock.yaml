@@ -83,16 +83,13 @@ importers:
       '@ariadne/grid':
         specifier: workspace:*
         version: link:../../packages/grid
+      '@ariadne/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       '@fontsource/ibm-plex-mono':
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/ibm-plex-sans':
-        specifier: 5.3.0
-        version: 5.3.0
-      '@fontsource/ibm-plex-sans-arabic':
-        specifier: 5.3.0
-        version: 5.3.0
-      '@fontsource/noto-sans-arabic':
         specifier: 5.3.0
         version: 5.3.0
       '@ghostjima/stoa-react':

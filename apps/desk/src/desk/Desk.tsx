@@ -35,18 +35,25 @@ import {
   type ShortcutGroup,
 } from "@ghostjima/stoa-react";
 import {
+  AS_OF_DAY,
+  CORPUS_CHUNK,
+  CORPUS_ROWS,
   CSV_LIMIT,
+  DEFAULT_SEED,
   DEFAULT_VIEW,
   EMPTY_FILTERS,
   EditHistory,
-  OPERATOR_REGIONS,
   PRESET_VIEWS,
-  REGION_COUNT,
+  SCALE_CHUNK,
+  SCALE_ROWS,
+  SELF_ASSIGNEE,
+  SELF_SIGNATORY,
+  Stage,
   activeFilterCount,
   applyRemoteEdit,
   beginEdit,
   canBulk,
-  canEdit,
+  canEditColumn,
   canExport,
   colleagueSchedule,
   criteriaFor,
@@ -82,13 +89,13 @@ import { afterPaint, record, recordFirstRows } from "./metrics";
 import { PerfPanel } from "./PerfPanel";
 import { readSavedViews, readUrlConfig, setParam, writeSavedViews, type UrlConfig } from "./settings";
 
-const SEED = 20260904;
-/** The view the desk opens on: the requests that need someone's action,
- * with their SLA. First in the list of views. */
-const START_VIEW = PRESET_VIEWS.find((v) => v.name === "action") ?? DEFAULT_VIEW;
+const SEED = DEFAULT_SEED;
+/** The view the desk opens on: the open cases, the least time left
+ * first. First in the list of views. */
+const START_VIEW = PRESET_VIEWS.find((v) => v.name === "open") ?? DEFAULT_VIEW;
 const PRESETS = [START_VIEW, ...PRESET_VIEWS.filter((v) => v !== START_VIEW)];
-/** Statuses offered for a bulk change. */
-const BULK_STATUSES = [1, 3, 4, 6];
+const EDITABLE: readonly string[] = ["stage", "outcome", "ground", "extension", "assignee", "note"];
+const isEditColumn = (column: string): column is EditColumn => EDITABLE.includes(column);
 
 /** Row keys, one string per store row, made once. */
 let keys: string[] = [];
@@ -99,6 +106,8 @@ type Conflict = { row: number; col: EditColumn; mine: string; base: CellValue; t
 function createEngine(config: UrlConfig): DeskEngine {
   return new DeskEngine({
     seed: SEED,
+    total: config.scale ? SCALE_ROWS : CORPUS_ROWS,
+    chunkSize: config.scale ? SCALE_CHUNK : CORPUS_CHUNK,
     failChunks: config.failChunks,
     createWorker: config.useWorker ? () => new Worker(new URL("../data/desk.worker.ts", import.meta.url), { type: "module" }) : undefined,
   });
@@ -128,7 +137,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const bump = () => setVersion((v) => v + 1);
   const [announcement, setAnnouncement] = useState("");
   const [dialog, setDialog] = useState<"save" | "delete" | "columns" | "shortcuts" | null>(null);
-  const [bulkStatus, setBulkStatus] = useState(BULK_STATUSES[0]!);
+  const [bulkAssignee, setBulkAssignee] = useState(SELF_ASSIGNEE);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [session, setSession] = useState<EditSession | null>(null);
 
@@ -180,7 +189,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const ids = useMemo(() => visibleColumns(view, role), [view.columns, role]); // eslint-disable-line react-hooks/exhaustive-deps
   const narrow = useNarrow();
   const columns = useMemo(
-    () => buildColumns(ids, { store, lang, t, formats, editable: canEdit(role), pin: !narrow }),
+    () => buildColumns(ids, { store, lang, t, formats, role, pin: !narrow }),
     [ids, store, lang, t, formats, role, narrow],
   );
 
@@ -233,7 +242,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const changeRole = (next: Role) => {
     mark("filter");
     setRole(next);
-    setParam("role", next === "manager" ? null : next);
+    setParam("role", next === "supervisor" ? null : next);
     setSelection(new Set());
   };
 
@@ -249,7 +258,6 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   };
   const anyFilter = hasActiveFilters(filters) || view.search.trim() !== "";
   const facets = result?.facets;
-  const regions = role === "operator" ? OPERATOR_REGIONS : Array.from({ length: REGION_COUNT }, (_, i) => i);
 
   // Edits. An edit session (the value the editor started from) runs from
   // the grid's edit start to its save or cancel.
@@ -258,7 +266,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const focusGrid = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]')?.focus();
   const sessionRef = useRef<EditSession | null>(null);
   const onEditStart = ({ row, column }: DataGridEditTarget<number>) => {
-    if (column !== "status" && column !== "comment") return;
+    if (!isEditColumn(column)) return;
     const s = beginEdit(store, row, column);
     sessionRef.current = s;
     frozen.current = shownResult.current;
@@ -273,23 +281,23 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const applyEdit = (row: number, col: EditColumn, value: string): string | null => {
     const now = Date.now();
     const res =
-      col === "status"
-        ? history.current.setStatus(store, [row], Number(value), now)
-        : history.current.setComment(store, row, { kind: "text", text: normalizeDraft(col, value) }, now);
+      col === "note"
+        ? history.current.setNote(store, row, { kind: "text", text: normalizeDraft(col, value) }, role, now)
+        : history.current.setField(store, [row], col, Number(value), role, now);
     const refused = res.rejected[0];
     if (refused) {
-      const reason = editErrorText(t, formats, refused.error);
+      const reason = editErrorText(t, formats, labels, refused.error);
       announce(t.editRefused(rowId(row), reason));
       return reason;
     }
-    engine.sync([row], col === "comment");
+    engine.sync([row], col === "note");
     bump();
     announce(t.editSaved(rowId(row), labels.columns[col] ?? col, cellValueText(readCell(store, row, col), lang, t)));
     return null;
   };
 
   const onEdit = ({ row, column, value }: DataGridEdit<number>) => {
-    if (column !== "status" && column !== "comment") return;
+    if (!isEditColumn(column)) return;
     const s = sessionRef.current;
     endSession();
     if (s && s.row === row && s.col === column) {
@@ -306,10 +314,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     id: rowId(conflict.row),
     column: labels.columns[conflict.col] ?? conflict.col,
     theirs: cellValueText(conflict.theirs, lang, t),
-    mine:
-      conflict.col === "status"
-        ? cellValueText({ col: "status", value: Number(conflict.mine) }, lang, t)
-        : conflict.mine.trim() || t.emptyComment,
+    mine: conflict.col === "note" ? conflict.mine.trim() || t.emptyNote : cellValueText({ col: conflict.col, value: Number(conflict.mine) }, lang, t),
     started: cellValueText(conflict.base, lang, t),
     error: conflict.error,
     dismissed: conflict.dismissed,
@@ -353,7 +358,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     const edit = planColleagueEdit(store, visible, tick.current++, s);
     if (!edit) return;
     applyRemoteEdit(store, edit, Date.now());
-    engine.sync([edit.row], edit.cell.col === "comment");
+    engine.sync([edit.row], edit.cell.col === "note");
     bump();
     const id = rowId(edit.row);
     const column = labels.columns[edit.cell.col] ?? edit.cell.col;
@@ -396,7 +401,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
       announce(t.nothingToUndo);
       return;
     }
-    engine.sync(r.restored, r.entry.kind === "comment");
+    engine.sync(r.restored, r.entry.kind === "note");
     bump();
     const n = r.restored.length;
     const c = r.conflicts.length;
@@ -416,7 +421,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
 
   const applyBulk = () => {
     if (selectedRows.length === 0 || !canBulk(role)) return;
-    const res = history.current.setStatus(store, selectedRows, bulkStatus, Date.now());
+    const res = history.current.setField(store, selectedRows, "assignee", bulkAssignee, role, Date.now());
     const skipped = res.rejected.length;
     closeBulk();
     if (!res.entry) {
@@ -426,7 +431,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     engine.sync(res.applied, false);
     bump();
     const n = res.applied.length;
-    const text = [t.bulkDone(labels.status[bulkStatus] ?? "", integer(n), n), skipped > 0 ? t.bulkSkipped(integer(skipped)) : ""].filter(Boolean).join(" ");
+    const text = [t.bulkDone(pools.assignees[bulkAssignee] ?? "", integer(n), n), skipped > 0 ? t.bulkSkipped(integer(skipped)) : ""].filter(Boolean).join(" ");
     toasts.add({ tone: skipped > 0 ? "warning" : "positive", text, action: { label: t.undo, onAction: undoLast }, timeout: 10_000 });
   };
 
@@ -530,40 +535,54 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const hidden = hiddenForRole(view, role);
   const shownCount = result?.index.length ?? 0;
 
+  const chips = (list: readonly string[], counts: Uint32Array | undefined) => list.map((label, i) => ({ id: i, label, count: counts?.[i] }));
   const chipGroups = (
     <>
       <ChipRow>
         <FilterChipGroup<number>
-          label={t.statusGroup}
+          label={t.stageGroup}
           size="small"
-          chips={labels.status.map((label, i) => ({ id: i, label, count: facets?.status[i] }))}
-          value={filters.status}
-          onChange={(status) => setFilters({ status })}
+          chips={chips(labels.stage, facets?.stage)}
+          value={filters.stage}
+          onChange={(stage) => setFilters({ stage })}
         />
       </ChipRow>
       <ChipRow>
         <FilterChipGroup<number>
-          label={t.priorityGroup}
+          label={t.deadlineGroup}
           size="small"
-          chips={labels.priority.map((label, i) => ({ id: i, label, count: facets?.priority[i] }))}
-          value={filters.priority}
-          onChange={(priority) => setFilters({ priority })}
+          chips={chips(labels.deadline, facets?.deadline)}
+          value={filters.deadline}
+          onChange={(deadline) => setFilters({ deadline })}
         />
-        <FilterChip size="small" isSelected={filters.slaBreached} onChange={(on) => setFilters({ slaBreached: on })} count={facets?.slaBreached}>
-          {t.slaBreached}
-        </FilterChip>
       </ChipRow>
       <ChipRow>
         <FilterChipGroup<number>
-          label={t.regionGroup}
+          label={t.streamGroup}
           size="small"
-          chips={regions.map((i) => ({ id: i, label: pools.regions[i] ?? "", count: facets?.region[i] }))}
-          value={filters.regions.filter((r) => regions.includes(r))}
-          onChange={(regions) => setFilters({ regions })}
+          chips={chips(labels.stream, facets?.stream)}
+          value={filters.stream}
+          onChange={(stream) => setFilters({ stream })}
+        />
+      </ChipRow>
+      <ChipRow>
+        <FilterChipGroup<number>
+          label={t.sourceGroup}
+          size="small"
+          chips={chips(labels.source, facets?.source)}
+          value={filters.source}
+          onChange={(source) => setFilters({ source })}
         />
       </ChipRow>
     </>
   );
+
+  // The open cases of the register, for the demo's line about the data.
+  const openCount = useMemo(() => {
+    let n = 0;
+    for (let i = 0; i < store.size; i++) if (store.loaded[i] === 1 && (store.stage[i] ?? 0) < Stage.Sent) n++;
+    return n;
+  }, [store, snap.load.loadedRows, version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="desk">
@@ -572,7 +591,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           controls, and saying what the colleague does. */}
       <section className="desk__demo" aria-label={t.demoTitle}>
         <p>
-          {t.demoData(integer(store.size))}{" "}
+          {t.demoData(integer(store.size), integer(openCount))}{" "}
           {config.colleagueSeconds === null ? t.demoColleagueOff : t.demoColleague(integer(config.colleagueSeconds))}
         </p>
         <ChoiceGroup<Role>
@@ -582,7 +601,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onChange={changeRole}
           choices={[
             { id: "operator", label: t.roles.operator },
-            { id: "manager", label: t.roles.manager },
+            { id: "signatory", label: t.roles.signatory },
+            { id: "supervisor", label: t.roles.supervisor },
           ]}
         />
         <Button onPress={simulate}>{t.simulateColleague}</Button>
@@ -661,6 +681,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
               failed: load.chunkErrors.reduce((n, e) => n + e.count, 0),
             })}
           </p>
+          <span className="muted">{t.asOf(formats.day(AS_OF_DAY))}</span>
           {snap.busy && result && <span className="muted">{t.updating}</span>}
           {anyFilter && (
             <Button variant="ghost" onPress={clearFilters}>
@@ -671,11 +692,11 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
         {narrow && <p className="muted desk__hint">{t.narrowHint}</p>}
       </section>
 
-      {role === "operator" && (
+      {role !== "supervisor" && (
+        // What the role works on and may not do; the supervisor may do all.
         <Callout tone="info" role="none">
-          {t.operatorNote(OPERATOR_REGIONS.map((r) => pools.regions[r]).join(", "))}{" "}
-          {hidden.length > 0 && `${t.operatorHidden(hidden.map((id) => labels.columns[id] ?? id).join(", "))} `}
-          {t.operatorActions}
+          {role === "operator" ? t.roleNotes.operator(pools.assignees[SELF_ASSIGNEE] ?? "") : t.roleNotes.signatory(pools.signatories[SELF_SIGNATORY] ?? "")}
+          {hidden.length > 0 && ` ${t.roleHidden(hidden.map((id) => labels.columns[id] ?? id).join(", "))}`}
         </Callout>
       )}
       {snap.mode === "main" && (
@@ -713,16 +734,16 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           {canBulk(role) ? (
             <>
               <Select<number>
-                label={t.bulkStatus}
+                label={t.bulkAssignee}
                 size="small"
-                options={BULK_STATUSES.map((s) => ({ id: s, label: labels.status[s] ?? "" }))}
-                value={bulkStatus}
-                onChange={setBulkStatus}
+                options={pools.assignees.map((name, id) => ({ id, label: name }))}
+                value={bulkAssignee}
+                onChange={setBulkAssignee}
               />
               <Button variant="primary" onPress={applyBulk}>{t.apply}</Button>
             </>
           ) : (
-            <p className="muted">{t.bulkNeedsManager}</p>
+            <p className="muted">{t.bulkNeedsSupervisor}</p>
           )}
           <Button variant="ghost" onPress={closeBulk}>{t.clearSelection}</Button>
         </section>

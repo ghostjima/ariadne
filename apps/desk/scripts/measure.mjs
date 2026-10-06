@@ -36,10 +36,11 @@ async function waitForServer() {
   throw new Error("vite preview did not start");
 }
 
-// On all 50,000 requests (the desk opens on the ones that need action).
+// On all 50,000 cases of the scale mode (the desk opens on the open ones
+// of its realistic register).
 async function openDesk(page, query = "colleague=off") {
-  await page.goto(`${BASE}/?${query}&view=${serializeView(DEFAULT_VIEW)}`);
-  await page.getByTestId("row-count").filter({ hasText: "50,000 of 50,000 requests" }).waitFor({ timeout: 20_000 });
+  await page.goto(`${BASE}/?${query}&scale=50000&view=${serializeView(DEFAULT_VIEW)}`);
+  await page.getByTestId("row-count").filter({ hasText: "50,000 of 50,000 cases" }).waitFor({ timeout: 20_000 });
 }
 
 /** Round trips and worker compute of every query, kept across phases. */
@@ -96,7 +97,7 @@ async function main() {
     // Filter latency: status chips toggled on and off (input to repainted
     // grid, the app's argus:filter measure).
     await clearMeasures(page);
-    const chips = ["New", "In progress", "Approved", "Closed", "High", "Medium"];
+    const chips = ["Registered", "Waiting for facts", "Closed", "Overdue", "Block, 161-FZ", "Bank of Russia"];
     for (let i = 0; i < 40; i++) {
       await timed(page, "filter", () => page.getByRole("button", { name: new RegExp(`^${chips[i % chips.length]} \\d`) }).click());
     }
@@ -105,7 +106,7 @@ async function main() {
     // Search: a query typed into the search field, one sample per value.
     await timed(page, "filter", () => page.getByRole("button", { name: "Clear filters" }).first().click());
     await clearMeasures(page);
-    const words = ["logistics", "vip", "nora", "documents", "z-0001", "kestrel", "refund", "urgent", "glass", "b2b"];
+    const words = ["transfer", "vetlugina", "c-0001", "refund", "card", "op-", "llc", "fee", "app", "lanskaya"];
     for (let i = 0; i < 30; i++) {
       await timed(page, "filter", () => page.getByLabel("Search").fill(words[i % words.length]));
     }
@@ -114,7 +115,7 @@ async function main() {
 
     // Sort latency: header clicks over numeric and text columns.
     await clearMeasures(page);
-    const headers = ["Amount", "Client", "Date", "Owner", "ID"];
+    const headers = ["Time left", "Applicant", "Reply due", "Stage", "Case"];
     for (let i = 0; i < 30; i++) {
       await timed(page, "sort", () => page.getByRole("columnheader", { name: headers[i % headers.length], exact: true }).click());
     }
@@ -210,7 +211,7 @@ async function main() {
     const lines = [
       `commit ${commit}${dirty ? " (working tree has changes)" : ""}; ${os.cpus()[0].model}, ${os.cpus().length} cores, ${Math.round(os.totalmem() / 2 ** 30)} GB, macOS ${sh("sw_vers -productVersion")}; Chromium ${out.browser} headless (Playwright); Node ${process.version}; viewport ${VIEWPORT.width} x ${VIEWPORT.height}; production build (vite preview)`,
       `first rows (navigation start to first painted frame with rows, ${RUNS} fresh loads): median ${f1(pct(out.firstRows, 50))} ms, min ${f1(Math.min(...out.firstRows))}, max ${f1(Math.max(...out.firstRows))}`,
-      `filter, status and priority chips (input to repainted grid): ${dist(out.chip)}`,
+      `filter, stage, deadline, stream and source chips (input to repainted grid): ${dist(out.chip)}`,
       `filter, search text (input to repainted grid): ${dist(out.search)}`,
       `sort, header click (input to repainted grid): ${dist(out.sort)}`,
       `worker round trip (query posted to result received, every query above): ${dist(out.roundTrip)}`,

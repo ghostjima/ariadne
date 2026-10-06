@@ -4,7 +4,7 @@
 // meanwhile goes out, once, when it returns. Without a worker (none
 // created, or it failed) the same work runs on the main thread, one task
 // per query. A small external store for useSyncExternalStore.
-import { DatasetLoader, getComment, type ColumnStore, type Facets, type LoadSnapshot, type WorkerLike } from "@ariadne/grid";
+import { DatasetLoader, getNote, type ColumnStore, type Facets, type LoadSnapshot, type WorkerLike } from "@ariadne/grid";
 import { isLoaderMessage, type DeskRequest, type DeskResponse, type QueryResponse, type SyncRequest } from "./protocol";
 import { QueryEngine, type Query } from "./query";
 
@@ -34,6 +34,7 @@ export type EngineOptions = {
   createWorker?: () => Worker;
   failChunks?: number[];
   total?: number;
+  chunkSize?: number;
   seed?: number;
 };
 
@@ -54,6 +55,7 @@ export class DeskEngine {
     const create = options.createWorker;
     this.loader = new DatasetLoader({
       total: options.total,
+      chunkSize: options.chunkSize,
       seed: options.seed,
       failChunks: options.failChunks,
       createWorker: create ? () => this.attach(create()) : undefined,
@@ -115,26 +117,36 @@ export class DeskEngine {
 
   /** Rows of the page's store were edited: copies them to the worker (or
    * tells the main-thread engine), then asks the query again. */
-  sync(rows: ArrayLike<number>, comments: boolean): void {
+  sync(rows: ArrayLike<number>, notes: boolean): void {
     if (rows.length === 0) return;
     if (this.worker) {
       const store = this.store;
+      const n = rows.length;
       const msg: SyncRequest = {
         type: "sync",
         rows: Uint32Array.from(rows),
-        status: new Uint8Array(rows.length),
-        slaBreached: new Uint8Array(rows.length),
-        updatedAt: new Float64Array(rows.length),
-        comments: comments ? [] : undefined,
+        stage: new Uint8Array(n),
+        outcome: new Uint8Array(n),
+        ground: new Uint8Array(n),
+        extension: new Uint8Array(n),
+        assignee: new Uint8Array(n),
+        sentOn: new Int32Array(n),
+        updatedAt: new Float64Array(n),
+        notes: notes ? [] : undefined,
       };
-      for (let k = 0; k < rows.length; k++) {
+      for (let k = 0; k < n; k++) {
         const row = rows[k]!;
-        msg.status[k] = store.status[row] ?? 0;
-        msg.slaBreached[k] = store.slaBreached[row] ?? 0;
+        msg.stage[k] = store.stage[row] ?? 0;
+        msg.outcome[k] = store.outcome[row] ?? 0;
+        msg.ground[k] = store.ground[row] ?? 0;
+        msg.extension[k] = store.extension[row] ?? 0;
+        msg.assignee[k] = store.assignee[row] ?? 0;
+        msg.sentOn[k] = store.sentOn[row] ?? -1;
         msg.updatedAt[k] = store.updatedAt[row] ?? 0;
-        msg.comments?.push(getComment(store, row));
+        msg.notes?.push(getNote(store, row));
       }
-      this.post(msg, [msg.rows.buffer, msg.status.buffer, msg.slaBreached.buffer, msg.updatedAt.buffer]);
+      const buffers = [msg.rows, msg.stage, msg.outcome, msg.ground, msg.extension, msg.assignee, msg.sentOn, msg.updatedAt];
+      this.post(msg, buffers.map((b) => b.buffer as ArrayBuffer));
     } else {
       this.local?.rowsEdited(rows);
     }

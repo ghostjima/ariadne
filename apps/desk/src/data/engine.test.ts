@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_CRITERIA, writeStatus } from "@ariadne/grid";
+import { EMPTY_CRITERIA, writeField } from "@ariadne/grid";
 import { DeskEngine } from "./engine";
 import { createDeskHandler } from "./handler";
 import type { DeskRequest } from "./protocol";
@@ -44,35 +44,35 @@ const all = { criteria: EMPTY_CRITERIA, sort: null, lang: "en" as const };
 describe("DeskEngine", () => {
   it("loads through the worker and answers the latest query once", async () => {
     const worker = new FakeWorker();
-    const engine = new DeskEngine({ total: 12_000, createWorker: () => worker as unknown as Worker });
+    const engine = new DeskEngine({ total: 12_000, chunkSize: 5_000, createWorker: () => worker as unknown as Worker });
     engine.query(all);
     engine.start();
     await settled(engine, (e) => !e.getSnapshot().load.loading && e.getSnapshot().result?.index.length === 12_000 && !e.getSnapshot().busy);
     expect(engine.getSnapshot().mode).toBe("worker");
     // Three queries asked at once: one goes out now, the last one after it.
     const before = engine.getSnapshot().result!.id;
-    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, status: [0] } });
-    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, status: [1] } });
-    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, status: [2] } });
+    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, stage: [0] } });
+    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, stage: [1] } });
+    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, stage: [2] } });
     await settled(engine, (e) => !e.getSnapshot().busy && e.getSnapshot().result!.id > before + 1);
     const result = engine.getSnapshot().result!;
     expect(result.id).toBe(before + 2);
     const store = engine.store;
-    expect(Array.from(result.index).every((i) => store.status[i] === 2)).toBe(true);
+    expect(Array.from(result.index).every((i) => store.stage[i] === 2)).toBe(true);
     expect(result.roundTripMs).toBeGreaterThanOrEqual(0);
     engine.stop();
   });
 
   it("copies edits to the worker before asking again", async () => {
     const worker = new FakeWorker();
-    const engine = new DeskEngine({ total: 5_000, createWorker: () => worker as unknown as Worker });
-    const closed = { ...all, criteria: { ...EMPTY_CRITERIA, status: [6] } };
+    const engine = new DeskEngine({ total: 5_000, chunkSize: 5_000, createWorker: () => worker as unknown as Worker });
+    const closed = { ...all, criteria: { ...EMPTY_CRITERIA, stage: [6] } };
     engine.query(closed);
     engine.start();
     await settled(engine, (e) => !e.getSnapshot().load.loading && !e.getSnapshot().busy && e.getSnapshot().result !== null);
     const before = engine.getSnapshot().result!.index.length;
-    const row = Array.from({ length: 5_000 }, (_, i) => i).find((i) => engine.store.status[i] !== 6)!;
-    writeStatus(engine.store, row, 6, Date.now());
+    const row = Array.from({ length: 5_000 }, (_, i) => i).find((i) => engine.store.stage[i] !== 6)!;
+    writeField(engine.store, row, "stage", 6, Date.now());
     const id = engine.getSnapshot().result!.id;
     engine.sync([row], false);
     await settled(engine, (e) => e.getSnapshot().result!.id > id && !e.getSnapshot().busy);
@@ -82,21 +82,21 @@ describe("DeskEngine", () => {
 
   it("moves to the main thread when the worker fails, and still answers", async () => {
     const worker = new FakeWorker();
-    const engine = new DeskEngine({ total: 5_000, createWorker: () => worker as unknown as Worker });
+    const engine = new DeskEngine({ total: 5_000, chunkSize: 5_000, createWorker: () => worker as unknown as Worker });
     engine.query(all);
     engine.start();
     await settled(engine, (e) => !e.getSnapshot().load.loading && e.getSnapshot().result !== null && !e.getSnapshot().busy);
     worker.failOnQuery = true;
-    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, priority: [2] } });
+    engine.query({ ...all, criteria: { ...EMPTY_CRITERIA, stream: [2] } });
     await settled(engine, (e) => e.getSnapshot().mode === "main" && !e.getSnapshot().busy && e.getSnapshot().result!.index.length < 5_000);
-    expect(Array.from(engine.getSnapshot().result!.index).every((i) => engine.store.priority[i] === 2)).toBe(true);
-    const csv = await engine.csv(engine.getSnapshot().result!.index, ["id", "priority"], "en", 3);
+    expect(Array.from(engine.getSnapshot().result!.index).every((i) => engine.store.stream[i] === 2)).toBe(true);
+    const csv = await engine.csv(engine.getSnapshot().result!.index, ["id", "stream"], "en", 3);
     expect(csv.split("\r\n")).toHaveLength(4);
     engine.stop();
   });
 
   it("works without a worker, and reports failed chunks until retried", async () => {
-    const engine = new DeskEngine({ total: 10_000, failChunks: [1] });
+    const engine = new DeskEngine({ total: 10_000, chunkSize: 5_000, failChunks: [1] });
     engine.query(all);
     engine.start();
     await settled(engine, (e) => !e.getSnapshot().load.loading && !e.getSnapshot().busy && e.getSnapshot().result !== null);

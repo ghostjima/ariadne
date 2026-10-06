@@ -1,7 +1,7 @@
 // Messages between the page and the desk worker. The worker answers
 // @ariadne/grid's own generate and retry requests with its chunk producer (so
 // DatasetLoader drives it unchanged), and adds queries, edits and CSV.
-import type { CommentValue, Facets, WorkerRequest, WorkerResponse } from "@ariadne/grid";
+import type { Facets, NoteValue, WorkerRequest, WorkerResponse } from "@ariadne/grid";
 import type { Query } from "./query";
 
 export type QueryRequest = { type: "query"; id: number } & Query;
@@ -10,11 +10,15 @@ export type QueryRequest = { type: "query"; id: number } & Query;
 export type SyncRequest = {
   type: "sync";
   rows: Uint32Array;
-  status: Uint8Array;
-  slaBreached: Uint8Array;
+  stage: Uint8Array;
+  outcome: Uint8Array;
+  ground: Uint8Array;
+  extension: Uint8Array;
+  assignee: Uint8Array;
+  sentOn: Int32Array;
   updatedAt: Float64Array;
-  /** Present when comments changed. */
-  comments?: CommentValue[];
+  /** Present when notes changed. */
+  notes?: NoteValue[];
 };
 
 export type CsvRequest = { type: "csv"; id: number; index: Uint32Array; columns: string[]; lang: Query["lang"]; limit: number };
