@@ -1,6 +1,6 @@
-import { COLUMN_BY_ID, DEFAULT_COLUMNS, PRESET_IDS } from "./schema.js";
+import { COLUMN_BY_ID, DEFAULT_COLUMNS, DeadlineClass, PRESET_IDS, Source, Stage } from "./schema.js";
 import type { Criteria, Sort } from "./filter.js";
-import { allowedRegions, type Role } from "./roles.js";
+import { roleScope, type Role } from "./roles.js";
 
 /*
   A "view" is everything the user configured: filters, search, visible
@@ -13,10 +13,10 @@ import { allowedRegions, type Role } from "./roles.js";
 export type Density = "compact" | "default" | "comfortable";
 
 export type ViewFilters = {
-  status: number[];
-  priority: number[];
-  slaBreached: boolean;
-  regions: number[];
+  stage: number[];
+  stream: number[];
+  source: number[];
+  deadline: number[];
 };
 
 export type View = {
@@ -29,12 +29,15 @@ export type View = {
   density: Density;
 };
 
-export const EMPTY_FILTERS: ViewFilters = {
-  status: [],
-  priority: [],
-  slaBreached: false,
-  regions: [],
-};
+export const EMPTY_FILTERS: ViewFilters = { stage: [], stream: [], source: [], deadline: [] };
+
+const OPEN_STAGES = [
+  Stage.Registered,
+  Stage.WaitingForFacts,
+  Stage.Drafting,
+  Stage.LegalReview,
+  Stage.AwaitingSignature,
+];
 
 export const DEFAULT_VIEW: View = {
   name: "all",
@@ -45,33 +48,61 @@ export const DEFAULT_VIEW: View = {
   density: "default",
 };
 
+/* The least time left first, in every working view */
+const BY_TIME_LEFT: Sort = { id: "left", desc: false };
+
 export const PRESET_VIEWS: readonly View[] = [
+  {
+    /* Every case still to answer */
+    name: "open",
+    filters: { ...EMPTY_FILTERS, stage: OPEN_STAGES },
+    search: "",
+    columns: ["id", "client", "stream", "stage", "left", "due", "source", "assignee"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
+  {
+    name: "dueSoon",
+    filters: { ...EMPTY_FILTERS, deadline: [DeadlineClass.DueSoon] },
+    search: "",
+    columns: ["id", "client", "left", "due", "stage", "stream", "extension", "assignee"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
+  {
+    name: "overdue",
+    filters: { ...EMPTY_FILTERS, deadline: [DeadlineClass.Overdue] },
+    search: "",
+    columns: ["id", "client", "left", "due", "stage", "stream", "source", "assignee"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
+  {
+    /* A same-day copy of every notice and the reply goes to the regulator */
+    name: "forwarded",
+    filters: { ...EMPTY_FILTERS, stage: OPEN_STAGES, source: [Source.BankOfRussia] },
+    search: "",
+    columns: ["id", "client", "stream", "left", "due", "stage", "received", "assignee"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
+  {
+    name: "waitingForFacts",
+    filters: { ...EMPTY_FILTERS, stage: [Stage.WaitingForFacts] },
+    search: "",
+    columns: ["id", "client", "stream", "reason", "left", "due", "extension", "assignee"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
+  {
+    name: "awaitingSignature",
+    filters: { ...EMPTY_FILTERS, stage: [Stage.AwaitingSignature] },
+    search: "",
+    columns: ["id", "client", "stream", "outcome", "ground", "left", "due", "signatory"],
+    sort: BY_TIME_LEFT,
+    density: "default",
+  },
   DEFAULT_VIEW,
-  {
-    name: "urgent",
-    filters: { status: [0, 1], priority: [2], slaBreached: true, regions: [] },
-    search: "",
-    columns: ["id", "client", "priority", "sla", "status", "owner", "region", "date"],
-    sort: { id: "sla", desc: false },
-    density: "compact",
-  },
-  {
-    name: "finance",
-    filters: { status: [4, 6], priority: [], slaBreached: false, regions: [] },
-    search: "",
-    columns: ["id", "client", "amount", "currency", "revenue", "cost", "marginAbs", "marginPct"],
-    sort: { id: "amount", desc: true },
-    density: "default",
-  },
-  {
-    /* What needs someone's action: open requests, the least SLA time first */
-    name: "action",
-    filters: { status: [0, 1, 2, 3], priority: [], slaBreached: false, regions: [] },
-    search: "",
-    columns: ["id", "client", "status", "sla", "priority", "owner", "region", "amount", "date"],
-    sort: { id: "sla", desc: false },
-    density: "default",
-  },
 ];
 
 export function isPreset(name: string): boolean {
@@ -79,22 +110,22 @@ export function isPreset(name: string): boolean {
 }
 
 export function hasActiveFilters(f: ViewFilters): boolean {
-  return f.status.length > 0 || f.priority.length > 0 || f.slaBreached || f.regions.length > 0;
+  return f.stage.length > 0 || f.stream.length > 0 || f.source.length > 0 || f.deadline.length > 0;
 }
 
 export function activeFilterCount(f: ViewFilters): number {
-  return f.status.length + f.priority.length + (f.slaBreached ? 1 : 0) + f.regions.length;
+  return f.stage.length + f.stream.length + f.source.length + f.deadline.length;
 }
 
 /* Filter criteria for a view as seen by a role */
 export function criteriaFor(view: View, role: Role): Criteria {
   return {
-    status: view.filters.status,
-    priority: view.filters.priority,
-    slaBreached: view.filters.slaBreached,
-    regions: view.filters.regions,
+    stage: view.filters.stage,
+    stream: view.filters.stream,
+    source: view.filters.source,
+    deadline: view.filters.deadline,
     search: view.search,
-    allowedRegions: allowedRegions(role),
+    scope: roleScope(role),
   };
 }
 
@@ -125,11 +156,15 @@ export function removeView(saved: readonly View[], name: string): View[] {
   return saved.filter((v) => v.name !== name);
 }
 
-/* URL serialization: compact JSON in base64url */
+/* URL serialization: compact JSON in base64url. `v` is the wire version:
+   views saved before the complaints register (no `v`) do not parse. */
+
+const WIRE_VERSION = 2;
 
 type Wire = {
+  v: number;
   n: string;
-  f: [number[], number[], 0 | 1, number[]];
+  f: [number[], number[], number[], number[]];
   q: string;
   c: string[];
   s: [string, 0 | 1] | null;
@@ -153,13 +188,9 @@ function fromBase64Url(s: string): string {
 
 export function serializeView(view: View): string {
   const w: Wire = {
+    v: WIRE_VERSION,
     n: view.name,
-    f: [
-      view.filters.status,
-      view.filters.priority,
-      view.filters.slaBreached ? 1 : 0,
-      view.filters.regions,
-    ],
+    f: [view.filters.stage, view.filters.stream, view.filters.source, view.filters.deadline],
     q: view.search,
     c: view.columns,
     s: view.sort ? [view.sort.id, view.sort.desc ? 1 : 0] : null,
@@ -178,7 +209,7 @@ export function parseView(raw: string | null | undefined): View | null {
   if (!raw) return null;
   try {
     const w = JSON.parse(fromBase64Url(raw)) as Partial<Wire>;
-    if (!w || typeof w !== "object") return null;
+    if (!w || typeof w !== "object" || w.v !== WIRE_VERSION) return null;
     const f = Array.isArray(w.f) ? w.f : [];
     const columns = Array.isArray(w.c)
       ? w.c.filter((c): c is string => typeof c === "string" && COLUMN_BY_ID.has(c))
@@ -189,12 +220,7 @@ export function parseView(raw: string | null | undefined): View | null {
         : null;
     return {
       name: typeof w.n === "string" && w.n.trim() ? w.n.slice(0, VIEW_NAME_MAX) : "",
-      filters: {
-        status: numList(f[0]),
-        priority: numList(f[1]),
-        slaBreached: f[2] === 1,
-        regions: numList(f[3]),
-      },
+      filters: { stage: numList(f[0]), stream: numList(f[1]), source: numList(f[2]), deadline: numList(f[3]) },
       search: typeof w.q === "string" ? w.q.slice(0, 100) : "",
       columns: columns.length > 0 ? columns : [...DEFAULT_COLUMNS],
       sort,

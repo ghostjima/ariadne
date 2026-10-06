@@ -1,10 +1,11 @@
+import { loadRules, rulesLoaded } from "@ariadne/rules";
 import { chunkBounds, chunkCount, generateChunk } from "./generator.js";
 import { CHUNK_SIZE, DEFAULT_SEED, TOTAL_ROWS } from "./schema.js";
 import { applyChunk, createStore, type ColumnStore } from "./store.js";
 import type { WorkerRequest, WorkerResponse } from "./worker/protocol.js";
 
 /*
-  Loads the dataset chunk by chunk into one store. With a worker, chunks are
+  Loads the register chunk by chunk into one store. With a worker, chunks are
   generated off the main thread and arrive with transferred buffers; without
   one (no factory, the factory throws, or the worker reports an error) the
   remaining chunks are generated on the main thread, one per task, so the
@@ -62,6 +63,8 @@ export class DatasetLoader {
   private worker: WorkerLike | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  /* The main thread waits for the rules module before its first chunk */
+  private preparing = false;
   private mode: LoadMode = "idle";
   private snap: LoadSnapshot;
 
@@ -125,7 +128,7 @@ export class DatasetLoader {
   /* Starts or resumes loading; safe to call again after stop() */
   start = (): void => {
     this.stopped = false;
-    if (this.worker || this.timer !== null) return;
+    if (this.worker || this.timer !== null || this.preparing) return;
     if (this.loadedChunks.size === this.chunks) return;
     if (this.createWorker) {
       try {
@@ -161,9 +164,38 @@ export class DatasetLoader {
     if (!this.stopped) this.runOnMainThread();
   }
 
-  /* One chunk per task; loaded chunks and chunks waiting for a retry are skipped */
+  /* One chunk per task, once the rules module is in; loaded chunks and
+     chunks waiting for a retry are skipped */
   private runOnMainThread(): void {
     this.mode = "main";
+    if (rulesLoaded()) {
+      this.stepOnMainThread();
+      return;
+    }
+    this.preparing = true;
+    loadRules().then(
+      () => {
+        this.preparing = false;
+        if (!this.stopped) this.stepOnMainThread();
+      },
+      () => {
+        this.preparing = false;
+        this.rulesFailed();
+      },
+    );
+  }
+
+  /* Without the rules module no row can be generated: every chunk not
+     yet in is reported as failed, and a retry tries again */
+  private rulesFailed(): void {
+    for (let i = 0; i < this.chunks; i++) {
+      if (this.loadedChunks.has(i) || this.errors.some((e) => e.index === i)) continue;
+      const { start, count } = chunkBounds(i, this.total, this.chunkSize);
+      this.accept({ type: "chunk-error", index: i, start, count });
+    }
+  }
+
+  private stepOnMainThread(): void {
     const failNow = new Set(this.pendingFails());
     const skip = (i: number) => this.loadedChunks.has(i) || this.errors.some((e) => e.index === i);
     let i = 0;
@@ -176,7 +208,7 @@ export class DatasetLoader {
         failNow.delete(i);
         this.accept({ type: "chunk-error", index: i, start, count });
       } else {
-        this.accept({ type: "chunk", index: i, chunk: generateChunk(this.seed, start, count) });
+        this.accept({ type: "chunk", index: i, chunk: generateChunk(this.seed, start, count, this.total) });
       }
       i++;
       this.timer = setTimeout(step, 0);
@@ -206,6 +238,8 @@ export class DatasetLoader {
       return;
     }
     const { start, count } = chunkBounds(index, this.total, this.chunkSize);
-    this.accept({ type: "chunk", index, chunk: generateChunk(this.seed, start, count) });
+    const generate = () => this.accept({ type: "chunk", index, chunk: generateChunk(this.seed, start, count, this.total) });
+    if (rulesLoaded()) generate();
+    else loadRules().then(generate, () => this.rulesFailed());
   };
 }

@@ -1,7 +1,7 @@
 {
   "name": "@ariadne/grid",
   "version": "0.1.0",
-  "description": "Data engine for a 50,000-row operations grid: columnar store, deterministic generation, filters, facets, views, roles, edits with undo, CSV export",
+  "description": "Data engine for a complaints register: a seeded synthetic corpus with legal deadlines from ariadne-rules, a columnar store, filters with facets, views, roles, validated edits with undo, a simulated colleague and CSV export",
   "type": "module",
   "license": "MIT OR Apache-2.0",
   "packageManager": "pnpm@11.25.0",
@@ -30,10 +30,6 @@
     "./pools/ru": {
       "types": "./dist/pools/ru.d.ts",
       "default": "./dist/pools/ru.js"
-    },
-    "./pools/ar": {
-      "types": "./dist/pools/ar.d.ts",
-      "default": "./dist/pools/ar.js"
     }
   },
   "scripts": {
@@ -46,5 +42,8 @@
     "@types/node": "^22.20.4",
     "typescript": "6.0.3",
     "vitest": "5.0.2"
+  },
+  "dependencies": {
+    "@ariadne/rules": "workspace:*"
   }
 }

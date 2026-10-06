@@ -1,5 +1,7 @@
 export * from "./schema.js";
+export * from "./days.js";
 export * from "./store.js";
+export * from "./legal.js";
 export * from "./generator.js";
 export * from "./text.js";
 export * from "./filter.js";

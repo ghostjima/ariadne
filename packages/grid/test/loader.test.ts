@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateAll } from "../src/generator.js";
 import { DatasetLoader, type LoadSnapshot, type WorkerLike } from "../src/loader.js";
-import { getComment, writeComment } from "../src/store.js";
+import { getNote, writeNote } from "../src/store.js";
 import { buildSearchIndex, refreshSearch } from "../src/text.js";
 import { createChunkProducer, type WorkerRequest } from "../src/worker/protocol.js";
 import { pools as en } from "../src/pools/en.js";
@@ -134,14 +134,14 @@ describe("DatasetLoader", () => {
     loader.stop();
     loader.start();
     await until(loader, (x) => x.loadedRows >= 500);
-    writeComment(loader.store, 3, { kind: "text", text: "kept" }, 0);
+    writeNote(loader.store, 3, { kind: "text", text: "kept" }, 0);
     loader.stop();
     loader.start();
     const s = await until(loader, (x) => !x.loading);
     expect(s.loadedRows).toBe(2_300);
-    expect(getComment(loader.store, 3)).toEqual({ kind: "text", text: "kept" });
+    expect(getNote(loader.store, 3)).toEqual({ kind: "text", text: "kept" });
     loader.retry(0);
-    expect(getComment(loader.store, 3)).toEqual({ kind: "text", text: "kept" });
+    expect(getNote(loader.store, 3)).toEqual({ kind: "text", text: "kept" });
     const v = loader.getSnapshot().version;
     loader.notify();
     expect(loader.getSnapshot().version).toBe(v + 1);

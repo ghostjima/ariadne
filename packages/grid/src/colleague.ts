@@ -1,21 +1,13 @@
-import type { EditColumn } from "./edit.js";
 import { makeRng, mixSeed } from "./generator.js";
-import { STATUS_COUNT } from "./schema.js";
-import {
-  getComment,
-  sameComment,
-  writeComment,
-  writeStatus,
-  type ColumnStore,
-  type CommentValue,
-} from "./store.js";
+import { ASSIGNEE_COUNT, EXTENSION_COUNT, GROUND_COUNT, OUTCOME_COUNT, Stage, type EditColumn, type EnumField } from "./schema.js";
+import { getNote, readField, sameNote, writeField, writeNote, type ColumnStore, type NoteValue } from "./store.js";
 
 /*
-  The simulated colleague: a second user editing the same dataset. When
-  edits happen comes from a seeded schedule; what each edit does is a pure
-  function of the tick, so a demo button and a timer produce the same,
-  testable result. Conflicts are detected by comparing the value a local
-  edit started from with the value in the store when it is saved.
+  The simulated colleague: a second person working the same register.
+  When edits happen comes from a seeded schedule; what each edit does is a
+  pure function of the tick, so a demo button and a timer produce the
+  same, testable result. Conflicts are detected by comparing the value a
+  local edit started from with the value in the store when it is saved.
 */
 
 const STRIDE = 7919;
@@ -26,13 +18,26 @@ export function colleagueRow(count: number, tick: number): number {
   return ((tick + 1) * STRIDE) % count;
 }
 
-/* The status the colleague moves a row to: always a different known one */
-export function colleagueStatus(current: number): number {
-  return (current + 3) % STATUS_COUNT;
+/* The stage the colleague moves a case to: the next one, or back to
+   drafting from closed; always a different known stage */
+export function colleagueStage(current: number): number {
+  return current >= Stage.Closed ? Stage.Drafting : current + 1;
+}
+
+const COUNTS: Record<Exclude<EnumField, "stage">, number> = {
+  outcome: OUTCOME_COUNT,
+  ground: GROUND_COUNT,
+  extension: EXTENSION_COUNT,
+  assignee: ASSIGNEE_COUNT,
+};
+
+/* The value the colleague writes into a code field: a different one */
+export function colleagueValue(field: EnumField, current: number): number {
+  return field === "stage" ? colleagueStage(current) : (current + 1) % COUNTS[field];
 }
 
 /* The colleague's numbered note; the language module writes the text */
-export function colleagueComment(tick: number): CommentValue {
+export function colleagueNote(tick: number): NoteValue {
   return { kind: "colleague", n: tick + 1 };
 }
 
@@ -42,12 +47,7 @@ export const COLLEAGUE_MEAN_MS = 40_000;
   Offsets in milliseconds of the first `count` remote edits: intervals of
   `meanMs` with up to `jitter` (a fraction) either way, drawn from `seed`.
 */
-export function colleagueSchedule(
-  seed: number,
-  count: number,
-  meanMs: number = COLLEAGUE_MEAN_MS,
-  jitter = 0.25,
-): Float64Array {
+export function colleagueSchedule(seed: number, count: number, meanMs: number = COLLEAGUE_MEAN_MS, jitter = 0.25): Float64Array {
   const rng = makeRng(mixSeed(seed, 0x636f6c));
   const out = new Float64Array(count);
   let t = 0;
@@ -70,18 +70,18 @@ export function dueTicks(schedule: Float64Array, elapsedMs: number): number {
   return lo;
 }
 
-export type CellValue = { col: "status"; value: number } | { col: "comment"; value: CommentValue };
+export type CellValue =
+  | { col: EnumField; value: number }
+  | { col: "note"; value: NoteValue };
 
 export function readCell(store: ColumnStore, row: number, col: EditColumn): CellValue {
-  return col === "status"
-    ? { col, value: store.status[row] ?? 0 }
-    : { col, value: getComment(store, row) };
+  return col === "note" ? { col, value: getNote(store, row) } : { col, value: readField(store, row, col) };
 }
 
 export function sameCell(a: CellValue, b: CellValue): boolean {
-  if (a.col === "status" && b.col === "status") return a.value === b.value;
-  if (a.col === "comment" && b.col === "comment") return sameComment(a.value, b.value);
-  return false;
+  if (a.col !== b.col) return false;
+  if (a.col === "note" && b.col === "note") return sameNote(a.value, b.value);
+  return a.value === b.value;
 }
 
 /* A local edit in progress: the cell and the value it started from */
@@ -105,7 +105,7 @@ export type RemoteEdit = { tick: number; row: number; cell: CellValue };
 /*
   What the colleague does at `tick`. While the user edits a cell, the
   colleague edits that same cell (so the demo always shows a conflict);
-  otherwise it moves the status of a row of the current view.
+  otherwise it moves the stage of a case of the current view.
 */
 export function planColleagueEdit(
   store: ColumnStore,
@@ -115,19 +115,19 @@ export function planColleagueEdit(
 ): RemoteEdit | null {
   if (editing) {
     const cell: CellValue =
-      editing.col === "status"
-        ? { col: "status", value: colleagueStatus(store.status[editing.row] ?? 0) }
-        : { col: "comment", value: colleagueComment(tick) };
+      editing.col === "note"
+        ? { col: "note", value: colleagueNote(tick) }
+        : { col: editing.col, value: colleagueValue(editing.col, readField(store, editing.row, editing.col)) };
     return { tick, row: editing.row, cell };
   }
   const position = colleagueRow(visible.length, tick);
   if (position < 0) return null;
   const row = visible[position] ?? 0;
-  return { tick, row, cell: { col: "status", value: colleagueStatus(store.status[row] ?? 0) } };
+  return { tick, row, cell: { col: "stage", value: colleagueStage(store.stage[row] ?? 0) } };
 }
 
 /* Writes a remote edit into the store; it does not enter the undo stack */
 export function applyRemoteEdit(store: ColumnStore, edit: RemoteEdit, now: number): void {
-  if (edit.cell.col === "status") writeStatus(store, edit.row, edit.cell.value, now);
-  else writeComment(store, edit.row, edit.cell.value, now);
+  if (edit.cell.col === "note") writeNote(store, edit.row, edit.cell.value, now);
+  else writeField(store, edit.row, edit.cell.col, edit.cell.value, now);
 }

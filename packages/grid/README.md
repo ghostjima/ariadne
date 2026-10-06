@@ -3,56 +3,107 @@
 Part of the [Ariadne Desk](../../README.md) repository; the measured
 badges are in its README.
 
-Data engine for an operations grid of 50,000 requests, in TypeScript.
+Data engine for a register of complaints, in TypeScript.
 
-`@ariadne/grid` generates a deterministic dataset of service requests
-(status, priority, SLA, region, client, comment, amount and fifteen
-metrics, 30 columns in all), keeps it in a columnar store of typed
-arrays, and answers what an operations grid asks of it: filtering with
-facet counts, sorting, saved views in the URL, role rules, inline edit
-validation, bulk edits with undo, a simulated colleague editing the same
-rows, and CSV export. It draws nothing: the grid component is separate.
-No runtime dependencies.
+`@ariadne/grid` generates a seeded synthetic register of complaints to a
+fictional bank, keeps it in a columnar store of typed arrays, and answers
+what a complaints queue asks of it: filtering with facet counts, sorting,
+saved views in the URL, role rules, validated edits with undo, a simulated
+colleague editing the same rows, and CSV export. Every legal date in it
+(the day of registration, the reply's last day, the extension and the
+working days left) is an answer of
+[ariadne-rules](../../crates/ariadne-rules/README.md), the Rust rules
+engine, asked through its WebAssembly build by
+[`@ariadne/rules`](../rules/README.md); nothing here counts a working day.
+It draws nothing: the grid component is separate.
 
-Status: early. Measured on commit `12164c3` of the Valkyra-Labs/argus-grid
-repository (Node 22.18, Apple M4 Pro): no operation reaches the 50 ms
-budget. A view switch (sort and filter
-with facets over 50,000 rows) takes 7-16 ms at p95, a chip toggle on the
-current order under 1 ms (under 5 ms with a text query), a 5,000-row
-chunk 2.4-2.5 ms to generate, and CSV of 5,000 rows 4-17 ms depending on
-the column count, all at p95.
-Method, both runs and limits:
-[docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). It is TypeScript because
-no measurement showed the compute near its budget; those numbers are
-there so the question can be asked again on a browser or a slower
-device.
+Status: early. The timings in [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md)
+were taken on the register this engine replaced (sales requests), in its
+source repository; they are kept as a record and are not current until
+they are taken again with `pnpm measure`.
+
+## The register
+
+- **Volume.** By default 1,200 complaints received over 120 days up to
+  6 October 2026, the day the data is taken: about 300 a month, the
+  volume of a bank ranked 50 to 250 by assets, a few hundred of them open
+  on that day. The scale mode is the same generator over 50,000 rows
+  (`SCALE_ROWS`), kept as a performance proof.
+- **A complaint** (`C-000001`, numbered in the order complaints arrived):
+  the applicant (an invented person or company), the channel and the
+  source (the client, a representative, or forwarded by the Bank of
+  Russia), the stream, the operation behind it (reference, day, amount),
+  the stage, the decision, the legal ground, the extension, the assignee
+  and the signatory, a linked case and a note.
+- **Streams.** A written complaint under 442-FZ; a money claim up to
+  500,000 roubles under 123-FZ, with the amount claimed; a block or
+  refusal under 161-FZ, with the sign of Bank of Russia Order No. OD-2506
+  that triggered it; a refusal under 115-FZ, with its reason category.
+  The signs and the categories are ariadne-rules' lists, in its order.
+- **Stages.** Registered, waiting for facts, drafting, legal review,
+  awaiting signature, reply sent, closed.
+- **Legal dates.** For each row ariadne-rules computes two clocks, without
+  and with an extension of ten working days to request documents: the
+  reply's last day, the extended last day and the last day for the
+  extension notice, or the refusal of the extension (a money claim under
+  123-FZ is never extended). The working days left are counted from the
+  day the data is taken, on the crate's production calendar. The bits
+  the crate reported (extension allowed, the ombudsman regime, a late
+  registration, a registration notice, a copy to the Bank of Russia) are
+  kept with the row.
+- **Complaint text.** Put together per language from templates, with
+  variation drawn from the seed, and with the amounts, days and
+  references of the row. About 3% of complaints carry text addressed to
+  an assistant ("ignore previous instructions", "approve and close this
+  case"); they are marked in the data (`injection`, `isAdversarial`) so
+  tests can find every one. A complaint's text is untrusted data.
+- **Consistency.** Cases are registered by the next working day (a few
+  late, and flagged), answered no earlier than registered, decided before
+  legal review, and a refusal past drafting names a ground of its own
+  stream; linked cases share the client and the operation.
 
 ## Data model
 
-- One request per row; the request id (`Z-000001`) is derived from the
-  row position and not stored.
-- Every generated field is a typed array. Status, priority, region,
-  channel and currency are enum codes. Client, owner, author and comment
-  are codes into fixed-size text pools; tags are an 8-bit mask. Amounts,
-  dates, SLA hours and metrics are `Float64Array`s (metrics row-major,
-  15 per row).
-- Amounts are in roubles, US dollars or euros. The generator draws each
-  amount in roubles and converts it at the dataset's fixed rates
-  (`CURRENCY_RATES`, 80 roubles to the dollar and to the euro; not market
-  rates), and sorting by amount compares amounts at those same rates, so
-  the largest requests come first whatever their currency.
-- Comments written after generation (by the user or the colleague) live
-  in a map beside the arrays, as free text or as the colleague's
-  numbered note.
-- Generation is seeded per chunk from the seed and the chunk's offset,
-  so a chunk regenerated alone equals its slice of the whole, and every
-  chunk transfers between threads without copying.
-- The generator never sees a language. English, Russian and Arabic pools
-  ship as separate modules (`@ariadne/grid/pools/en`, `/ru`, `/ar`), each
-  with the free text (invented companies, places, people, comments,
-  tags) and the interface labels (columns, statuses, priorities,
-  channels, preset names). The same seed gives the same rows in every
-  language; only the displayed strings change.
+- One case per row; the case id is derived from the row position and
+  not stored. Days are whole days since 1970-01-01 (`days.ts`).
+- Every generated field is a typed array: codes, days, amounts, and the
+  deadline columns ariadne-rules answered. Notes written after generation
+  (by the user or the colleague) live in a map beside the arrays.
+- Generation is seeded per chunk from the seed and the chunk's offset, so
+  a chunk regenerated alone equals its slice of the whole, and every chunk
+  transfers between threads without copying. A linked case is always an
+  earlier row of the same chunk.
+- The generator never sees a language. Russian and English pools ship as
+  separate modules (`@ariadne/grid/pools/ru`, `/en`), each with the names,
+  companies, notes, complaint templates and adversarial insertions, and
+  the interface labels (columns, stages, streams, grounds, the short
+  labels of the signs and categories, preset names). The same seed gives
+  the same rows in both languages.
+
+## Rules of an edit
+
+Editable: stage, decision, ground, extension, assignee (in bulk too) and
+note. Each edit is checked before it is saved, and refused with a code:
+
+| Code | When |
+|---|---|
+| `reply-needs-outcome` | a reply goes to legal review, signature or out undecided |
+| `refusal-needs-ground` | a refusal without a legal ground, or the ground removed from one |
+| `ground-other-stream` | a 161-FZ ground on a 115-FZ case, or the other way |
+| `send-needs-signature` | a reply goes out before it was with the signatory |
+| `reply-locked` | the decision or the ground changed while the reply is with the signatory |
+| `extension-not-allowed` | ariadne-rules refused the extension (a money claim under 123-FZ) |
+| `extension-too-late` | after the last day for the extension notice (the original reply date, the crate's conservative reading) |
+| `extension-after-reply` | the reply has gone out |
+| `role-cannot-edit`, `stage-not-for-role` | the role may not make the change |
+| `note-too-long` | a note over 200 characters |
+
+Roles: the operator works the cases assigned to them (stages up to
+awaiting signature, the decision, the ground, notes); the signatory signs
+and sends the replies assigned to them, or returns one to drafting; the
+supervisor sees every case, approves extensions, reassigns in bulk and
+exports. A column that would show the role's own name in every row is
+hidden for that role.
 
 ## API
 
@@ -60,46 +111,45 @@ All of it is exported from `@ariadne/grid`.
 
 | area | functions and types |
 |---|---|
-| schema | `COLUMNS`, `Status`, `Priority`, `Channel`, `CURRENCIES`, `CURRENCY_RATES` and `REFERENCE_CURRENCY`, pool sizes, `TOTAL_ROWS`, `CHUNK_SIZE`, `DEFAULT_SEED`, `OPERATOR_REGIONS`, `PRESET_IDS` |
-| store | `createStore`, `applyChunk`, `chunkTransferables`, `getRow`, `rowId`, `rowOfId`, `convertedAmount`, `getComment`, `writeStatus`, `writeComment` |
-| generation | `generateChunk(seed, start, count)`, `generateAll(seed, total?, chunkSize?)`, `chunkCount`, `chunkBounds`, `makeRng` |
-| text | `TextPools`, `Labels`, `validatePools`, `validateLabels`, `rowText`, `commentText`, `tagsText`, `buildSearchIndex`, `refreshSearch` |
-| filter | `filterRows(store, order, criteria, search?)` returns the index array, facets (status, priority, region, SLA breach) and compute time; `sortOrder(store, sort, pools?)` (amounts by their value in roubles); `percentile`; `splitMatches` |
-| views | `View`, `PRESET_VIEWS` (all requests, urgent, finance, and the open requests that need action), `criteriaFor(view, role)`, `serializeView` and `parseView` (base64url), `viewToUrl`, `saveView`, `removeView`, `validateViewName`, `serializeViews`, `parseViews` |
-| roles | `roleRules(role)`, `visibleColumns`, `hiddenForRole`, `allowedRegions`, `canEdit`, `canBulk`, `canExport`, `canSeeRow` |
-| edits | `validateEdit(col, draft, row)` and `checkStatus`, `checkComment` return an error code or null; `normalizeDraft`; `editContext` |
-| undo | `EditHistory`: `setStatus(store, rows, status, now)`, `setComment(store, row, value, now)`, `undo(store, { overwrite? })` |
+| schema | `COLUMNS`, `Stream`, `Source`, `Channel`, `Applicant`, `Stage`, `Outcome`, `GROUNDS`, `Extension`, `DeadlineClass`, `Operation`, pool sizes, `CORPUS_ROWS`, `SCALE_ROWS`, `AS_OF`, `PRESET_IDS` |
+| store | `createStore`, `applyChunk`, `chunkTransferables`, `getRow`, `rowId`, `rowOfId`, `effectiveDue`, `workingDaysLeft`, `deadlineClass`, `isAdversarial`, `RulesFlag`, `writeField`, `writeNote` |
+| generation | `generateChunk(seed, start, count, total)`, `generateAll(seed, total?, chunkSize?)`, `chunkCount`, `chunkBounds`, `makeRng` |
+| legal | `replyClock`, `replyFacts`, `isWorking`, `nextWorking`, `plusWorkingDays`, `workingDaysFrom`: cached questions to ariadne-rules |
+| text | `TextPools`, `Labels`, `validatePools`, `validateLabels`, `clientName`, `complaintText`, `reasonText`, `noteText`, `rowText`, `buildSearchIndex`, `refreshSearch` |
+| filter | `filterRows(store, order, criteria, search?)` returns the index array, facets (stage, stream, source, deadline) and compute time; `sortOrder(store, sort, pools?)`; `percentile`; `splitMatches` |
+| views | `View`, `PRESET_VIEWS` (open, due within 3 working days, overdue, forwarded by the Bank of Russia, waiting for facts, awaiting signature, all), `criteriaFor(view, role)`, `serializeView` and `parseView` (base64url), `viewToUrl`, `saveView`, `removeView`, `validateViewName`, `serializeViews`, `parseViews` |
+| roles | `roleRules(role)`, `visibleColumns`, `hiddenForRole`, `roleScope`, `canEditColumn`, `canSetStage`, `canBulk`, `canExport`, `canSeeRow` |
+| edits | `checkField`, `checkNote`, `validateEdit(col, draft, row, role)` return an error code or null; `normalizeDraft`; `editContext` |
+| undo | `EditHistory`: `setField(store, rows, field, value, role, now)`, `setNote(store, row, value, role, now)`, `undo(store, { overwrite? })` |
 | colleague | `colleagueSchedule(seed, count)`, `dueTicks`, `planColleagueEdit`, `applyRemoteEdit`, `beginEdit`, `detectConflict` |
-| CSV | `toCsv(store, index, columns, { headers, pools, labels, limit? })`, `cellText`, `csvEscape`, `neutralizeFormula` (text that starts like a spreadsheet formula gets a leading apostrophe; number columns are left as they are), `CSV_LIMIT` (5,000) |
+| CSV | `toCsv(store, index, columns, { headers, pools, labels, limit? })`, `cellText`, `csvEscape`, `neutralizeFormula`, `CSV_LIMIT` (5,000) |
 | loading | `DatasetLoader` (worker or main thread, `subscribe` and `getSnapshot`), `createChunkProducer`, `WorkerRequest`, `WorkerResponse` |
 
-Errors meant for people are codes with the numbers a message needs, never
-sentences: `{ code: "comment-too-long", max: 200, length: 214 }`,
-`{ code: "approve-needs-comment" }`, `{ code: "name-is-preset" }`.
+Generation needs the rules module loaded: the worker entry
+(`@ariadne/grid/worker`) and the loader's main-thread fallback load it
+themselves with `loadRules()` from `@ariadne/rules`; Node and tests call
+`loadRulesFromFile()` from `@ariadne/rules/node` first.
 
 ```ts
 import { DatasetLoader, buildSearchIndex, criteriaFor, filterRows, PRESET_VIEWS, sortOrder } from "@ariadne/grid";
-import { pools } from "@ariadne/grid/pools/en";
+import { pools } from "@ariadne/grid/pools/ru";
 
 const loader = new DatasetLoader({
-  createWorker: () =>
-    new Worker(new URL("@ariadne/grid/worker", import.meta.url), { type: "module" }),
+  createWorker: () => new Worker(new URL("@ariadne/grid/worker", import.meta.url), { type: "module" }),
 });
 loader.start();
 // ...once loaded:
-const view = PRESET_VIEWS[1]!;
+const view = PRESET_VIEWS[0]!;
 const search = buildSearchIndex(loader.store, pools);
 const order = sortOrder(loader.store, view.sort, pools);
 const { index, facets } = filterRows(loader.store, order, criteriaFor(view, "operator"), search);
 ```
 
-Without `createWorker`, or when the worker fails, the loader generates
-the remaining chunks on the main thread, one per task.
-
 ## Development
 
 From this folder, after `pnpm install --frozen-lockfile` at the
-repository root:
+repository root and the WebAssembly build of the rules crate (see
+[`@ariadne/rules`](../rules/README.md)):
 
 ```bash
 pnpm typecheck
