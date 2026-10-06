@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Fifty thousand generated service requests in one keyboard-first grid: filters with counts, saved views, roles, bulk changes with undo, inline edits with conflicts, and CSV export. In English, Russian and Arabic." />
+    <!-- No icon yet; an empty one keeps the browser from asking for /favicon.ico. -->
+    <link rel="icon" href="data:," />
+    <title>Argus Desk</title>
+    <script>
+      // Before the first paint: the language from the link (?lang=) or the
+      // last visit sets lang and dir, so an Arabic page is laid out right to
+      // left from its first frame. The same rule as Stoa's readLanguage,
+      // which src/main.tsx applies again; the codes are src/i18n.ts's.
+      (function () {
+        var languages = ["en", "ru", "ar"];
+        var lang = new URLSearchParams(location.search).get("lang");
+        if (languages.indexOf(lang) < 0) {
+          try {
+            lang = localStorage.getItem("argus-desk.lang");
+          } catch (e) {
+            lang = null;
+          }
+        }
+        if (languages.indexOf(lang) < 0) return;
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

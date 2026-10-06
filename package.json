@@ -1,0 +1,16 @@
+{
+  "name": "ariadne-root",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test && node --test scripts/*.test.mjs",
+    "e2e": "pnpm -r --workspace-concurrency=1 e2e"
+  },
+  "license": "MIT OR Apache-2.0"
+}

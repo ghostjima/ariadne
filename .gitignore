@@ -1,0 +1,16 @@
+*.log
+*.tsbuildinfo
+.DS_Store
+dist
+dist-bench
+node_modules
+playwright-report
+test-results
+target/
+/apps/*/docs/screenshots/
+.claude/settings.local.json
+# Local only: agent instructions and internal material. The shared rules
+# are in CONTRIBUTING.md.
+CLAUDE.md
+AGENTS.md
+/docs/inside/

@@ -1,0 +1,72 @@
+/* Every weight the interface uses, in both scripts, so the browser never
+   synthesises bold: regular, Stoa's medium and semibold. */
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+/* Tabular Arabic-Indic digits for the numeric face (amounts, counts):
+   IBM Plex Mono has none, and IBM Plex Sans Arabic's are proportional. */
+@import "@fontsource/noto-sans-arabic/400.css";
+@import "@ghostjima/stoa-react/styles.css";
+
+:root {
+  font-family: var(--stoa-font-family-sans);
+  font-size: var(--stoa-font-size-md);
+  background: var(--stoa-color-bg);
+  color: var(--stoa-color-text);
+}
+body { margin: 0; }
+.muted { color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm); }
+
+.desk { display: grid; gap: var(--stoa-space-3); min-inline-size: 0; }
+.desk > * { min-inline-size: 0; }
+/* The demo's own controls, set apart from the desk's. */
+.desk__demo {
+  display: flex; flex-wrap: wrap; align-items: end; gap: var(--stoa-space-2) var(--stoa-space-4);
+  padding: var(--stoa-space-2) var(--stoa-space-3);
+  border: 1px dashed var(--stoa-color-border-strong); border-radius: var(--stoa-radius-md);
+  background: var(--stoa-color-surface-sunken);
+}
+.desk__demo p { margin: 0; flex: 1 1 24rem; align-self: center; }
+.desk__bar, .desk__filters { display: grid; gap: var(--stoa-space-3); min-inline-size: 0; }
+.desk__row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--stoa-space-3) var(--stoa-space-4); min-inline-size: 0; }
+.desk__view { display: flex; flex-wrap: wrap; align-items: end; gap: var(--stoa-space-2); }
+.desk__search { max-inline-size: calc(var(--stoa-space-12) * 8); }
+.desk__status { align-items: center; }
+.desk__hint { margin: 0; }
+.desk__count { margin: 0; font-variant-numeric: tabular-nums; }
+.desk__bulk {
+  display: flex; flex-wrap: wrap; align-items: end; gap: var(--stoa-space-3);
+  padding: var(--stoa-space-2) var(--stoa-space-3);
+  border: 1px solid var(--stoa-color-border); border-radius: var(--stoa-radius-md);
+  background: var(--stoa-color-surface-sunken);
+}
+.desk__bulk .muted { margin: 0; }
+/* The grid is sized in rows of the current density, so it fits the main
+   region whatever the window; it scrolls inside itself. */
+.desk__grid-box { block-size: calc(var(--stoa-density-row-height) * 22); }
+/* On a narrow screen the filter groups fold away (their fold keeps the
+   groups' spacing), and the grid leaves room to scroll the page past it. */
+.desk__filters .stoa-disclosure__content { display: grid; gap: var(--stoa-space-3); }
+@media (max-width: 40rem) {
+  .desk__grid-box { block-size: min(calc(var(--stoa-density-row-height) * 22), 70svh); }
+}
+.perf p { margin-block: var(--stoa-space-2); }
+
+.conflict { display: grid; gap: var(--stoa-space-3); }
+.conflict p { margin: 0; }
+.conflict__values { display: grid; grid-template-columns: auto 1fr; gap: var(--stoa-space-1) var(--stoa-space-3); margin: 0; }
+.conflict__values dt { color: var(--stoa-color-text-muted); }
+.conflict__values dd { margin: 0; font-weight: var(--stoa-font-weight-medium); overflow-wrap: anywhere; }
+.save-view { display: grid; gap: var(--stoa-space-3); }
+.field-error { margin: 0; color: var(--stoa-color-down); font-size: var(--stoa-font-size-sm); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--stoa-space-2); }
+.columns-sheet { display: grid; gap: var(--stoa-space-3); }
+.columns-sheet p { margin: 0; }
+.columns-sheet__heading { margin: 0; font-size: var(--stoa-font-size-md); font-weight: var(--stoa-font-weight-semibold); }
+/* A filter group, with its label above it, and any chip that goes with
+   it, on the line of the group's chips. */
+.chip-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--stoa-space-2); min-inline-size: 0; }

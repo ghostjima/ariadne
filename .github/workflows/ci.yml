@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    # The apps link Stoa from a sibling checkout
+    # (link:../../../stoa/packages/...), so this repository is checked out
+    # into ariadne/ and Stoa into stoa/ beside it.
+    defaults:
+      run:
+        working-directory: ariadne
+    env:
+      E2E_PORT: 4181
+      LIGHTHOUSE_PORT: 4180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: ariadne
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ghostjima/stoa
+          ref: main
+          path: stoa
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          package_json_file: ariadne/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            ariadne/pnpm-lock.yaml
+            stoa/pnpm-lock.yaml
+      - name: Stoa
+        working-directory: stoa
+        run: pnpm install --frozen-lockfile && pnpm build
+
+      - run: pnpm install --frozen-lockfile
+      # The packages first (the apps import their dist/), then the apps.
+      - run: pnpm build
+      - run: pnpm -r typecheck
+      - name: Unit tests
+        shell: bash
+        run: pnpm test 2>&1 | tee "$RUNNER_TEMP/unit.log"
+      - name: Chromium for the browser tests
+        run: pnpm --filter @ariadne/desk exec playwright install --with-deps chromium
+      # Each e2e builds its app and serves it with vite preview on E2E_PORT.
+      - name: e2e, desk, against vite preview of the build
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/desk-e2e.json
+        run: pnpm --filter @ariadne/desk e2e --reporter=list,json
+      - name: e2e, agent, against vite preview of the build, Service Worker included
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/agent-e2e.json
+        run: pnpm --filter @ariadne/agent e2e --reporter=list,json
+      # Lighthouse 12 (a pinned dev dependency) in Playwright's Chromium,
+      # accessibility, best practices and SEO only: performance on a shared
+      # runner measures the runner. Each app's build is served by vite
+      # preview (the agent's with its built Service Worker), measured, and
+      # its server stopped.
+      - name: Lighthouse, desktop and mobile, against vite preview of each build
+        shell: bash
+        run: |
+          CHROME_PATH="$(cd apps/desk && node -e "import('@playwright/test').then((m) => console.log(m.chromium.executablePath()))")"
+          export CHROME_PATH
+          for app in desk agent; do
+            (cd "apps/$app" && exec node_modules/.bin/vite preview --host 127.0.0.1 --port "$LIGHTHOUSE_PORT" --strictPort) &
+            server=$!
+            for _ in $(seq 1 60); do
+              curl -sf "http://127.0.0.1:$LIGHTHOUSE_PORT/" > /dev/null && break
+              sleep 1
+            done
+            for form in desktop mobile; do
+              preset=()
+              if [ "$form" = desktop ]; then preset=(--preset=desktop); fi
+              pnpm --dir "apps/$app" exec lighthouse "http://127.0.0.1:$LIGHTHOUSE_PORT/" "${preset[@]}" \
+                --only-categories=accessibility,best-practices,seo \
+                --chrome-flags="--headless=new --no-sandbox" \
+                --output=json --output-path="$RUNNER_TEMP/lighthouse-$app-$form.json" --quiet
+            done
+            kill "$server"
+            wait "$server" || true
+          done
+      # On a pull request the commits since its base are checked; on a push,
+      # the last commit, unless it is the first one, which has no parent.
+      - name: House style (emoji, attribution, internal paths)
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=()
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base=("origin/$BASE_REF")
+          elif git rev-parse -q --verify HEAD~1 > /dev/null; then
+            base=(HEAD~1)
+          fi
+          node scripts/check-text.mjs "${base[@]}"
+      # Every run builds the badges, so a value that can no longer be read
+      # fails here, on the pull request; only main publishes them.
+      - name: Badge values
+        run: >-
+          node scripts/badges.mjs --out "$RUNNER_TEMP/badges"
+          --unit "$RUNNER_TEMP/unit.log"
+          --e2e "desk=$RUNNER_TEMP/desk-e2e.json"
+          --e2e "agent=$RUNNER_TEMP/agent-e2e.json"
+          --lighthouse "desk:desktop=$RUNNER_TEMP/lighthouse-desk-desktop.json"
+          --lighthouse "desk:mobile=$RUNNER_TEMP/lighthouse-desk-mobile.json"
+          --lighthouse "agent:desktop=$RUNNER_TEMP/lighthouse-agent-desktop.json"
+          --lighthouse "agent:mobile=$RUNNER_TEMP/lighthouse-agent-mobile.json"
+          --dist desk=apps/desk/dist
+          --dist agent=apps/agent/dist
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: badges
+          path: ${{ runner.temp }}/badges
+          if-no-files-found: error
+          retention-days: 7
+
+  # Commits the badge JSON to the orphan branch `badges`, which the README's
+  # img.shields.io/endpoint badges read. Only after a green run on main.
+  publish-badges:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-badges
+      cancel-in-progress: false
+    steps:
+      # This job pushes to the badges branch, so it keeps the credentials.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: badges
+          path: ${{ runner.temp }}/badges
+      - name: Commit to the badges branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="$RUNNER_TEMP/badges-branch"
+          status=0
+          git ls-remote --exit-code origin refs/heads/badges > /dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            git fetch --depth=1 origin badges
+            git worktree add -B badges "$branch" FETCH_HEAD
+          elif [ "$status" -eq 2 ]; then
+            git worktree add --detach "$branch"
+            git -C "$branch" switch --orphan badges
+          else
+            exit "$status"
+          fi
+          find "$branch" -maxdepth 1 -name '*.json' -delete
+          cp "$RUNNER_TEMP"/badges/*.json "$branch"/
+          cd "$branch"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The badges are unchanged."
+            exit 0
+          fi
+          git commit -q -m "Badges measured on ${GITHUB_SHA}"
+          git push origin HEAD:refs/heads/badges
