@@ -7,6 +7,8 @@
 //     --lighthouse desk:desktop=<Lighthouse JSON> --lighthouse desk:mobile=<Lighthouse JSON>
 //     --lighthouse agent:desktop=<Lighthouse JSON> --lighthouse agent:mobile=<Lighthouse JSON>
 //     --dist desk=apps/desk/dist --dist agent=apps/agent/dist
+//     --rules-tests <output of `cargo test --release -p ariadne-rules`>
+//     --rules-wasm <crates/ariadne-rules/pkg/ariadne_rules_bg.wasm>
 //
 // Each badge is one JSON file, {"schemaVersion":1,"label","message","color"},
 // which CI commits to the `badges` branch for img.shields.io/endpoint to
@@ -108,6 +110,37 @@ export function parseUnitLog(text) {
   return { suites: summaries.length, passed: sum("passed"), failed: sum("failed"), skipped: sum("skipped") + sum("todo") };
 }
 
+const BINARY_RUN = /^\s*(Running|Doc-tests) (.+)$/;
+const CARGO_RESULT = /^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out;/;
+
+/** Test counts from `cargo test` output: one "test result" line for every
+ * test binary and doc-test run that cargo announced. A run with a failure,
+ * a filter or no passing test stops the badge. */
+export function parseCargoTest(text, what = "cargo test") {
+  let binaries = 0;
+  const results = [];
+  for (const raw of text.replace(ANSI, "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (BINARY_RUN.test(line)) binaries++;
+    const m = CARGO_RESULT.exec(line);
+    if (m) results.push({ ok: m[1] === "ok", passed: +m[2], failed: +m[3], ignored: +m[4], filtered: +m[6] });
+  }
+  if (binaries === 0) fail(`no test binary in the ${what} output`);
+  if (results.length !== binaries) fail(`${what}: cargo announced ${binaries} test runs but printed ${results.length} results`);
+  const sum = (key) => results.reduce((n, r) => n + r[key], 0);
+  if (results.some((r) => !r.ok) || sum("failed") > 0) fail(`${what}: ${sum("failed")} test(s) failed`);
+  if (sum("filtered") > 0) fail(`${what}: tests were filtered out: not a full run`);
+  if (sum("passed") === 0) fail(`${what}: no test passed`);
+  return { passed: sum("passed"), ignored: sum("ignored") };
+}
+
+/** gzip (level 9) of one file, such as a WebAssembly module. */
+export function gzipBytes(path) {
+  const bytes = read(path);
+  if (bytes.length === 0) fail(`${path} is empty`);
+  return gzipSync(bytes, { level: 9 }).length;
+}
+
 /** Pass counts from a Playwright JSON report (reporter "json"). */
 export function readPlaywright(report, name) {
   const s = report?.stats;
@@ -199,6 +232,8 @@ function keyed(values, flag) {
   return map;
 }
 
+const SINGLE = ["out", "unit", "rules-tests", "rules-wasm"];
+
 export function parseArgs(argv) {
   const args = { e2e: [], lighthouse: [], dist: [] };
   for (let i = 0; i < argv.length; i += 2) {
@@ -206,10 +241,10 @@ export function parseArgs(argv) {
     const value = argv[i + 1];
     if (!key || value === undefined) fail(`expected --name value pairs, got "${argv.slice(i).join(" ")}"`);
     if (Array.isArray(args[key])) args[key].push(value);
-    else if (key === "out" || key === "unit") args[key] = value;
+    else if (SINGLE.includes(key)) args[key] = value;
     else fail(`unknown option --${key}`);
   }
-  for (const key of ["out", "unit"]) if (!args[key]) fail(`--${key} is required`);
+  for (const key of SINGLE) if (!args[key]) fail(`--${key} is required`);
   const e2e = keyed(args.e2e, "e2e");
   const lighthouse = keyed(args.lighthouse, "lighthouse");
   const dist = keyed(args.dist, "dist");
@@ -224,7 +259,7 @@ export function parseArgs(argv) {
     const [app, form] = key.split(":");
     if (!e2e.has(app) || !FORM_FACTORS.includes(form)) fail(`--lighthouse ${key} is not <app>:desktop or <app>:mobile of an app with an --e2e report`);
   }
-  return { out: args.out, unit: args.unit, apps, e2e, lighthouse, dist };
+  return { out: args.out, unit: args.unit, rulesTests: args["rules-tests"], rulesWasm: args["rules-wasm"], apps, e2e, lighthouse, dist };
 }
 
 export function buildBadges(args) {
@@ -253,6 +288,9 @@ export function buildBadges(args) {
     badges[`lighthouse-${id}`] = { label: `Lighthouse ${name} (min of apps, desktop and mobile)`, message: String(score), color: lighthouseColor(score) };
   }
   badges["bundle-size"] = { label: "bundle gzip (JS + CSS)", message: each((a) => kB(a.bytes)), color: "blue" };
+  const rules = parseCargoTest(read(args.rulesTests).toString("utf8"), "ariadne-rules cargo test");
+  badges["rules-tests"] = { label: "ariadne-rules tests", message: `${rules.passed} passed${rules.ignored ? `, ${rules.ignored} ignored` : ""}`, color: "brightgreen" };
+  badges["rules-wasm-size"] = { label: "ariadne-rules wasm gzip", message: kB(gzipBytes(args.rulesWasm)), color: "blue" };
   return badges;
 }
 

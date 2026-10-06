@@ -117,6 +117,9 @@ The workflows the desk is built around, and what exists of each today:
 - [`packages/runner`](packages/runner/README.md) (`@ariadne/runner`):
   the agent's run engine: seeded plan, consent rule, confirmations, undo
   windows, replay and the event stream.
+- [`crates/ariadne-rules`](crates/ariadne-rules/README.md): the legal
+  rules engine in Rust compiled to WebAssembly; so far its skeleton,
+  built and tested in CI.
 
 Both apps are built on the [Stoa](https://github.com/ghostjima/stoa)
 design system and are tested with axe in English, Russian and Arabic,
@@ -156,6 +159,8 @@ are set only after a baseline exists.
 [![Lighthouse best practices](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-best-practices.json)](#what-each-badge-counts)
 [![Lighthouse SEO](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/lighthouse-seo.json)](#what-each-badge-counts)
 [![Bundle gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/bundle-size.json)](#what-each-badge-counts)
+[![ariadne-rules tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/rules-tests.json)](#what-each-badge-counts)
+[![ariadne-rules wasm gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ghostjima/ariadne/badges/rules-wasm-size.json)](#what-each-badge-counts)
 
 CI measures these badges on each commit to `main`, and the badge branch
 records the commit they were measured on. Timings and
@@ -166,7 +171,9 @@ records were taken in the source repositories before their import here.
 ### What each badge counts
 
 CI checks out this repository and Stoa side by side, builds Stoa, then
-builds and tests the packages and both apps. Each green run on `main`
+builds and tests the packages and both apps; in parallel it lints and
+tests the rules crate on Linux, macOS and Windows, builds its
+WebAssembly package and checks it on Rust 1.85. Each green run on `main`
 publishes the dynamic badges to the `badges` branch, as JSON that
 img.shields.io reads; `scripts/badges.mjs` builds them from that run's
 own output and stops, publishing nothing, when a value cannot be read.
@@ -191,6 +198,12 @@ own output and stops, publishing nothing, when a value cannot be read.
 - Bundle gzip: every JavaScript and CSS file in each app's `dist/`, gzip
   level 9, summed per app, workers included. The fonts and `index.html`
   are not included.
+- ariadne-rules tests: tests passed in `cargo test --release -p
+  ariadne-rules` on Linux, unit, integration and doc tests summed; a
+  failed, filtered or incomplete run publishes nothing.
+- ariadne-rules wasm gzip: the crate's WebAssembly module as `wasm-pack`
+  builds it for the browser (release, feature `wasm`), gzip level 9. The
+  JavaScript glue is not included.
 
 ## Role
 
@@ -213,6 +226,10 @@ pnpm test           # every package's unit tests and the root scripts'
 pnpm --filter @ariadne/desk e2e
 pnpm --filter @ariadne/agent e2e
 ```
+
+The rules crate needs Rust (the toolchain is pinned in
+`rust-toolchain.toml`) and, for the browser build, `wasm-pack`; its
+commands are in [its README](crates/ariadne-rules/README.md#development).
 
 The end-to-end tests build their app and serve it with `vite preview`,
 the desk on 4178 and the agent on 4177; `E2E_PORT` moves it. The dev

@@ -6,7 +6,9 @@ dist-bench
 node_modules
 playwright-report
 test-results
+# Rust builds and the wasm-pack package.
 target/
+pkg/
 /apps/*/docs/screenshots/
 .claude/settings.local.json
 # Local only: agent instructions and internal material. The shared rules

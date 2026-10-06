@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { BadgeError, buildBadges, parseArgs, parseUnitLog, readAxe, readLighthouse, readPlaywright } from "./badges.mjs";
+import { BadgeError, buildBadges, parseArgs, parseCargoTest, parseUnitLog, readAxe, readLighthouse, readPlaywright } from "./badges.mjs";
 
 const LOG = `Scope: 4 of 5 workspace projects
 packages/grid test$ vitest run
@@ -47,6 +47,37 @@ test("a log without the root scripts' summary stops the badge", () => {
   assert.throws(() => parseUnitLog(LOG.split("# Subtest")[0]), BadgeError);
 });
 
+const CARGO = `   Compiling ariadne-rules v0.1.0
+     Running unittests src/lib.rs (target/release/deps/ariadne_rules-1)
+
+running 1 test
+test tests::version_is_the_manifest_version ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/calendar.rs (target/release/deps/calendar-2)
+
+running 3 tests
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests ariadne_rules
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+`;
+
+test("the rules crate's tests add every binary and doc-test run cargo announced", () => {
+  assert.deepEqual(parseCargoTest(CARGO), { passed: 4, ignored: 1 });
+});
+
+test("a failed, filtered or truncated cargo run stops the rules badge", () => {
+  assert.throws(() => parseCargoTest(CARGO.replace("ok. 3 passed; 0 failed", "FAILED. 2 passed; 1 failed")), BadgeError);
+  assert.throws(() => parseCargoTest(CARGO.replace("0 measured; 0 filtered out; finished in 0.00s\n\n     Running", "0 measured; 2 filtered out; finished in 0.00s\n\n     Running")), BadgeError);
+  assert.throws(() => parseCargoTest(CARGO.split("   Doc-tests")[0] + "   Doc-tests ariadne_rules\n"), BadgeError);
+  assert.throws(() => parseCargoTest("error: could not compile"), BadgeError);
+});
+
 const scan = (lang, theme, state) => ({ type: "axe-scan", description: JSON.stringify({ lang, theme, state }) });
 const report = (annotations, stats = { expected: 3, unexpected: 0, flaky: 0, skipped: 0 }, status = "expected") => ({
   stats,
@@ -81,9 +112,10 @@ test("Lighthouse scores come only from a version 12 report of the named form fac
 });
 
 test("every app needs its e2e report, both Lighthouse reports and its build, and nothing else", () => {
-  const base = ["--out", "o", "--unit", "u", "--e2e", "desk=d.json", "--dist", "desk=dist"];
+  const base = ["--out", "o", "--unit", "u", "--rules-tests", "r.txt", "--rules-wasm", "r.wasm", "--e2e", "desk=d.json", "--dist", "desk=dist"];
   const full = [...base, "--lighthouse", "desk:desktop=a.json", "--lighthouse", "desk:mobile=b.json"];
   assert.deepEqual(parseArgs(full).apps, ["desk"]);
+  assert.throws(() => parseArgs(full.filter((_, i) => i !== 4 && i !== 5)), BadgeError);
   assert.throws(() => parseArgs(base), BadgeError);
   assert.throws(() => parseArgs([...full, "--dist", "agent=dist"]), BadgeError);
   assert.throws(() => parseArgs([...full, "--lighthouse", "desk:tablet=c.json"]), BadgeError);
@@ -103,7 +135,7 @@ test("the badges sum both apps and take the lowest Lighthouse score of any app a
     writeFileSync(path, typeof value === "string" ? value : JSON.stringify(value));
     return path;
   };
-  const argv = ["--out", join(dir, "out"), "--unit", file("unit.log", LOG)];
+  const argv = ["--out", join(dir, "out"), "--unit", file("unit.log", LOG), "--rules-tests", file("rules.txt", CARGO), "--rules-wasm", file("rules.wasm", "\0asm".repeat(400))];
   for (const [app, passed, states] of [["desk", 49, ["a", "b"]], ["agent", 62, ["a", "b", "c"]]]) {
     mkdirSync(join(dir, app, "assets"), { recursive: true });
     writeFileSync(join(dir, app, "assets", "index.js"), "console.log(1);\n".repeat(50));
@@ -121,4 +153,6 @@ test("the badges sum both apps and take the lowest Lighthouse score of any app a
   assert.deepEqual([badges["lighthouse-seo"].message, badges["lighthouse-seo"].color], ["82", "orange"]);
   assert.equal(badges["lighthouse-accessibility"].message, "100");
   assert.match(badges["bundle-size"].message, /^desk \d+\.\d kB, agent \d+\.\d kB$/);
+  assert.equal(badges["rules-tests"].message, "4 passed, 1 ignored");
+  assert.match(badges["rules-wasm-size"].message, /^\d+\.\d kB$/);
 });

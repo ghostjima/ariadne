@@ -8,6 +8,14 @@ updates:
       npm:
         patterns:
           - "*"
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -16,4 +24,3 @@ updates:
       github-actions:
         patterns:
           - "*"
-  # cargo joins these with the first Rust crate.
