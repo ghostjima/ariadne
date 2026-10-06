@@ -14,8 +14,10 @@ export default defineConfig({
     react(),
     serviceWorker(),
     // Before anything is drawn: lang, dir and the theme, from the link or
-    // the last visit, the same way useAppPreferences reads them.
-    { name: "first-paint", transformIndexHtml: () => [{ tag: "script", children: firstPaintScript(PREFERENCES), injectTo: "head-prepend" }] },
+    // the last visit, the same way useAppPreferences reads them. At the end
+    // of the head: still before the body is drawn, and after the charset,
+    // which must come within the document's first bytes.
+    { name: "first-paint", transformIndexHtml: () => [{ tag: "script", children: firstPaintScript(PREFERENCES), injectTo: "head" }] },
   ],
   // Stoa is linked from the sibling repository during development and has
   // its own node_modules, and the engines have their own in the workspace:
@@ -24,9 +26,11 @@ export default defineConfig({
   // hook call".
   resolve: { dedupe: ["react", "react-dom", "react-aria-components", "xstate"] },
   worker: { format: "es" },
+  // Source maps beside the bundle: the code is open, and a reader of the
+  // page can follow it back to the source.
   build: process.env.ARIADNE_BENCH
-    ? { outDir: "dist-bench", rolldownOptions: { input: { index: "index.html", bench: "bench.html" } } }
-    : {},
+    ? { outDir: "dist-bench", sourcemap: true, rolldownOptions: { input: { index: "index.html", bench: "bench.html" } } }
+    : { sourcemap: true },
   server: {
     port: 5182,
     strictPort: true,
