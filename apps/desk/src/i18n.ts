@@ -1,15 +1,14 @@
-// Interface strings in English, Russian and Arabic. Numbers reach these
-// functions already formatted in the interface's locale (digits and
-// grouping), and as numbers where a word has to agree with them. The data
-// itself (client names, statuses, column headers) comes from the engine's
-// language modules, @ariadne/grid/pools/{en,ru,ar}.
+// Interface strings in English and Russian. Numbers reach these functions
+// already formatted in the interface's locale (digits and grouping), and
+// as numbers where a word has to agree with them. The data itself
+// (applicants, stages, column headers, complaint texts) comes from the
+// engine's language modules, @ariadne/grid/pools/{en,ru}.
 
-export type Lang = "en" | "ru" | "ar";
-export const LANGUAGES: Lang[] = ["en", "ru", "ar"];
+export type Lang = "en" | "ru";
+export const LANGUAGES: Lang[] = ["en", "ru"];
 
-/** The locale given to React Aria and Intl for each language. Arabic uses
- * Arabic-Indic digits. */
-export const LOCALES: Record<Lang, string> = { en: "en-US", ru: "ru-RU", ar: "ar-u-nu-arab" };
+/** The locale given to React Aria and Intl for each language. */
+export const LOCALES: Record<Lang, string> = { en: "en-US", ru: "ru-RU" };
 
 export const isLang = (v: string): v is Lang => (LANGUAGES as string[]).includes(v);
 
@@ -49,16 +48,16 @@ export type Strings = {
   viewNameErrors: { empty: string; tooLong: (max: string, length: string) => string; isPreset: string };
 
   role: string;
-  roles: { operator: string; manager: string };
-  operatorNote: (regions: string) => string;
-  operatorHidden: (columns: string) => string;
-  operatorActions: string;
+  roles: { operator: string; signatory: string; supervisor: string };
+  /** What a restricted role works on and may not do. */
+  roleNotes: { operator: (name: string) => string; signatory: (name: string) => string };
+  roleHidden: (columns: string) => string;
 
   filtersLabel: string;
-  statusGroup: string;
-  priorityGroup: string;
-  regionGroup: string;
-  slaBreached: string;
+  stageGroup: string;
+  streamGroup: string;
+  sourceGroup: string;
+  deadlineGroup: string;
   search: string;
   searchHint: string;
   clearFilters: string;
@@ -70,6 +69,8 @@ export type Strings = {
   countPending: (count: string) => string;
   countFailed: (count: string) => string;
   updating: string;
+  /** The day every deadline is counted from. */
+  asOf: (day: string) => string;
 
   density: string;
   densities: { compact: string; default: string; comfortable: string };
@@ -84,13 +85,18 @@ export type Strings = {
   columnHiddenForRole: string;
   done: string;
 
+  /** Working days left, as the time-left column writes them. */
+  workingDaysLeft: (count: string, n: number) => string;
+  overdueBy: (count: string, n: number) => string;
+  dueToday: string;
+
   selected: (count: string) => string;
   bulkLabel: string;
-  bulkStatus: string;
+  bulkAssignee: string;
   apply: string;
   clearSelection: string;
-  bulkNeedsManager: string;
-  bulkDone: (status: string, count: string, n: number) => string;
+  bulkNeedsSupervisor: string;
+  bulkDone: (assignee: string, count: string, n: number) => string;
   bulkSkipped: (count: string) => string;
   undo: string;
   undone: (count: string, n: number) => string;
@@ -100,12 +106,20 @@ export type Strings = {
   editSaved: (id: string, column: string, value: string) => string;
   editRefused: (id: string, reason: string) => string;
   editErrors: {
-    statusUnknown: string;
-    approveNeedsComment: string;
-    commentTooLong: (max: string, length: string) => string;
-    rejectNeedsComment: string;
+    valueUnknown: string;
+    roleCannotEdit: (column: string) => string;
+    stageNotForRole: string;
+    replyNeedsOutcome: string;
+    refusalNeedsGround: string;
+    groundOtherStream: string;
+    sendNeedsSignature: string;
+    replyLocked: string;
+    extensionNotAllowed: string;
+    extensionTooLate: (day: string) => string;
+    extensionAfterReply: string;
+    noteTooLong: (max: string, length: string) => string;
   };
-  emptyComment: string;
+  emptyNote: string;
 
   conflictTitle: string;
   conflictBody: (id: string, column: string) => string;
@@ -121,7 +135,7 @@ export type Strings = {
   colleagueChanged: (id: string, column: string, value: string) => string;
   simulateColleague: string;
   demoTitle: string;
-  demoData: (total: string) => string;
+  demoData: (total: string, open: string) => string;
   demoColleague: (seconds: string) => string;
   demoColleagueOff: string;
 
@@ -186,8 +200,8 @@ export type Strings = {
 
 const en: Strings = {
   title: "Ariadne Desk",
-  subtitle: "Fifty thousand service requests in one grid",
-  gridLabel: "Requests",
+  subtitle: "Complaints and refusals, each with its legal deadline",
+  gridLabel: "Cases",
 
   view: "View",
   viewModified: "Modified",
@@ -214,25 +228,28 @@ const en: Strings = {
   },
 
   role: "Role",
-  roles: { operator: "Operator", manager: "Manager" },
-  operatorNote: (regions) => `Operators work the regions ${regions}.`,
-  operatorHidden: (columns) => `Hidden for this role: ${columns}.`,
-  operatorActions: "Bulk changes and export need the manager role.",
+  roles: { operator: "Operator", signatory: "Signatory", supervisor: "Supervisor" },
+  roleNotes: {
+    operator: (name) => `The operator works the cases assigned to ${name}: facts, the decision and its ground, then legal review and signature. Sending, extensions, bulk changes and export are not theirs.`,
+    signatory: (name) => `The signatory signs and sends the replies assigned to ${name}, or returns one to drafting.`,
+  },
+  roleHidden: (columns) => `Hidden for this role: ${columns}.`,
 
   filtersLabel: "Filters",
-  statusGroup: "Status",
-  priorityGroup: "Priority",
-  regionGroup: "Region",
-  slaBreached: "SLA breached",
+  stageGroup: "Stage",
+  streamGroup: "Stream",
+  sourceGroup: "Source",
+  deadlineGroup: "Deadline",
   search: "Search",
-  searchHint: "ID, client, owner, tags, comment or author",
+  searchHint: "Case, applicant, subject, operation, assignee or note",
   clearFilters: "Clear filters",
   filtersSummary: (active, n) => (n === 0 ? "Filters" : `Filters: ${active} on`),
-  shownOf: (shown, total, n) => `${shown} of ${total} ${n === 1 ? "request" : "requests"}`,
-  countLoading: "Loading requests",
+  shownOf: (shown, total, n) => `${shown} of ${total} ${n === 1 ? "case" : "cases"}`,
+  countLoading: "Loading cases",
   countPending: (count) => `(${count} still loading)`,
   countFailed: (count) => `(${count} did not load)`,
   updating: "Updating",
+  asOf: (day) => `Deadlines as of ${day}.`,
 
   density: "Density",
   densities: { compact: "Compact", default: "Regular", comfortable: "Comfortable" },
@@ -241,34 +258,46 @@ const en: Strings = {
   columnsTitle: "Columns",
   columnsShown: "Shown columns",
   columnsOrder: "Order",
-  columnsPinned: "ID and client stay pinned at the start.",
+  columnsPinned: "Case and applicant stay pinned at the start.",
   columnsUnpinned: "On a narrow screen no column is pinned, so the grid scrolls sideways to every one.",
   narrowHint: "Scroll the grid sideways for the other columns.",
-  columnHiddenForRole: "Not available to operators",
+  columnHiddenForRole: "Not shown to this role",
   done: "Done",
+
+  workingDaysLeft: (count, n) => `${count} working ${n === 1 ? "day" : "days"}`,
+  overdueBy: (count, n) => `${count} working ${n === 1 ? "day" : "days"} overdue`,
+  dueToday: "Due today",
 
   selected: (count) => `Selected: ${count}`,
   bulkLabel: "Bulk change",
-  bulkStatus: "New status",
+  bulkAssignee: "Assign to",
   apply: "Apply",
   clearSelection: "Clear selection",
-  bulkNeedsManager: "Bulk changes need the manager role.",
-  bulkDone: (status, count, n) => `Status “${status}” set on ${count} ${n === 1 ? "request" : "requests"}.`,
-  bulkSkipped: (count) => `Skipped ${count}: approval needs a comment.`,
+  bulkNeedsSupervisor: "Reassigning cases needs the supervisor role.",
+  bulkDone: (assignee, count, n) => `${count} ${n === 1 ? "case" : "cases"} assigned to ${assignee}.`,
+  bulkSkipped: (count) => `Skipped ${count}.`,
   undo: "Undo",
-  undone: (count, n) => `Undone on ${count} ${n === 1 ? "request" : "requests"}.`,
+  undone: (count, n) => `Undone on ${count} ${n === 1 ? "case" : "cases"}.`,
   undoConflicts: (count, n) => `${count} ${n === 1 ? "was" : "were"} changed by a colleague since and kept as they are.`,
   nothingToUndo: "Nothing to undo.",
 
   editSaved: (id, column, value) => `${id}: ${column} is now “${value}”.`,
   editRefused: (id, reason) => `${id} not changed: ${reason}`,
   editErrors: {
-    statusUnknown: "Choose one of the listed statuses.",
-    approveNeedsComment: "Approval needs a comment. Add one first.",
-    commentTooLong: (max, length) => `At most ${max} characters; this comment has ${length}.`,
-    rejectNeedsComment: "A rejected request needs a comment.",
+    valueUnknown: "Choose one of the listed values.",
+    roleCannotEdit: (column) => `This role does not change ${column}.`,
+    stageNotForRole: "This role cannot move a case to that stage.",
+    replyNeedsOutcome: "Decide the outcome before legal review.",
+    refusalNeedsGround: "A refusal needs a legal ground. Choose the ground first.",
+    groundOtherStream: "This ground belongs to another stream: 161-FZ and 115-FZ grounds are not mixed.",
+    sendNeedsSignature: "A reply goes out only after the signatory has it.",
+    replyLocked: "The reply is with the signatory. Return it to drafting to change it.",
+    extensionNotAllowed: "A money claim under 123-FZ cannot be extended.",
+    extensionTooLate: (day) => `Too late to extend: the notice was due by ${day}.`,
+    extensionAfterReply: "The reply has gone out; there is nothing to extend.",
+    noteTooLong: (max, length) => `At most ${max} characters; this note has ${length}.`,
   },
-  emptyComment: "(empty)",
+  emptyNote: "(empty)",
 
   conflictTitle: "Changed while you were editing",
   conflictBody: (id, column) => `A colleague changed ${column} of ${id} after you opened it. Choose the value to keep.`,
@@ -284,19 +313,19 @@ const en: Strings = {
   colleagueChanged: (id, column, value) => `A colleague set ${column} of ${id} to “${value}”.`,
   simulateColleague: "Colleague’s edit",
   demoTitle: "About this demo",
-  demoData: (total) => `Demo: ${total} generated requests.`,
+  demoData: (total, open) => `Demo: ${total} invented complaints, ${open} of them open.`,
   demoColleague: (seconds) => `A simulated colleague edits one about every ${seconds} seconds; edit the same cell to see a conflict.`,
   demoColleagueOff: "The simulated colleague is off on this page; “Colleague’s edit” makes one change.",
 
   exportCsv: "Export CSV",
   exported: (count, n) => `Exported ${count} ${n === 1 ? "row" : "rows"}.`,
   exportedCapped: (count, total) => `Exported the first ${count} of ${total} rows.`,
-  csvFile: "requests.csv",
+  csvFile: "complaints.csv",
 
-  generating: "Generating requests",
-  emptyTitle: "No requests match",
-  emptyBody: "No request fits these filters and this search.",
-  chunkErrorTitle: "Some requests did not load",
+  generating: "Generating the register",
+  emptyTitle: "No cases match",
+  emptyBody: "No case fits these filters and this search.",
+  chunkErrorTitle: "Some cases did not load",
   chunkErrorRange: (from, to) => `Rows ${from} to ${to} are missing.`,
   retry: "Retry",
   workerFallback: "The background worker is unavailable, so filtering and sorting run on the page itself and may be slower.",
@@ -314,7 +343,7 @@ const en: Strings = {
     pageUp: "A page up",
     pageDown: "A page down",
     sort: "On a header: sort by the column",
-    edit: "Edit the status or the comment",
+    edit: "Edit the cell",
     saveEdit: "Save the edit",
     cancelEdit: "Cancel the edit",
     selectRow: "Select or release the row",
@@ -350,8 +379,8 @@ const en: Strings = {
 
 const ruStrings: Strings = {
   title: "Ariadne Стол заявок",
-  subtitle: "Пятьдесят тысяч заявок в одной таблице",
-  gridLabel: "Заявки",
+  subtitle: "Жалобы и отказы, у каждой свой законный срок",
+  gridLabel: "Обращения",
 
   view: "Вид",
   viewModified: "Изменён",
@@ -378,25 +407,28 @@ const ruStrings: Strings = {
   },
 
   role: "Роль",
-  roles: { operator: "Оператор", manager: "Руководитель" },
-  operatorNote: (regions) => `Оператор работает с регионами: ${regions}.`,
-  operatorHidden: (columns) => `Скрыто для этой роли: ${columns}.`,
-  operatorActions: "Массовые изменения и выгрузка доступны руководителю.",
+  roles: { operator: "Оператор", signatory: "Подписант", supervisor: "Руководитель" },
+  roleNotes: {
+    operator: (name) => `Оператор ведёт обращения, назначенные на исполнителя ${name}: факты, решение и его основание, затем юридическая проверка и подпись. Отправка, продление, массовые изменения и выгрузка ему недоступны.`,
+    signatory: (name) => `Подписант (${name}) подписывает и отправляет назначенные ему ответы или возвращает ответ на доработку.`,
+  },
+  roleHidden: (columns) => `Скрыто для этой роли: ${columns}.`,
 
   filtersLabel: "Фильтры",
-  statusGroup: "Статус",
-  priorityGroup: "Приоритет",
-  regionGroup: "Регион",
-  slaBreached: "SLA нарушен",
+  stageGroup: "Этап",
+  streamGroup: "Поток",
+  sourceGroup: "Источник",
+  deadlineGroup: "Срок",
   search: "Поиск",
-  searchHint: "Номер, клиент, ответственный, теги, комментарий или автор",
+  searchHint: "Номер, заявитель, тема, операция, исполнитель или заметка",
   clearFilters: "Сбросить фильтры",
   filtersSummary: (active, n) => (n === 0 ? "Фильтры" : `Фильтры: включено ${active}`),
-  shownOf: (shown, total, n) => `${shown} ${ru(n, "заявка", "заявки", "заявок")} из ${total}`,
-  countLoading: "Загрузка заявок",
+  shownOf: (shown, total, n) => `${shown} ${ru(n, "обращение", "обращения", "обращений")} из ${total}`,
+  countLoading: "Загрузка обращений",
   countPending: (count) => `(ещё загружается: ${count})`,
   countFailed: (count) => `(не загружено: ${count})`,
   updating: "Обновление",
+  asOf: (day) => `Сроки на ${day}.`,
 
   density: "Плотность",
   densities: { compact: "Плотно", default: "Обычно", comfortable: "Просторно" },
@@ -405,37 +437,49 @@ const ruStrings: Strings = {
   columnsTitle: "Столбцы",
   columnsShown: "Показанные столбцы",
   columnsOrder: "Порядок",
-  columnsPinned: "Номер и клиент всегда закреплены в начале.",
+  columnsPinned: "Номер и заявитель всегда закреплены в начале.",
   columnsUnpinned: "На узком экране столбцы не закреплены, и таблица прокручивается вбок до любого из них.",
   narrowHint: "Остальные столбцы видны при прокрутке таблицы вбок.",
-  columnHiddenForRole: "Недоступно оператору",
+  columnHiddenForRole: "Не показывается этой роли",
   done: "Готово",
+
+  workingDaysLeft: (count, n) => `${count} ${ru(n, "рабочий день", "рабочих дня", "рабочих дней")}`,
+  overdueBy: (count, n) => `просрочено на ${count} ${ru(n, "рабочий день", "рабочих дня", "рабочих дней")}`,
+  dueToday: "Срок сегодня",
 
   selected: (count) => `Выбрано: ${count}`,
   bulkLabel: "Массовое изменение",
-  bulkStatus: "Новый статус",
+  bulkAssignee: "Назначить исполнителя",
   apply: "Применить",
   clearSelection: "Снять выбор",
-  bulkNeedsManager: "Массовые изменения доступны руководителю.",
-  bulkDone: (status, count, n) => `Статус «${status}» у ${count} ${ru(n, "заявки", "заявок", "заявок")}.`,
-  bulkSkipped: (count) => `Пропущено: ${count}, для одобрения нужен комментарий.`,
+  bulkNeedsSupervisor: "Переназначать обращения может руководитель.",
+  bulkDone: (assignee, count, n) => `${count} ${ru(n, "обращение назначено", "обращения назначены", "обращений назначено")} на исполнителя ${assignee}.`,
+  bulkSkipped: (count) => `Пропущено: ${count}.`,
   undo: "Отменить",
-  undone: (count, n) => `Отменено у ${count} ${ru(n, "заявки", "заявок", "заявок")}.`,
+  undone: (count, n) => `Отменено у ${count} ${ru(n, "обращения", "обращений", "обращений")}.`,
   undoConflicts: (count) => `Изменённые коллегой после этого оставлены как есть: ${count}.`,
   nothingToUndo: "Отменять нечего.",
 
   editSaved: (id, column, value) => `${id}: ${column} теперь «${value}».`,
-  editRefused: (id, reason) => `${id} не изменена: ${reason}`,
+  editRefused: (id, reason) => `${id} не изменено: ${reason}`,
   editErrors: {
-    statusUnknown: "Выберите один из статусов списка.",
-    approveNeedsComment: "Для одобрения нужен комментарий. Сначала добавьте его.",
-    commentTooLong: (max, length) => `Не больше ${max} символов, а в комментарии ${length}.`,
-    rejectNeedsComment: "Отклонённой заявке нужен комментарий.",
+    valueUnknown: "Выберите одно из значений списка.",
+    roleCannotEdit: (column) => `Эта роль не меняет поле «${column}».`,
+    stageNotForRole: "Эта роль не может перевести обращение на этот этап.",
+    replyNeedsOutcome: "До юридической проверки нужно принять решение.",
+    refusalNeedsGround: "Для отказа нужно правовое основание. Сначала выберите основание.",
+    groundOtherStream: "Это основание другого потока: основания 161-ФЗ и 115-ФЗ не смешиваются.",
+    sendNeedsSignature: "Ответ отправляется только после передачи на подпись.",
+    replyLocked: "Ответ на подписи. Чтобы изменить его, верните его в черновик.",
+    extensionNotAllowed: "Денежное требование по 123-ФЗ продлить нельзя.",
+    extensionTooLate: (day) => `Продлевать поздно: уведомление нужно было направить до ${day}.`,
+    extensionAfterReply: "Ответ уже отправлен, продлевать нечего.",
+    noteTooLong: (max, length) => `Не больше ${max} символов, а в заметке ${length}.`,
   },
-  emptyComment: "(пусто)",
+  emptyNote: "(пусто)",
 
   conflictTitle: "Изменено, пока вы редактировали",
-  conflictBody: (id, column) => `Коллега изменил поле «${column}» заявки ${id} после того, как вы его открыли. Выберите, какое значение оставить.`,
+  conflictBody: (id, column) => `Коллега изменил поле «${column}» обращения ${id} после того, как вы его открыли. Выберите, какое значение оставить.`,
   theirs: "Значение коллеги",
   yours: "Ваше значение",
   started: "Когда вы начали",
@@ -445,22 +489,22 @@ const ruStrings: Strings = {
   keptTheirs: (id) => `${id}: оставлено значение коллеги.`,
   usedMine: (id) => `${id}: сохранено ваше значение.`,
   colleagueEditing: (id, column, value) => `Коллега изменил ячейку, которую вы редактируете (${id}, ${column}), на «${value}».`,
-  colleagueChanged: (id, column, value) => `Коллега изменил поле «${column}» заявки ${id} на «${value}».`,
+  colleagueChanged: (id, column, value) => `Коллега изменил поле «${column}» обращения ${id} на «${value}».`,
   simulateColleague: "Правка коллеги",
   demoTitle: "Об этой демонстрации",
-  demoData: (total) => `Демонстрация: ${total} сгенерированных заявок.`,
-  demoColleague: (seconds) => `Имитируемый коллега меняет одну из них примерно раз в ${seconds} с; измените ту же ячейку, чтобы увидеть конфликт.`,
+  demoData: (total, open) => `Демонстрация: ${total} выдуманных обращений, в работе ${open}.`,
+  demoColleague: (seconds) => `Имитируемый коллега меняет одно из них примерно раз в ${seconds} с; измените ту же ячейку, чтобы увидеть конфликт.`,
   demoColleagueOff: "Имитируемый коллега на этой странице выключен; «Правка коллеги» вносит одну правку.",
 
   exportCsv: "Выгрузить CSV",
   exported: (count, n) => `Выгружено: ${count} ${ru(n, "строка", "строки", "строк")}.`,
   exportedCapped: (count, total) => `Выгружены первые ${count} строк из ${total}.`,
-  csvFile: "zayavki.csv",
+  csvFile: "obrashcheniya.csv",
 
-  generating: "Создание заявок",
-  emptyTitle: "Заявок не найдено",
-  emptyBody: "Ни одна заявка не подходит под эти фильтры и поиск.",
-  chunkErrorTitle: "Часть заявок не загрузилась",
+  generating: "Создание реестра",
+  emptyTitle: "Обращений не найдено",
+  emptyBody: "Ни одно обращение не подходит под эти фильтры и поиск.",
+  chunkErrorTitle: "Часть обращений не загрузилась",
   chunkErrorRange: (from, to) => `Нет строк с ${from} по ${to}.`,
   retry: "Повторить",
   workerFallback: "Фоновый поток недоступен, поэтому фильтры и сортировка выполняются на самой странице и могут работать медленнее.",
@@ -478,7 +522,7 @@ const ruStrings: Strings = {
     pageUp: "На страницу вверх",
     pageDown: "На страницу вниз",
     sort: "На заголовке: сортировать по столбцу",
-    edit: "Изменить статус или комментарий",
+    edit: "Изменить ячейку",
     saveEdit: "Сохранить правку",
     cancelEdit: "Отменить правку",
     selectRow: "Выбрать строку или снять выбор",
@@ -512,168 +556,4 @@ const ruStrings: Strings = {
   notYet: "пока нет",
 };
 
-const ar: Strings = {
-  title: "Ariadne مكتب الطلبات",
-  subtitle: "خمسون ألف طلب خدمة في جدول واحد",
-  gridLabel: "الطلبات",
-
-  view: "العرض",
-  viewModified: "معدَّل",
-  unsavedView: "عرض غير محفوظ",
-  saveView: "احفظ العرض",
-  saveViewTitle: "حفظ العرض",
-  viewName: "الاسم",
-  viewNameHint: "تُحفظ عوامل التصفية والبحث والأعمدة والترتيب والكثافة في هذا المتصفح.",
-  save: "احفظ",
-  viewSaved: (name) => `حُفظ العرض «${name}».`,
-  viewApplied: (name) => `طُبّق العرض «${name}».`,
-  deleteView: "احذف العرض",
-  deleteViewTitle: (name) => `أتحذف العرض «${name}»؟`,
-  deleteViewBody: "ستُزال عوامل التصفية والأعمدة والترتيب المحفوظة لهذا العرض من هذا المتصفح.",
-  deleteViewConfirm: "احذف العرض",
-  viewDeleted: (name) => `حُذف العرض «${name}».`,
-  copyLink: "انسخ الرابط",
-  linkCopied: "رابط هذا العرض في شريط العنوان وفي الحافظة.",
-  linkInAddressBar: "رابط هذا العرض في شريط العنوان.",
-  viewNameErrors: {
-    empty: "أعطِ العرض اسمًا.",
-    tooLong: (max, length) => `الحد الأقصى ${max} حرفًا، وفي هذا الاسم ${length}.`,
-    isPreset: "هذا الاسم لعرض مدمج.",
-  },
-
-  role: "الدور",
-  roles: { operator: "موظف التشغيل", manager: "المدير" },
-  operatorNote: (regions) => `يعمل موظف التشغيل على المناطق: ${regions}.`,
-  operatorHidden: (columns) => `مخفي لهذا الدور: ${columns}.`,
-  operatorActions: "التغييرات الجماعية والتصدير متاحة للمدير.",
-
-  filtersLabel: "عوامل التصفية",
-  statusGroup: "الحالة",
-  priorityGroup: "الأولوية",
-  regionGroup: "المنطقة",
-  slaBreached: "تجاوز مهلة الخدمة",
-  search: "البحث",
-  searchHint: "المعرّف أو العميل أو المسؤول أو الوسوم أو التعليق أو المنشئ",
-  clearFilters: "امسح عوامل التصفية",
-  filtersSummary: (active, n) => (n === 0 ? "عوامل التصفية" : `عوامل التصفية: المفعّل ${active}`),
-  shownOf: (shown, total) => `الطلبات: ${shown} من ${total}`,
-  countLoading: "جارٍ تحميل الطلبات",
-  countPending: (count) => `(قيد التحميل: ${count})`,
-  countFailed: (count) => `(لم يُحمَّل: ${count})`,
-  updating: "جارٍ التحديث",
-
-  density: "الكثافة",
-  densities: { compact: "مضغوطة", default: "عادية", comfortable: "مريحة" },
-
-  columns: "الأعمدة",
-  columnsTitle: "الأعمدة",
-  columnsShown: "الأعمدة المعروضة",
-  columnsOrder: "الترتيب",
-  columnsPinned: "يبقى المعرّف والعميل مثبّتين في البداية.",
-  columnsUnpinned: "على الشاشة الضيقة لا يُثبَّت أي عمود، فيُمرَّر الجدول جانبيًا إلى أي منها.",
-  narrowHint: "مرّر الجدول جانبيًا لرؤية بقية الأعمدة.",
-  columnHiddenForRole: "غير متاح لموظف التشغيل",
-  done: "تم",
-
-  selected: (count) => `المحدد: ${count}`,
-  bulkLabel: "تغيير جماعي",
-  bulkStatus: "الحالة الجديدة",
-  apply: "طبّق",
-  clearSelection: "ألغِ التحديد",
-  bulkNeedsManager: "التغييرات الجماعية متاحة للمدير.",
-  bulkDone: (status, count) => `عُيّنت الحالة «${status}» لعدد ${count} من الطلبات.`,
-  bulkSkipped: (count) => `تُخطّي ${count}: الموافقة تتطلب تعليقًا.`,
-  undo: "تراجع",
-  undone: (count) => `أُلغي التغيير على ${count} من الطلبات.`,
-  undoConflicts: (count) => `بقيت كما هي لأن زميلًا غيّرها بعد ذلك: ${count}.`,
-  nothingToUndo: "لا شيء للتراجع عنه.",
-
-  editSaved: (id, column, value) => `${id}: أصبح ${column} «${value}».`,
-  editRefused: (id, reason) => `لم يتغير ${id}: ${reason}`,
-  editErrors: {
-    statusUnknown: "اختر إحدى الحالات المدرجة.",
-    approveNeedsComment: "الموافقة تتطلب تعليقًا. أضف تعليقًا أولًا.",
-    commentTooLong: (max, length) => `الحد الأقصى ${max} حرفًا، وفي هذا التعليق ${length}.`,
-    rejectNeedsComment: "الطلب المرفوض يحتاج إلى تعليق.",
-  },
-  emptyComment: "(فارغ)",
-
-  conflictTitle: "تغيّر أثناء تحريرك",
-  conflictBody: (id, column) => `غيّر زميل حقل «${column}» في ${id} بعد أن فتحته. اختر القيمة التي تبقى.`,
-  theirs: "قيمة الزميل",
-  yours: "قيمتك",
-  started: "عند بدئك",
-  keepTheirs: "أبقِ قيمته",
-  useMine: "استخدم قيمتي",
-  conflictUndecided: "لم تُحفظ قيمتك بعد. «استخدم قيمتي» يحفظها، و«أبقِ قيمته» يتجاهلها.",
-  keptTheirs: (id) => `${id}: بقيت قيمة الزميل.`,
-  usedMine: (id) => `${id}: حُفظت قيمتك.`,
-  colleagueEditing: (id, column, value) => `غيّر زميل الخلية التي تحرّرها (${id}، ${column}) إلى «${value}».`,
-  colleagueChanged: (id, column, value) => `غيّر زميل حقل «${column}» في ${id} إلى «${value}».`,
-  simulateColleague: "تعديل زميل",
-  demoTitle: "عن هذا العرض التوضيحي",
-  demoData: (total) => `عرض توضيحي: ${total} طلب مولَّد.`,
-  demoColleague: (seconds) => `يعدّل زميل افتراضي أحدها كل ${seconds} ثانية تقريبًا؛ حرّر الخلية نفسها لترى تعارضًا.`,
-  demoColleagueOff: "الزميل الافتراضي متوقف في هذه الصفحة؛ «تعديل زميل» يُجري تعديلًا واحدًا.",
-
-  exportCsv: "صدّر ملف CSV",
-  exported: (count) => `الصفوف المصدّرة: ${count}.`,
-  exportedCapped: (count, total) => `صُدّر أول ${count} صف من ${total}.`,
-  csvFile: "requests.csv",
-
-  generating: "جارٍ إنشاء الطلبات",
-  emptyTitle: "لا طلبات مطابقة",
-  emptyBody: "لا يطابق أي طلب عوامل التصفية والبحث هذه.",
-  chunkErrorTitle: "لم يُحمَّل بعض الطلبات",
-  chunkErrorRange: (from, to) => `الصفوف من ${from} إلى ${to} مفقودة.`,
-  retry: "أعد المحاولة",
-  workerFallback: "العامل الخلفي غير متاح، لذا تجري التصفية والترتيب في الصفحة نفسها وقد تكون أبطأ.",
-  actionsLabel: "الإجراءات",
-
-  shortcuts: "الاختصارات",
-  shortcutsTitle: "اختصارات لوحة المفاتيح",
-  shortcutGroups: { grid: "الجدول", editing: "التحرير", selection: "التحديد", app: "مكتب الطلبات" },
-  keys: {
-    move: "انقل الخلية النشطة",
-    rowStart: "أول خلية في الصف",
-    rowEnd: "آخر خلية في الصف",
-    gridStart: "أول خلية في الجدول",
-    gridEnd: "آخر خلية في الجدول",
-    pageUp: "صفحة إلى الأعلى",
-    pageDown: "صفحة إلى الأسفل",
-    sort: "على العنوان: رتّب حسب العمود",
-    edit: "حرّر الحالة أو التعليق",
-    saveEdit: "احفظ التحرير",
-    cancelEdit: "ألغِ التحرير",
-    selectRow: "حدّد الصف أو ألغِ تحديده",
-    extend: "وسّع التحديد",
-    selectAll: "حدّد كل الصفوف المعروضة",
-    search: "البحث",
-    help: "اعرض هذه الاختصارات",
-    undo: "تراجع عن آخر تغيير",
-    grid: "انتقل إلى الجدول",
-    clear: "امسح عوامل التصفية",
-    export: "صدّر ملف CSV",
-    colleague: "حاكِ تعديل زميل",
-    saveView: "احفظ العرض",
-  },
-
-  performance: "الأداء",
-  perfNote:
-    "مقيس في هذا التبويب. أول الصفوف: من بدء التنقل إلى أول إطار مرسوم فيه صفوف. التصفية والترتيب: من الإدخال إلى إعادة رسم الجدول. الذهاب والإياب: من إرسال الاستعلام إلى وصول نتيجته. الحساب: الترتيب والبحث والتصفية داخل العامل الخلفي.",
-  firstRows: "أول الصفوف",
-  filterLatency: "التصفية",
-  sortLatency: "الترتيب",
-  roundTrip: "ذهاب وإياب مع العامل",
-  workerCompute: "الحساب",
-  rowsLoaded: "الصفوف المحمّلة",
-  computedOn: "مكان الحساب",
-  modeWorker: "العامل الخلفي",
-  modeMain: "الخيط الرئيسي",
-  ms: "مللي ثانية",
-  medianP95: (p50, p95) => `الوسيط ${p50}، المئين ٩٥: ${p95}`,
-  samples: (n) => `القياسات: ${n}`,
-  notYet: "لم يُقس بعد",
-};
-
-export const strings: Record<Lang, Strings> = { en, ru: ruStrings, ar };
+export const strings: Record<Lang, Strings> = { en, ru: ruStrings };

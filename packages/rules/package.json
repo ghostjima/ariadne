@@ -1,0 +1,37 @@
+{
+  "name": "@ariadne/rules",
+  "version": "0.1.0",
+  "description": "The desk's TypeScript adapter over the ariadne-rules WebAssembly build: the production calendar, legal clocks, reason codes and the reply rubric as plain objects",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "files": [
+    "dist",
+    "wasm"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "scripts": {
+    "wasm": "node scripts/copy-wasm.mjs",
+    "build": "node scripts/copy-wasm.mjs && tsc -p tsconfig.build.json",
+    "typecheck": "node scripts/copy-wasm.mjs && tsc -p tsconfig.json",
+    "test": "node scripts/copy-wasm.mjs && vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "6.0.3",
+    "vitest": "5.0.2"
+  }
+}

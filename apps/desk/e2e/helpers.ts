@@ -1,22 +1,27 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { DEFAULT_VIEW, serializeView } from "@ariadne/grid";
+import { DEFAULT_VIEW, serializeView, type View } from "@ariadne/grid";
 
-export const ALL = "50,000 of 50,000 requests";
+export const ALL = "1,200 of 1,200 cases";
 
-/** The default view with the comment column, as a `view` parameter. */
-export const WITH_COMMENTS = serializeView({ ...DEFAULT_VIEW, name: "", columns: [...DEFAULT_VIEW.columns, "comment"] });
+/** A view as a `view` parameter. */
+export const viewParam = (view: Partial<View>) => serializeView({ ...DEFAULT_VIEW, name: "", ...view });
 
-/** The built-in "All requests" view, as a `view` parameter. */
-export const ALL_REQUESTS = serializeView(DEFAULT_VIEW);
+/** The built-in "All cases" view, as a `view` parameter. */
+export const ALL_CASES = serializeView(DEFAULT_VIEW);
 
-/** Opens the desk with the colleague off unless asked for, on all the
- * requests unless a view is given (the desk itself starts on the ones that
- * need action), and waits for every row. */
+/** The columns the edits work on: case 1, applicant 2, stream 3, stage 4,
+ * decision 5, ground 6, extension 7, note 8. */
+export const EDIT_COLUMNS = ["id", "client", "stream", "stage", "outcome", "ground", "extension", "note"];
+export const WITH_EDITS = viewParam({ columns: EDIT_COLUMNS });
+
+/** Opens the desk with the colleague off unless asked for, on all the cases
+ * unless a view is given (the desk itself starts on the open ones), and
+ * waits for every row. */
 export async function open(page: Page, query = "", rows = ALL) {
   const params = new URLSearchParams(query);
   if (!params.has("colleague")) params.set("colleague", "off");
-  if (!params.has("view")) params.set("view", ALL_REQUESTS);
+  if (!params.has("view")) params.set("view", ALL_CASES);
   await page.goto(`/?${params}`);
   if (rows) await expect(page.getByTestId("row-count")).toHaveText(rows, { timeout: 15_000 });
 }
@@ -44,4 +49,20 @@ export async function expectNoSeriousViolations(page: Page, label = "", scan?: {
 export async function focusCell(page: Page, row: number, column: number) {
   await cell(page, row, column).click();
   await expect(cell(page, row, column)).toBeFocused();
+}
+
+/** Opens the enum editor of a cell and picks an option by name, from the
+ * keyboard: a value the rules refuse keeps the editor open with the reason
+ * (a click outside the list would close it). */
+export async function pick(page: Page, row: number, column: number, name: string) {
+  await focusCell(page, row, column);
+  await page.keyboard.press("Enter");
+  const list = grid(page).getByRole("listbox");
+  await expect(list).toBeFocused();
+  const options = await list.getByRole("option").allTextContents();
+  const at = options.indexOf(name);
+  expect(at, name).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press("Home");
+  for (let k = 0; k < at; k++) await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 }

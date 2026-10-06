@@ -1,12 +1,14 @@
 // What the page reads from its address and from storage: the shared view,
 // the role, demo switches, and the saved views.
-import { parseView, parseViews, serializeViews, type Role, type View } from "@ariadne/grid";
+import { ROLES, parseView, parseViews, serializeViews, type Role, type View } from "@ariadne/grid";
 
 export const VIEWS_KEY = "argus-desk.views";
 
 export type UrlConfig = {
   view: View | null;
   role: Role;
+  /** The scale mode: 50,000 rows instead of the register's realistic size. */
+  scale: boolean;
   /** Chunk indices that fail once, to show the error state. */
   failChunks: number[];
   /** No worker: generation and queries on the main thread. */
@@ -22,7 +24,8 @@ export function readUrlConfig(search: string = location.search): UrlConfig {
   const seconds = colleague === null ? 40 : Number(colleague);
   return {
     view: parseView(params.get("view")),
-    role: params.get("role") === "operator" ? "operator" : "manager",
+    role: ROLES.find((r) => r === params.get("role")) ?? "supervisor",
+    scale: params.get("scale") === "50000",
     failChunks: fail
       ? fail
           .split(",")

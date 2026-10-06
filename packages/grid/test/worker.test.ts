@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateChunk } from "../src/generator.js";
 import { allocColumns, chunkTransferables } from "../src/store.js";
 import {
@@ -49,10 +49,10 @@ describe("worker protocol", () => {
     const received = structuredClone(msg, { transfer });
     if (msg.type !== "chunk" || received.type !== "chunk") throw new Error("expected a chunk");
     /* The sender's arrays are detached; the receiver has the data */
-    expect(msg.chunk.metrics.byteLength).toBe(0);
-    expect(msg.chunk.status.byteLength).toBe(0);
-    const expected = generateChunk(5, 0, 1_000);
-    expect(Array.from(received.chunk.metrics)).toEqual(Array.from(expected.metrics));
+    expect(msg.chunk.due.byteLength).toBe(0);
+    expect(msg.chunk.stage.byteLength).toBe(0);
+    const expected = generateChunk(5, 0, 1_000, 2_500);
+    expect(Array.from(received.chunk.due)).toEqual(Array.from(expected.due));
     expect(Array.from(received.chunk.client)).toEqual(Array.from(expected.client));
   });
 
@@ -78,7 +78,8 @@ describe("worker protocol", () => {
     scope.postMessage = (msg) => posted.push(msg);
     await import("../src/worker/entry.js");
     expect(typeof scope.onmessage).toBe("function");
+    /* It answers once the rules module is in, which it waits for */
     scope.onmessage!({ data: generate() });
-    expect(posted).toHaveLength(3);
+    await vi.waitFor(() => expect(posted).toHaveLength(3));
   });
 });

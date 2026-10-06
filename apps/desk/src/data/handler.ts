@@ -1,6 +1,6 @@
 // The desk worker's message handler, kept apart from the worker's global
 // scope so the same code runs in a worker and in tests.
-import { applyChunk, createChunkProducer, createStore, writeComment, type ColumnStore, type WorkerResponse } from "@ariadne/grid";
+import { applyChunk, createChunkProducer, createStore, writeNote, type ColumnStore, type WorkerResponse } from "@ariadne/grid";
 import type { DeskRequest, DeskResponse, SyncRequest } from "./protocol";
 import { QueryEngine } from "./query";
 
@@ -9,10 +9,14 @@ export type DeskPost = (msg: DeskResponse, transfer: Transferable[]) => void;
 /** Copies edited values into a store. */
 export function applySync(store: ColumnStore, msg: SyncRequest): void {
   msg.rows.forEach((row, k) => {
-    store.status[row] = msg.status[k] ?? 0;
-    store.slaBreached[row] = msg.slaBreached[k] ?? 0;
-    const comment = msg.comments?.[k];
-    if (comment) writeComment(store, row, comment, 0);
+    store.stage[row] = msg.stage[k] ?? 0;
+    store.outcome[row] = msg.outcome[k] ?? 0;
+    store.ground[row] = msg.ground[k] ?? 0;
+    store.extension[row] = msg.extension[k] ?? 0;
+    store.assignee[row] = msg.assignee[k] ?? 0;
+    store.sentOn[row] = msg.sentOn[k] ?? -1;
+    const note = msg.notes?.[k];
+    if (note) writeNote(store, row, note, 0);
     store.updatedAt[row] = msg.updatedAt[k] ?? 0;
   });
 }

@@ -15,7 +15,6 @@ import {
   type Sort,
   type TextPools,
 } from "@ariadne/grid";
-import { labels as arLabels, pools as arPools } from "@ariadne/grid/pools/ar";
 import { labels as enLabels, pools as enPools } from "@ariadne/grid/pools/en";
 import { labels as ruLabels, pools as ruPools } from "@ariadne/grid/pools/ru";
 import type { Lang } from "../i18n";
@@ -23,14 +22,13 @@ import type { Lang } from "../i18n";
 export const POOLS: Record<Lang, { pools: TextPools; labels: Labels }> = {
   en: { pools: enPools, labels: enLabels },
   ru: { pools: ruPools, labels: ruLabels },
-  ar: { pools: arPools, labels: arLabels },
 };
 
 /** Columns whose sort keys are the displayed text, so they depend on the
  * language. */
-const TEXT_SORT = new Set(["client", "owner", "createdBy", "tags", "comment"]);
+const TEXT_SORT = new Set(["client", "subject", "assignee", "signatory", "note"]);
 /** Columns an edit can change, so a sort by them goes stale. */
-const EDITED_SORT = new Set(["status", "updatedAt", "comment"]);
+const EDITED_SORT = new Set(["stage", "outcome", "ground", "extension", "assignee", "left", "due", "updatedAt", "note"]);
 
 export type Query = { criteria: Criteria; sort: Sort; lang: Lang };
 
@@ -57,7 +55,7 @@ export class QueryEngine {
     this.search = null;
   }
 
-  /** Rows were edited (status, comment, updatedAt). */
+  /** Rows were edited (a code field, a note, updatedAt). */
   rowsEdited(rows: ArrayLike<number>): void {
     const sorted = this.sortCache?.key.split("|")[0];
     if (sorted && EDITED_SORT.has(sorted)) this.sortCache = null;

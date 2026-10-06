@@ -1,6 +1,6 @@
-import { COLUMN_BY_ID, METRIC_COUNT, METRIC_IDS, PRIORITY_COUNT, STATUS_COUNT } from "./schema.js";
-import { convertedAmount, getComment, type ColumnStore } from "./store.js";
-import { commentText, tagsText, type SearchIndex, type TextPools } from "./text.js";
+import { COLUMN_BY_ID, DEADLINE_COUNT, SOURCE_COUNT, STAGE_COUNT, STREAM_COUNT } from "./schema.js";
+import { deadlineClass, effectiveDue, getNote, workingDaysLeft, type ColumnStore } from "./store.js";
+import { clientName, noteText, subjectText, type SearchIndex, type TextPools } from "./text.js";
 
 /*
   Filtering and sorting over the columnar store. Everything works on index
@@ -9,31 +9,36 @@ import { commentText, tagsText, type SearchIndex, type TextPools } from "./text.
   (counts of rows that would match if only that group changed).
 */
 
+/* The rows a role may see: by assignee, by signatory, or all (null) */
+export type Scope = { assignees: readonly number[] | null; signatories: readonly number[] | null };
+
+export const ALL_ROWS: Scope = { assignees: null, signatories: null };
+
 export type Criteria = {
-  status: readonly number[];
-  priority: readonly number[];
-  slaBreached: boolean;
-  regions: readonly number[];
+  stage: readonly number[];
+  stream: readonly number[];
+  source: readonly number[];
+  /* DeadlineClass codes */
+  deadline: readonly number[];
   search: string;
   /* Role restriction, applied on top of user filters */
-  allowedRegions: readonly number[] | null;
+  scope: Scope;
 };
 
 export const EMPTY_CRITERIA: Criteria = {
-  status: [],
-  priority: [],
-  slaBreached: false,
-  regions: [],
+  stage: [],
+  stream: [],
+  source: [],
+  deadline: [],
   search: "",
-  allowedRegions: null,
+  scope: ALL_ROWS,
 };
 
 export type Facets = {
-  status: Uint32Array;
-  priority: Uint32Array;
-  /* Indexed by region code; regions outside the role's allowance stay 0 */
-  region: Uint32Array;
-  slaBreached: number;
+  stage: Uint32Array;
+  stream: Uint32Array;
+  source: Uint32Array;
+  deadline: Uint32Array;
 };
 
 export type FilterResult = {
@@ -45,22 +50,34 @@ export type FilterResult = {
 
 const CODE_SPACE = 256;
 
-function mask(values: readonly number[], size: number): Uint8Array | null {
-  if (values.length === 0) return null;
+function mask(values: readonly number[] | null, size: number): Uint8Array | null {
+  if (values === null || values.length === 0) return null;
   const m = new Uint8Array(size);
   for (const v of values) if (v >= 0 && v < size) m[v] = 1;
   return m;
+}
+
+/* A scope list that is set but empty lets no row through */
+function scopeMask(values: readonly number[] | null): Uint8Array | null {
+  return values === null ? null : (mask(values, CODE_SPACE) ?? new Uint8Array(CODE_SPACE));
 }
 
 export function normalizeSearch(q: string): string {
   return q.trim().toLowerCase();
 }
 
+/* Whether the role's scope lets a row through */
+export function inScope(store: ColumnStore, i: number, scope: Scope): boolean {
+  if (scope.assignees !== null && !scope.assignees.includes(store.assignee[i] ?? -1)) return false;
+  if (scope.signatories !== null && !scope.signatories.includes(store.signatory[i] ?? -1)) return false;
+  return true;
+}
+
 /*
   `order` is the sorted list of all row indices (or null for natural order).
-  Only loaded rows are considered, so a partially loaded dataset filters fine.
-  `search` is the index of the displayed language; it is required only when
-  the criteria carry a text query.
+  Only loaded rows are considered, so a partially loaded register filters
+  fine. `search` is the index of the displayed language; it is required
+  only when the criteria carry a text query.
 */
 export function filterRows(
   store: ColumnStore,
@@ -72,129 +89,120 @@ export function filterRows(
   const n = store.size;
   const out = new Uint32Array(n);
   let k = 0;
-  const statusMask = mask(criteria.status, STATUS_COUNT);
-  const priorityMask = mask(criteria.priority, PRIORITY_COUNT);
-  const regionMask = mask(criteria.regions, CODE_SPACE);
-  const allowedMask = criteria.allowedRegions ? mask(criteria.allowedRegions, CODE_SPACE) : null;
+  const stageMask = mask(criteria.stage, STAGE_COUNT);
+  const streamMask = mask(criteria.stream, STREAM_COUNT);
+  const sourceMask = mask(criteria.source, SOURCE_COUNT);
+  const deadlineMask = mask(criteria.deadline, DEADLINE_COUNT);
+  const assignees = scopeMask(criteria.scope.assignees);
+  const signatories = scopeMask(criteria.scope.signatories);
   const q = normalizeSearch(criteria.search);
   const hasQ = q.length > 0;
   if (hasQ && search === null) {
-    throw new TypeError("argus-grid: filterRows needs a search index for a text query");
+    throw new TypeError("@ariadne/grid: filterRows needs a search index for a text query");
   }
-  const sla = criteria.slaBreached;
 
-  const facetStatus = new Uint32Array(STATUS_COUNT);
-  const facetPriority = new Uint32Array(PRIORITY_COUNT);
-  const facetRegion = new Uint32Array(CODE_SPACE);
-  let facetSla = 0;
+  const facetStage = new Uint32Array(STAGE_COUNT);
+  const facetStream = new Uint32Array(STREAM_COUNT);
+  const facetSource = new Uint32Array(SOURCE_COUNT);
+  const facetDeadline = new Uint32Array(DEADLINE_COUNT);
 
-  const { status, priority, slaBreached, region, loaded } = store;
+  const { stage, stream, source, assignee, signatory, loaded } = store;
 
   for (let p = 0; p < n; p++) {
     const i = order ? (order[p] ?? p) : p;
     if (loaded[i] === 0) continue;
-    const r = region[i] ?? 0;
-    if (allowedMask && allowedMask[r] === 0) continue;
+    if (assignees && assignees[assignee[i] ?? 0] === 0) continue;
+    if (signatories && signatories[signatory[i] ?? 0] === 0) continue;
     if (hasQ && !(search![i] ?? "").includes(q)) continue;
     /* Base matches; now the four facet groups */
-    const s = status[i] ?? 0;
-    const pr = priority[i] ?? 0;
-    const br = (slaBreached[i] ?? 0) === 1;
-    const mS = !statusMask || statusMask[s] === 1;
-    const mP = !priorityMask || priorityMask[pr] === 1;
-    const mB = !sla || br;
-    const mR = !regionMask || regionMask[r] === 1;
-    if (mP && mB && mR) facetStatus[s] = (facetStatus[s] ?? 0) + 1;
-    if (mS && mB && mR) facetPriority[pr] = (facetPriority[pr] ?? 0) + 1;
-    if (mS && mP && mR && br) facetSla++;
-    if (mS && mP && mB) facetRegion[r] = (facetRegion[r] ?? 0) + 1;
-    if (mS && mP && mB && mR) out[k++] = i;
+    const st = stage[i] ?? 0;
+    const sm = stream[i] ?? 0;
+    const so = source[i] ?? 0;
+    const dl = deadlineClass(store, i);
+    const mSt = !stageMask || stageMask[st] === 1;
+    const mSm = !streamMask || streamMask[sm] === 1;
+    const mSo = !sourceMask || sourceMask[so] === 1;
+    const mDl = !deadlineMask || deadlineMask[dl] === 1;
+    if (mSm && mSo && mDl) facetStage[st] = (facetStage[st] ?? 0) + 1;
+    if (mSt && mSo && mDl) facetStream[sm] = (facetStream[sm] ?? 0) + 1;
+    if (mSt && mSm && mDl) facetSource[so] = (facetSource[so] ?? 0) + 1;
+    if (mSt && mSm && mSo) facetDeadline[dl] = (facetDeadline[dl] ?? 0) + 1;
+    if (mSt && mSm && mSo && mDl) out[k++] = i;
   }
   return {
     index: out.subarray(0, k),
-    facets: {
-      status: facetStatus,
-      priority: facetPriority,
-      region: facetRegion,
-      slaBreached: facetSla,
-    },
+    facets: { stage: facetStage, stream: facetStream, source: facetSource, deadline: facetDeadline },
     computeMs: performance.now() - t0,
   };
 }
 
 export type Sort = { id: string; desc: boolean } | null;
 
-const metricOffset = new Map<string, number>(METRIC_IDS.map((m, i) => [m, i]));
-
 /*
   Returns a full permutation of row indices sorted by the given column, ties
   in row order. Text columns sort by their displayed strings with the pool's
-  collation, so they need `pools`; numeric and enum columns sort by value.
-  Amounts sort by their value in the reference currency (CURRENCY_RATES).
+  collation, so they need `pools`; numeric, date and code columns sort by
+  value. "left" and "due" sort by the deadline as it stands (extended or
+  not), so an edit of the extension moves the row.
 */
-export function sortOrder(
-  store: ColumnStore,
-  sort: Sort,
-  pools: TextPools | null = null,
-): Uint32Array | null {
+export function sortOrder(store: ColumnStore, sort: Sort, pools: TextPools | null = null): Uint32Array | null {
   if (!sort || !COLUMN_BY_ID.has(sort.id)) return null;
   const n = store.size;
   const dir = sort.desc ? -1 : 1;
-  const numeric = numericColumn(store, sort.id);
-  let data: ArrayLike<number>;
-  let stride = 1;
-  if (numeric) {
-    data = numeric.data;
-    stride = numeric.stride;
-  } else {
-    if (sort.id !== "id" && pools === null) {
-      throw new TypeError(`argus-grid: sorting by ${sort.id} needs text pools`);
-    }
-    const keys = textKeys(store, sort.id, pools as TextPools);
-    if (!keys) return null;
-    data = keys;
+  let data: ArrayLike<number> | null = numericKeys(store, sort.id);
+  if (!data) {
+    if (pools === null) throw new TypeError(`@ariadne/grid: sorting by ${sort.id} needs text pools`);
+    data = textKeys(store, sort.id, pools);
+    if (!data) return null;
   }
+  const keys = data;
   const arr = new Array<number>(n);
   for (let i = 0; i < n; i++) arr[i] = i;
   arr.sort((a, b) => {
-    const d = (data[a * stride] ?? 0) - (data[b * stride] ?? 0);
+    const d = (keys[a] ?? 0) - (keys[b] ?? 0);
     return d !== 0 ? d * dir : a - b;
   });
   return Uint32Array.from(arr);
 }
 
-function numericColumn(
-  store: ColumnStore,
-  id: string,
-): { data: Float64Array | Uint8Array; stride: number } | null {
+/* Sort keys of a column that sorts by number, or null for a text column */
+function numericKeys(store: ColumnStore, id: string): ArrayLike<number> | null {
+  const n = store.size;
+  const computed = (f: (i: number) => number) => {
+    const out = new Float64Array(n);
+    for (let i = 0; i < n; i++) out[i] = f(i);
+    return out;
+  };
   switch (id) {
-    case "date":
-      return { data: store.date, stride: 1 };
-    case "amount": {
-      /* By value, not by the bare number: RUB 1,000 is less than USD 100 */
-      const value = new Float64Array(store.size);
-      for (let i = 0; i < store.size; i++) value[i] = convertedAmount(store, i);
-      return { data: value, stride: 1 };
-    }
-    case "currency":
-      return { data: store.currency, stride: 1 };
-    case "status":
-      return { data: store.status, stride: 1 };
-    case "region":
-      return { data: store.region, stride: 1 };
-    case "priority":
-      return { data: store.priority, stride: 1 };
-    case "sla":
-      return { data: store.sla, stride: 1 };
+    case "id":
+    case "linked":
+      return id === "id" ? computed((i) => i) : store.linked;
+    case "received":
+      return computed((i) => (store.received[i] ?? 0) * 1440 + (store.receivedMinute[i] ?? 0));
+    case "registered":
+      return store.registered;
+    case "due":
+      return computed((i) => effectiveDue(store, i));
+    case "left":
+      return computed((i) => workingDaysLeft(store, i));
+    case "reason":
+      return computed((i) => (store.stream[i] ?? 0) * 256 + (store.reason[i] ?? 0));
+    case "operation":
+      return store.opRef;
+    case "applicant":
+    case "stream":
+    case "source":
     case "channel":
-      return { data: store.channel, stride: 1 };
+    case "extension":
+    case "stage":
+    case "outcome":
+    case "ground":
+    case "opAmount":
+    case "claim":
     case "updatedAt":
-      return { data: store.updatedAt, stride: 1 };
-    default: {
-      const off = metricOffset.get(id);
-      if (off === undefined) return null;
-      return { data: store.metrics.subarray(off), stride: METRIC_COUNT };
-    }
+      return store[id];
+    default:
+      return null;
   }
 }
 
@@ -211,49 +219,42 @@ function rankStrings(strings: readonly string[], locale: string): Uint32Array {
   return rank;
 }
 
-/* Per-row sort keys for text columns: the rank of the displayed string */
+/* Per-row sort keys for text columns: the rank of the displayed string,
+   over the distinct strings only */
 function textKeys(store: ColumnStore, id: string, pools: TextPools): Uint32Array | null {
-  const n = store.size;
-  const keys = new Uint32Array(n);
-  const byCode = (codes: Uint8Array, list: readonly string[]) => {
-    const rank = rankStrings(list, pools.locale);
-    for (let i = 0; i < n; i++) keys[i] = rank[codes[i] ?? 0] ?? 0;
-    return keys;
+  const text = (i: number): string | null => {
+    switch (id) {
+      case "client":
+        return clientName(store.applicant[i] ?? 0, store.client[i] ?? 0, pools);
+      case "subject":
+        return subjectText(store, i, pools);
+      case "assignee":
+        return pools.assignees[store.assignee[i] ?? 0] ?? "";
+      case "signatory":
+        return pools.signatories[store.signatory[i] ?? 0] ?? "";
+      case "note":
+        return noteText(getNote(store, i), pools);
+      default:
+        return null;
+    }
   };
-  switch (id) {
-    case "id":
-      for (let i = 0; i < n; i++) keys[i] = i;
-      return keys;
-    case "client":
-      return byCode(store.client, pools.clients);
-    case "owner":
-      return byCode(store.owner, pools.owners);
-    case "createdBy":
-      return byCode(store.createdBy, pools.authors);
-    case "tags": {
-      const texts = Array.from({ length: 256 }, (_, m) => tagsText(m, pools));
-      return byCode(store.tags, texts);
+  if (text(0) === null) return null;
+  const n = store.size;
+  const distinct = new Map<string, number>();
+  const slot = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = text(i) ?? "";
+    let s = distinct.get(t);
+    if (s === undefined) {
+      s = distinct.size;
+      distinct.set(t, s);
     }
-    case "comment": {
-      /* Distinct texts only: the pool plus whatever was edited */
-      const distinct = new Map<string, number>();
-      const slot = new Uint32Array(n);
-      for (let i = 0; i < n; i++) {
-        const t = commentText(getComment(store, i), pools);
-        let s = distinct.get(t);
-        if (s === undefined) {
-          s = distinct.size;
-          distinct.set(t, s);
-        }
-        slot[i] = s;
-      }
-      const rank = rankStrings([...distinct.keys()], pools.locale);
-      for (let i = 0; i < n; i++) keys[i] = rank[slot[i] ?? 0] ?? 0;
-      return keys;
-    }
-    default:
-      return null;
+    slot[i] = s;
   }
+  const rank = rankStrings([...distinct.keys()], pools.locale);
+  const keys = new Uint32Array(n);
+  for (let i = 0; i < n; i++) keys[i] = rank[slot[i] ?? 0] ?? 0;
+  return keys;
 }
 
 /* Nearest-rank percentile over a sample list */

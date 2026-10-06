@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Status } from "../src/schema.js";
+import { AS_OF, Outcome, Stage } from "../src/schema.js";
 import { generateAll } from "../src/generator.js";
 import { EditHistory } from "../src/history.js";
-import { dayOf, getComment, writeComment, writeStatus, type ColumnStore } from "../src/store.js";
+import { dayNumber } from "../src/days.js";
+import { dayOf, getNote, writeField, writeNote, type ColumnStore } from "../src/store.js";
 import { storeDigest } from "./digest.js";
 
-const NOW = Date.UTC(2026, 9, 4, 12, 30);
+const NOW = Date.UTC(2026, 9, 6, 12, 30);
 
 let store: ColumnStore;
 let history: EditHistory;
 
 beforeEach(() => {
-  store = generateAll(20260904, 1_000, 500);
+  store = generateAll(20261006, 1_200, 400);
   history = new EditHistory();
 });
 
@@ -21,118 +22,121 @@ function rowsWhere(pred: (i: number) => boolean, limit = 50): number[] {
   return out;
 }
 
-describe("bulk status with undo", () => {
-  it("applies one status to many rows and undoes it exactly", () => {
+describe("bulk reassignment with undo", () => {
+  it("assigns many cases to one person and undoes it exactly", () => {
     const before = storeDigest(store);
-    const rows = rowsWhere((i) => store.slaBreached[i] === 1, 40);
-    expect(rows.length).toBe(40);
-    const r = history.setStatus(store, rows, Status.Closed, NOW);
+    const rows = rowsWhere((i) => store.assignee[i] !== 5, 40);
+    const r = history.setField(store, rows, "assignee", 5, "supervisor", NOW);
     expect(r.applied).toHaveLength(40);
     expect(r.rejected).toEqual([]);
-    for (const i of rows) {
-      expect(store.status[i]).toBe(Status.Closed);
-      /* A settled request no longer breaches its SLA */
-      expect(store.slaBreached[i]).toBe(0);
-      expect(store.updatedAt[i]).toBe(dayOf(NOW));
-    }
+    for (const i of rows) expect([store.assignee[i], store.updatedAt[i]]).toEqual([5, dayOf(NOW)]);
     const u = history.undo(store);
     expect(u?.restored).toHaveLength(40);
     expect(u?.conflicts).toHaveLength(0);
-    /* Status, SLA flag and updatedAt all come back */
     expect(storeDigest(store)).toBe(before);
     expect(history.undo(store)).toBeNull();
   });
 
-  it("refuses approval for rows without a comment and applies the rest", () => {
-    const blank = rowsWhere((i) => store.comment[i] === 0, 5);
-    const commented = rowsWhere((i) => store.comment[i] !== 0, 5);
-    const r = history.setStatus(store, [...blank, ...commented], Status.Approved, NOW);
-    expect(Array.from(r.applied)).toEqual(commented);
-    expect(r.rejected).toEqual(blank.map((row) => ({ row, error: { code: "approve-needs-comment" } })));
-    expect(history.setStatus(store, blank, Status.Approved, NOW).entry).toBeNull();
-    expect(history.setStatus(store, [0], 99, NOW).rejected[0]?.error).toEqual({
-      code: "status-unknown",
-    });
-    expect(history.size).toBe(1);
+  it("refuses what the role may not do and applies the rest", () => {
+    expect(history.setField(store, [1, 2], "assignee", 5, "operator", NOW).rejected).toEqual([
+      { row: 1, error: { code: "role-cannot-edit", column: "assignee" } },
+      { row: 2, error: { code: "role-cannot-edit", column: "assignee" } },
+    ]);
+    expect(history.setField(store, [0], "assignee", 99, "supervisor", NOW).rejected[0]?.error).toEqual({ code: "value-unknown" });
+    expect(history.size).toBe(0);
+  });
+});
+
+describe("stage changes", () => {
+  it("refuses legal review for drafts without a decision or with a refusal and no ground, and moves the rest", () => {
+    const pending = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Pending, 3);
+    const noGround = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Refused && store.ground[i] === 0, 2);
+    const ready = rowsWhere((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Upheld, 3);
+    expect([pending.length, noGround.length, ready.length].every((n) => n > 0)).toBe(true);
+    const r = history.setField(store, [...pending, ...noGround, ...ready], "stage", Stage.LegalReview, "supervisor", NOW);
+    expect(Array.from(r.applied)).toEqual(ready);
+    expect(r.rejected).toEqual([
+      ...pending.map((row) => ({ row, error: { code: "reply-needs-outcome" } })),
+      ...noGround.map((row) => ({ row, error: { code: "refusal-needs-ground" } })),
+    ]);
   });
 
-  it("refuses rejection for rows without a comment and applies the rest", () => {
-    const blank = rowsWhere((i) => store.comment[i] === 0 && store.status[i] !== Status.Rejected, 5);
-    const commented = rowsWhere((i) => store.comment[i] !== 0, 5);
-    const r = history.setStatus(store, [...blank, ...commented], Status.Rejected, NOW);
-    expect(Array.from(r.applied)).toEqual(commented);
-    expect(r.rejected).toEqual(blank.map((row) => ({ row, error: { code: "reject-needs-comment" } })));
-    for (const row of blank) expect(store.status[row]).not.toBe(Status.Rejected);
+  it("a reply that goes out is sent on the day the data is taken; undo takes the day back", () => {
+    const row = rowsWhere((i) => store.stage[i] === Stage.AwaitingSignature)[0]!;
+    const before = storeDigest(store);
+    history.setField(store, [row], "stage", Stage.Sent, "signatory", NOW);
+    expect(store.sentOn[row]).toBe(dayNumber(AS_OF));
+    history.undo(store);
+    expect(store.sentOn[row]).toBe(-1);
+    expect(storeDigest(store)).toBe(before);
   });
 
   it("undoes in reverse order across overlapping edits", () => {
     const before = storeDigest(store);
-    history.setStatus(store, [1, 2, 3], Status.InProgress, NOW);
-    history.setStatus(store, [2, 3, 4], Status.InReview, NOW);
-    history.setComment(store, 3, { kind: "text", text: "checked" }, NOW);
+    const rows = rowsWhere((i) => store.stage[i] === Stage.Registered, 4);
+    history.setField(store, rows.slice(0, 3), "stage", Stage.WaitingForFacts, "operator", NOW);
+    history.setField(store, rows.slice(1), "stage", Stage.Drafting, "operator", NOW);
+    history.setNote(store, rows[2]!, { kind: "text", text: "checked" }, "operator", NOW);
     expect(history.size).toBe(3);
     history.undo(store);
     history.undo(store);
-    expect(store.status[2]).toBe(Status.InProgress);
+    expect(store.stage[rows[1]!]).toBe(Stage.WaitingForFacts);
     history.undo(store);
     expect(storeDigest(store)).toBe(before);
-    expect(store.commentEdits.size).toBe(0);
+    expect(store.noteEdits.size).toBe(0);
   });
 
   it("leaves rows a colleague changed since, and reports them", () => {
-    const rows = [10, 11, 12];
-    history.setStatus(store, rows, Status.InReview, NOW);
-    expect(history.peek()?.kind).toBe("status");
-    writeStatus(store, 11, Status.Rejected, NOW + 1_000);
+    const rows = rowsWhere((i) => store.stage[i] === Stage.Registered, 3);
+    history.setField(store, rows, "stage", Stage.WaitingForFacts, "operator", NOW);
+    expect(history.peek()?.kind).toBe("field");
+    writeField(store, rows[1]!, "stage", Stage.Drafting, NOW + 1_000);
     const u = history.undo(store)!;
-    expect(Array.from(u.conflicts)).toEqual([11]);
-    expect(Array.from(u.restored)).toEqual([10, 12]);
-    expect(store.status[11]).toBe(Status.Rejected);
+    expect(Array.from(u.conflicts)).toEqual([rows[1]]);
+    expect(Array.from(u.restored)).toEqual([rows[0], rows[2]]);
+    expect(store.stage[rows[1]!]).toBe(Stage.Drafting);
   });
 
   it("overwrites conflicting rows when asked", () => {
-    const original = store.status[11];
-    history.setStatus(store, [11], Status.InReview, NOW);
-    writeStatus(store, 11, Status.Rejected, NOW);
-    const u = history.undo(store, { overwrite: true })!;
-    expect(Array.from(u.restored)).toEqual([11]);
-    expect(store.status[11]).toBe(original);
+    const row = rowsWhere((i) => store.stage[i] === Stage.Registered)[0]!;
+    history.setField(store, [row], "stage", Stage.WaitingForFacts, "operator", NOW);
+    writeField(store, row, "stage", Stage.Drafting, NOW);
+    expect(Array.from(history.undo(store, { overwrite: true })!.restored)).toEqual([row]);
+    expect(store.stage[row]).toBe(Stage.Registered);
   });
 
   it("keeps at most `limit` entries", () => {
     const h = new EditHistory(3);
-    for (let k = 0; k < 5; k++) h.setStatus(store, [k], Status.InProgress, NOW);
+    for (let k = 0; k < 5; k++) h.setField(store, [k], "assignee", 1, "supervisor", NOW);
     expect(h.size).toBe(3);
     h.clear();
     expect(h.size).toBe(0);
   });
 });
 
-describe("comment edits with undo", () => {
-  it("validates, applies and restores a comment", () => {
-    const row = rowsWhere((i) => store.comment[i] !== 0, 1)[0]!;
-    const original = getComment(store, row);
-    const r = history.setComment(store, row, { kind: "text", text: "new note" }, NOW);
-    expect(r.entry?.kind).toBe("comment");
-    expect(getComment(store, row)).toEqual({ kind: "text", text: "new note" });
+describe("note edits with undo", () => {
+  it("validates, applies and restores a note", () => {
+    const row = rowsWhere((i) => store.note[i] !== 0, 1)[0]!;
+    const original = getNote(store, row);
+    const r = history.setNote(store, row, { kind: "text", text: "new note" }, "operator", NOW);
+    expect(r.entry?.kind).toBe("note");
+    expect(getNote(store, row)).toEqual({ kind: "text", text: "new note" });
     history.undo(store);
-    expect(getComment(store, row)).toEqual(original);
+    expect(getNote(store, row)).toEqual(original);
   });
 
-  it("refuses to clear the comment of a rejected request", () => {
-    const row = rowsWhere((i) => store.status[i] === Status.Rejected, 1)[0]!;
-    const r = history.setComment(store, row, { kind: "text", text: "" }, NOW);
+  it("refuses a note over the limit", () => {
+    const r = history.setNote(store, 3, { kind: "text", text: "x".repeat(201) }, "operator", NOW);
     expect(r.entry).toBeNull();
-    expect(r.rejected).toEqual([{ row, error: { code: "reject-needs-comment" } }]);
-    expect(history.setComment(store, row, { kind: "pool", code: 0 }, NOW).rejected).toHaveLength(1);
+    expect(r.rejected).toEqual([{ row: 3, error: { code: "note-too-long", max: 200, length: 201 } }]);
     expect(history.size).toBe(0);
   });
 
-  it("reports a comment a colleague replaced since", () => {
-    history.setComment(store, 7, { kind: "text", text: "mine" }, NOW);
-    writeComment(store, 7, { kind: "colleague", n: 3 }, NOW);
+  it("reports a note a colleague replaced since", () => {
+    history.setNote(store, 7, { kind: "text", text: "mine" }, "operator", NOW);
+    writeNote(store, 7, { kind: "colleague", n: 3 }, NOW);
     const u = history.undo(store)!;
     expect(Array.from(u.conflicts)).toEqual([7]);
-    expect(getComment(store, 7)).toEqual({ kind: "colleague", n: 3 });
+    expect(getNote(store, 7)).toEqual({ kind: "colleague", n: 3 });
   });
 });

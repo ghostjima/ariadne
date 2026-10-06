@@ -1,138 +1,247 @@
 /*
-  Vocabulary of the "requests" dataset as codes, and the column catalogue.
+  Vocabulary of the complaints register as codes, and the column catalogue.
   Nothing here is displayed text: enum fields are small integers, and every
-  label lives in a language module (see pools/en.ts, pools/ru.ts,
-  pools/ar.ts) that the caller picks.
+  label lives in a language module (see pools/ru.ts and pools/en.ts) that
+  the caller picks. The legal facts (deadlines, extension, the signs of
+  Order No. OD-2506, the 115-FZ categories) come from ariadne-rules through
+  @ariadne/rules; this file only names the codes the rows store.
 */
 
-/* Status codes. The order matters: codes >= APPROVED are settled. */
-export const Status = {
-  New: 0,
-  InProgress: 1,
-  AwaitingClient: 2,
-  InReview: 3,
-  Approved: 4,
-  Rejected: 5,
+/* What the complaint is about, which sets the law its reply runs under */
+export const Stream = {
+  /* A written complaint under 442-FZ (Banking Law art. 30.1) */
+  General: 0,
+  /* A money claim up to 500,000 roubles under 123-FZ: no extension */
+  MoneyClaim: 1,
+  /* A block or refusal under 161-FZ art. 8, with an OD-2506 sign */
+  Antifraud: 2,
+  /* A refusal under 115-FZ, with its reason category */
+  Aml: 3,
+} as const;
+export const STREAM_COUNT = 4;
+/* The stream codes as ariadne-rules names them */
+export const STREAM_RULES = ["general", "money_claim", "antifraud", "aml_refusal"] as const;
+
+/* Who sent it */
+export const Source = {
+  Client: 0,
+  Representative: 1,
+  /* Forwarded by the Bank of Russia (86-FZ art. 79.3): every notice and
+     the reply are copied back to it on the day they go out */
+  BankOfRussia: 2,
+} as const;
+export const SOURCE_COUNT = 3;
+
+/* How it arrived */
+export const Channel = {
+  Email: 0,
+  /* A form in the internet bank or the app */
+  Online: 1,
+  Post: 2,
+  /* Handed in at an office */
+  Office: 3,
+  /* A messenger channel the contract lists */
+  Chat: 4,
+  /* The participant's personal account on the Bank of Russia's site */
+  BankOfRussiaAccount: 5,
+} as const;
+export const CHANNEL_COUNT = 6;
+/* Channels whose complaints are electronic (a registration notice is due) */
+export const ELECTRONIC_CHANNELS: readonly number[] = [0, 1, 4, 5];
+
+/* Who complains */
+export const Applicant = { Individual: 0, LegalEntity: 1 } as const;
+export const APPLICANT_COUNT = 2;
+
+/* Where the case is. The order matters: codes >= SENT are answered. */
+export const Stage = {
+  Registered: 0,
+  WaitingForFacts: 1,
+  Drafting: 2,
+  LegalReview: 3,
+  AwaitingSignature: 4,
+  Sent: 5,
   Closed: 6,
 } as const;
-export const STATUS_COUNT = 7;
+export const STAGE_COUNT = 7;
 
-export const Priority = { Low: 0, Medium: 1, High: 2 } as const;
-export const PRIORITY_COUNT = 3;
+/* What the reply decides */
+export const Outcome = { Pending: 0, Upheld: 1, PartlyUpheld: 2, Refused: 3 } as const;
+export const OUTCOME_COUNT = 4;
 
-export const Channel = { Web: 0, App: 1, Partner: 2, Office: 3 } as const;
-export const CHANNEL_COUNT = 4;
+/* The legal ground a reply names. Each cites an act, an article and a
+   part as ariadne-rules' rubric takes them; the 115-FZ ones are the
+   crate's reason categories, and a test checks they cite what the crate
+   cites. Code 0 is no ground. */
+export type GroundSpec = {
+  id: string;
+  act: "payment_system" | "anti_money_laundering" | "contract";
+  article: string;
+  part: string;
+  /* The streams whose replies may name it */
+  streams: readonly number[];
+};
+export const GROUNDS: readonly (GroundSpec | null)[] = [
+  null,
+  { id: "payment_8_3_4", act: "payment_system", article: "8", part: "3.4", streams: [Stream.Antifraud] },
+  { id: "payment_8_3_10", act: "payment_system", article: "8", part: "3.10", streams: [Stream.Antifraud] },
+  { id: "aml_operation_refused", act: "anti_money_laundering", article: "7", part: "11", streams: [Stream.Aml] },
+  { id: "aml_account_refused", act: "anti_money_laundering", article: "7", part: "5.2, paragraph 2", streams: [Stream.Aml] },
+  { id: "aml_account_terminated", act: "anti_money_laundering", article: "7", part: "5.2, paragraph 3", streams: [Stream.Aml] },
+  { id: "aml_operation_suspended", act: "anti_money_laundering", article: "7", part: "10", streams: [Stream.Aml] },
+  {
+    id: "aml_operation_suspended_by_decision",
+    act: "anti_money_laundering",
+    article: "7",
+    part: "10.1",
+    streams: [Stream.Aml],
+  },
+  { id: "aml_funds_frozen", act: "anti_money_laundering", article: "7", part: "1, subitem 6", streams: [Stream.Aml] },
+  { id: "aml_high_risk_measures", act: "anti_money_laundering", article: "7.7", part: "5", streams: [Stream.Aml] },
+  {
+    id: "contract",
+    act: "contract",
+    article: "",
+    part: "",
+    streams: [Stream.General, Stream.MoneyClaim, Stream.Antifraud, Stream.Aml],
+  },
+];
+export const GROUND_COUNT = GROUNDS.length;
+export const Ground = { None: 0, Contract: GROUND_COUNT - 1 } as const;
+/* The ground of each 115-FZ category: the categories in order, from code 3 */
+export const AML_GROUND_OFFSET = 3;
 
-/* ISO 4217 codes are language-neutral, so they live here rather than in a pool */
-export const CURRENCIES = ["RUB", "USD", "EUR"] as const;
-export const CURRENCY_COUNT = CURRENCIES.length;
+/* The extension of the reply term by ten working days, only to request
+   documents (Banking Law art. 30.1 part 8); refused by ariadne-rules for a
+   money claim under 123-FZ */
+export const Extension = { None: 0, Extended: 1 } as const;
+export const EXTENSION_COUNT = 2;
+export const EXTENSION_WORKING_DAYS = 10;
 
-/* The value of one unit of each currency in the reference currency, by
-   currency code. These are the dataset's own fixed rates (the generator
-   draws every amount in roubles and converts it at them), not market
-   rates; amounts in different currencies are compared at them. */
-export const REFERENCE_CURRENCY = "RUB";
-export const CURRENCY_RATES: readonly number[] = [1, 80, 80];
+/* The deadline class of a row, for the filter and the views: computed
+   from the stage and the working days left, never stored */
+export const DeadlineClass = { Overdue: 0, DueSoon: 1, Later: 2, Answered: 3 } as const;
+export const DEADLINE_COUNT = 4;
+/* "Due soon": at most this many working days left */
+export const DUE_SOON_WORKING_DAYS = 3;
+
+/* The operation behind the complaint */
+export const Operation = {
+  None: 0,
+  CardPayment: 1,
+  FasterPayment: 2,
+  BankTransfer: 3,
+  CashWithdrawal: 4,
+  AccountOpening: 5,
+  AccountService: 6,
+} as const;
+export const OPERATION_COUNT = 7;
+
+/* The 115-FZ categories, in ariadne-rules' order */
+export const AML_REASON_CODES = [
+  "aml_operation_refused",
+  "aml_account_refused",
+  "aml_account_terminated",
+  "aml_operation_suspended",
+  "aml_operation_suspended_by_decision",
+  "aml_funds_frozen",
+  "aml_high_risk_measures",
+] as const;
+export const AML_REASON_COUNT = AML_REASON_CODES.length;
+/* The number of OD-2506 signs ariadne-rules lists */
+export const SIGN_COUNT = 14;
 
 /* Sizes every language pool must match exactly, so the generator draws the
    same codes whatever language is displayed. */
-export const REGION_COUNT = 8;
-export const CLIENT_COUNT = 24;
-export const OWNER_COUNT = 10;
-export const AUTHOR_COUNT = 12;
-export const COMMENT_COUNT = 9;
-export const TAG_COUNT = 8;
+export const SURNAME_COUNT = 40;
+export const FIRST_NAME_COUNT = 20;
+export const COMPANY_COUNT = 30;
+export const ASSIGNEE_COUNT = 8;
+export const SIGNATORY_COUNT = 3;
+export const NOTE_COUNT = 9;
+/* Complaint templates per stream, and the adversarial insertions */
+export const TEMPLATE_COUNT = 5;
+export const INJECTION_COUNT = 6;
 
-export const METRIC_IDS = [
-  "revenue",
-  "cost",
-  "marginAbs",
-  "marginPct",
-  "marginPlan",
-  "discount",
-  "commission",
-  "tax",
-  "refunds",
-  "ltv",
-  "conversion",
-  "weight",
-  "items",
-  "daysOpen",
-  "touches",
-] as const;
-export type MetricId = (typeof METRIC_IDS)[number];
-export const METRIC_COUNT = METRIC_IDS.length;
+export type ColumnKind = "id" | "text" | "date" | "datetime" | "money" | "enum" | "days";
 
-/* Metrics hidden from the operator role */
-export const MARGIN_METRICS: readonly MetricId[] = ["marginAbs", "marginPct", "marginPlan"];
-
-export type ColumnKind =
-  | "id"
-  | "text"
-  | "date"
-  | "money"
-  | "enum"
-  | "number"
-  | "hours"
-  | "tags";
+export type EditColumn = "stage" | "outcome" | "ground" | "extension" | "assignee" | "note";
+/* The editable columns whose values are codes */
+export type EnumField = Exclude<EditColumn, "note">;
 
 export type ColumnSpec = {
   id: string;
   kind: ColumnKind;
-  /* Hidden from the operator role */
-  margin?: boolean;
   /* Inline editable */
-  editable?: "status" | "comment";
+  editable?: EditColumn;
   /* Part of the full-text search string */
   searchable?: boolean;
 };
 
-/* Column catalogue, 30 columns. The first two are always pinned. */
+/* Column catalogue. The first two are always pinned. */
 export const COLUMNS: readonly ColumnSpec[] = [
   { id: "id", kind: "id", searchable: true },
   { id: "client", kind: "text", searchable: true },
-  { id: "date", kind: "date" },
-  { id: "amount", kind: "money" },
-  { id: "currency", kind: "enum" },
-  { id: "status", kind: "enum", editable: "status" },
-  { id: "owner", kind: "text", searchable: true },
-  { id: "region", kind: "enum" },
-  { id: "priority", kind: "enum" },
-  { id: "sla", kind: "hours" },
-  { id: "tags", kind: "tags", searchable: true },
-  ...METRIC_IDS.map<ColumnSpec>((id) =>
-    MARGIN_METRICS.includes(id) ? { id, kind: "number", margin: true } : { id, kind: "number" },
-  ),
-  { id: "comment", kind: "text", editable: "comment", searchable: true },
+  { id: "applicant", kind: "enum" },
+  { id: "stream", kind: "enum" },
+  { id: "reason", kind: "enum" },
+  { id: "subject", kind: "text", searchable: true },
+  { id: "source", kind: "enum" },
   { id: "channel", kind: "enum" },
+  { id: "received", kind: "datetime" },
+  { id: "registered", kind: "date" },
+  { id: "left", kind: "days" },
+  { id: "due", kind: "date" },
+  { id: "extension", kind: "enum", editable: "extension" },
+  { id: "stage", kind: "enum", editable: "stage" },
+  { id: "outcome", kind: "enum", editable: "outcome" },
+  { id: "ground", kind: "enum", editable: "ground" },
+  { id: "assignee", kind: "text", editable: "assignee", searchable: true },
+  { id: "signatory", kind: "text" },
+  { id: "linked", kind: "id" },
+  { id: "operation", kind: "text", searchable: true },
+  { id: "opAmount", kind: "money" },
+  { id: "claim", kind: "money" },
+  { id: "note", kind: "text", editable: "note", searchable: true },
   { id: "updatedAt", kind: "date" },
-  { id: "createdBy", kind: "text", searchable: true },
 ];
 
 export const COLUMN_IDS: readonly string[] = COLUMNS.map((c) => c.id);
 export const PINNED_COLUMNS = ["id", "client"] as const;
-export const DEFAULT_COLUMNS = [
-  "id",
-  "client",
-  "date",
-  "amount",
-  "status",
-  "owner",
-  "region",
-  "priority",
-] as const;
-export const MARGIN_COLUMNS: readonly string[] = COLUMNS.filter((c) => c.margin).map((c) => c.id);
+export const DEFAULT_COLUMNS = ["id", "client", "stream", "stage", "left", "due", "source", "assignee"] as const;
 
 export const COLUMN_BY_ID: ReadonlyMap<string, ColumnSpec> = new Map(COLUMNS.map((c) => [c.id, c]));
 
-export const TOTAL_ROWS = 50_000;
-export const DEFAULT_SEED = 20260904;
-export const CHUNK_SIZE = 5_000;
-export const COMMENT_MAX = 200;
+/* The register as the desk opens it: four months of a bank ranked 50 to
+   250 by assets, about 300 complaints a month, a few hundred of them open
+   on the day the data is taken. */
+export const CORPUS_ROWS = 1_200;
+export const CORPUS_CHUNK = 400;
+/* The scale mode: the same generator over 50,000 rows, a performance proof */
+export const SCALE_ROWS = 50_000;
+export const SCALE_CHUNK = 5_000;
+export const TOTAL_ROWS = CORPUS_ROWS;
+export const CHUNK_SIZE = CORPUS_CHUNK;
+export const DEFAULT_SEED = 20261006;
+/* The day the data is taken: "today" for every deadline in the register */
+export const AS_OF = "2026-10-06";
+/* Complaints are received over this many calendar days up to AS_OF */
+export const WINDOW_DAYS = 120;
+export const NOTE_MAX = 200;
 
-/* Regions the operator role is allowed to see */
-export const OPERATOR_REGIONS: readonly number[] = [0, 1, 2];
+/* The person each role works as in the demo: the first operator and the
+   first signatory */
+export const SELF_ASSIGNEE = 0;
+export const SELF_SIGNATORY = 0;
 
 /* Preset views. Their display names come from the language module. */
-export const PRESET_IDS = ["all", "urgent", "finance", "action"] as const;
+export const PRESET_IDS = [
+  "open",
+  "dueSoon",
+  "overdue",
+  "forwarded",
+  "waitingForFacts",
+  "awaitingSignature",
+  "all",
+] as const;
 export type PresetId = (typeof PRESET_IDS)[number];

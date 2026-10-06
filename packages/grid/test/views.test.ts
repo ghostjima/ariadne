@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { generateAll } from "../src/generator.js";
-import { MARGIN_COLUMNS, OPERATOR_REGIONS, Status } from "../src/schema.js";
+import { DeadlineClass, SELF_ASSIGNEE, SELF_SIGNATORY, Source, Stage } from "../src/schema.js";
 import { EMPTY_CRITERIA, filterRows } from "../src/filter.js";
+import { workingDaysLeft } from "../src/store.js";
 import {
   canBulk,
-  canEdit,
+  canEditColumn,
   canExport,
   canSeeRow,
+  canSetStage,
   hiddenForRole,
   roleRules,
   visibleColumns,
@@ -30,118 +32,144 @@ import {
   type View,
 } from "../src/views.js";
 import { labels as en } from "../src/pools/en.js";
-import { labels as ar } from "../src/pools/ar.js";
 import { labels as ru } from "../src/pools/ru.js";
 
 const custom: View = {
   name: "Мой вид",
-  filters: { status: [0, 1], priority: [2], slaBreached: true, regions: [3] },
-  search: "вектор",
-  columns: ["id", "client", "marginPct", "status", "marginAbs", "comment"],
-  sort: { id: "amount", desc: true },
+  filters: { stage: [1, 2], stream: [2], source: [2], deadline: [0] },
+  search: "сбп",
+  columns: ["id", "client", "assignee", "stage", "signatory", "note"],
+  sort: { id: "left", desc: true },
   density: "compact",
 };
 
+const store = generateAll(20261006, 1_200, 400);
+const preset = (name: string) => PRESET_VIEWS.find((v) => v.name === name)!;
+
 describe("role column visibility", () => {
-  it("manager sees the view as configured, pinned columns first", () => {
-    expect(visibleColumns(custom, "manager")).toEqual([
-      "id",
-      "client",
-      "marginPct",
-      "status",
-      "marginAbs",
-      "comment",
-    ]);
+  it("the supervisor sees the view as configured, pinned columns first", () => {
+    expect(visibleColumns(custom, "supervisor")).toEqual(["id", "client", "assignee", "stage", "signatory", "note"]);
   });
 
-  it("operator loses margin columns and gets a note list in view order", () => {
-    expect(visibleColumns(custom, "operator")).toEqual(["id", "client", "status", "comment"]);
-    expect(hiddenForRole(custom, "operator")).toEqual(["marginPct", "marginAbs"]);
-    expect(hiddenForRole(custom, "manager")).toEqual([]);
+  it("a role does not see the column that would name itself in every row", () => {
+    expect(visibleColumns(custom, "operator")).toEqual(["id", "client", "stage", "signatory", "note"]);
+    expect(hiddenForRole(custom, "operator")).toEqual(["assignee"]);
+    expect(visibleColumns(custom, "signatory")).toEqual(["id", "client", "assignee", "stage", "note"]);
+    expect(hiddenForRole(custom, "supervisor")).toEqual([]);
   });
 
-  it("always keeps the two pinned columns even if the view omits them", () => {
-    const v: View = { ...DEFAULT_VIEW, columns: ["status", "amount"] };
-    expect(visibleColumns(v, "manager")).toEqual(["id", "client", "status", "amount"]);
-  });
-
-  it("drops unknown column ids", () => {
-    const v: View = { ...DEFAULT_VIEW, columns: ["id", "nope", "status"] };
-    expect(visibleColumns(v, "manager")).toEqual(["id", "client", "status"]);
-  });
-
-  it("margin columns are exactly the three margin metrics", () => {
-    expect(MARGIN_COLUMNS).toEqual(["marginAbs", "marginPct", "marginPlan"]);
+  it("always keeps the two pinned columns and drops unknown ids", () => {
+    expect(visibleColumns({ ...DEFAULT_VIEW, columns: ["stage", "due"] }, "supervisor")).toEqual(["id", "client", "stage", "due"]);
+    expect(visibleColumns({ ...DEFAULT_VIEW, columns: ["id", "nope", "stage"] }, "supervisor")).toEqual(["id", "client", "stage"]);
   });
 });
 
 describe("role rules", () => {
-  it("operators see three regions and cannot bulk-edit or export", () => {
-    expect(roleRules("operator").visibleRegions).toEqual(OPERATOR_REGIONS);
-    expect(roleRules("manager").visibleRegions).toBeNull();
-    expect([canEdit("operator"), canBulk("operator"), canExport("operator")]).toEqual([
+  it("the operator drafts; the signatory signs; the supervisor approves extensions, reassigns and exports", () => {
+    expect(roleRules("operator").editable).toEqual(["stage", "outcome", "ground", "note"]);
+    expect([canBulk("operator"), canExport("operator"), canEditColumn("operator", "extension")]).toEqual([false, false, false]);
+    expect([canSetStage("operator", Stage.AwaitingSignature), canSetStage("operator", Stage.Sent)]).toEqual([true, false]);
+    expect([canSetStage("signatory", Stage.Sent), canSetStage("signatory", Stage.Drafting), canSetStage("signatory", Stage.LegalReview)]).toEqual([
+      true,
       true,
       false,
-      false,
     ]);
-    expect([canEdit("manager"), canBulk("manager"), canExport("manager")]).toEqual([
+    expect([canEditColumn("signatory", "outcome"), canEditColumn("signatory", "note")]).toEqual([false, true]);
+    expect([canBulk("supervisor"), canExport("supervisor"), canEditColumn("supervisor", "extension"), canEditColumn("supervisor", "assignee")]).toEqual([
+      true,
       true,
       true,
       true,
     ]);
   });
 
-  it("decides row visibility by region", () => {
-    const store = generateAll(3, 200, 200);
+  it("the operator sees their own cases, the signatory the ones they sign, the supervisor all", () => {
     for (let i = 0; i < store.size; i++) {
-      expect(canSeeRow(store, i, "manager")).toBe(true);
-      expect(canSeeRow(store, i, "operator")).toBe(OPERATOR_REGIONS.includes(store.region[i]!));
+      expect(canSeeRow(store, i, "supervisor")).toBe(true);
+      expect(canSeeRow(store, i, "operator")).toBe(store.assignee[i] === SELF_ASSIGNEE);
+      expect(canSeeRow(store, i, "signatory")).toBe(store.signatory[i] === SELF_SIGNATORY);
     }
   });
 
-  it("turns a view into criteria with the role's regions", () => {
-    const store = generateAll(3, 2_000, 500);
-    const c = criteriaFor(PRESET_VIEWS[1]!, "operator");
+  it("turns a view into criteria with the role's scope", () => {
+    const c = criteriaFor(preset("dueSoon"), "operator");
     expect(c).toEqual({
-      status: [0, 1],
-      priority: [2],
-      slaBreached: true,
-      regions: [],
+      stage: [],
+      stream: [],
+      source: [],
+      deadline: [DeadlineClass.DueSoon],
       search: "",
-      allowedRegions: OPERATOR_REGIONS,
+      scope: { assignees: [SELF_ASSIGNEE], signatories: null },
     });
-    const r = filterRows(store, null, c);
-    for (const i of r.index) expect(OPERATOR_REGIONS).toContain(store.region[i]);
-    expect(criteriaFor(DEFAULT_VIEW, "manager")).toEqual(EMPTY_CRITERIA);
+    for (const i of filterRows(store, null, c).index) expect(store.assignee[i]).toBe(SELF_ASSIGNEE);
+    expect(criteriaFor(DEFAULT_VIEW, "supervisor")).toEqual(EMPTY_CRITERIA);
+  });
+});
+
+describe("the working views", () => {
+  const run = (name: string) => filterRows(store, null, criteriaFor(preset(name), "supervisor")).index;
+
+  it("names every preset, with a label in each language", () => {
+    expect(PRESET_VIEWS.map((v) => v.name)).toEqual(["open", "dueSoon", "overdue", "forwarded", "waitingForFacts", "awaitingSignature", "all"]);
+    for (const v of PRESET_VIEWS) {
+      expect(isPreset(v.name)).toBe(true);
+      for (const labels of [ru, en]) expect(labels.presets[v.name as keyof typeof labels.presets]).toBeTruthy();
+    }
+    expect(isPreset("Мой вид")).toBe(false);
+  });
+
+  it("every working view sorts by the time left, least first", () => {
+    for (const v of PRESET_VIEWS) if (v.name !== "all") expect(v.sort).toEqual({ id: "left", desc: false });
+  });
+
+  it("open cases: everything not yet answered", () => {
+    const rows = run("open");
+    expect(rows.length).toBeGreaterThan(100);
+    for (const i of rows) expect(store.stage[i]).toBeLessThan(Stage.Sent);
+  });
+
+  it("due within 3 working days, and overdue", () => {
+    const soon = run("dueSoon");
+    expect(soon.length).toBeGreaterThan(0);
+    for (const i of soon) expect(workingDaysLeft(store, i)).toBeLessThanOrEqual(3);
+    const overdue = run("overdue");
+    expect(overdue.length).toBeGreaterThan(0);
+    for (const i of overdue) expect([workingDaysLeft(store, i) < 0, store.stage[i]! < Stage.Sent]).toEqual([true, true]);
+  });
+
+  it("forwarded by the Bank of Russia, waiting for facts, awaiting signature", () => {
+    for (const i of run("forwarded")) expect([store.source[i], store.stage[i]! < Stage.Sent]).toEqual([Source.BankOfRussia, true]);
+    for (const i of run("waitingForFacts")) expect(store.stage[i]).toBe(Stage.WaitingForFacts);
+    for (const i of run("awaitingSignature")) expect(store.stage[i]).toBe(Stage.AwaitingSignature);
+    expect(run("forwarded").length).toBeGreaterThan(0);
   });
 });
 
 describe("view serialization", () => {
-  it("round-trips a custom view through base64url", () => {
+  it("round-trips a custom view and every preset through base64url", () => {
     const s = serializeView(custom);
     expect(s).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(parseView(s)).toEqual(custom);
-  });
-
-  it("round-trips every preset", () => {
     for (const p of PRESET_VIEWS) expect(parseView(serializeView(p))).toEqual(p);
   });
 
-  it("rejects garbage and fills defaults for partial data", () => {
+  it("rejects garbage and views of the earlier register, and fills defaults for partial data", () => {
     expect(parseView(null)).toBeNull();
     expect(parseView("")).toBeNull();
     expect(parseView("not base64!!")).toBeNull();
-    const partial = parseView(btoa(JSON.stringify({ n: "x", c: ["status", "bogus"] })));
-    expect(partial).not.toBeNull();
-    expect(partial?.columns).toEqual(["status"]);
-    expect(partial?.filters).toEqual({ status: [], priority: [], slaBreached: false, regions: [] });
+    /* A view saved before the complaints register: no wire version */
+    expect(parseView(btoa(JSON.stringify({ n: "x", f: [[0], [2], 1, []], c: ["status"] })))).toBeNull();
+    const partial = parseView(btoa(JSON.stringify({ v: 2, n: "x", c: ["stage", "bogus"] })));
+    expect(partial?.columns).toEqual(["stage"]);
+    expect(partial?.filters).toEqual({ stage: [], stream: [], source: [], deadline: [] });
     expect(partial?.density).toBe("default");
     expect(partial?.sort).toBeNull();
+    expect(parseView(btoa(JSON.stringify({ v: 2, n: "  " })))?.name).toBe("");
+    expect(parseView(btoa(JSON.stringify({ v: 2 })))?.columns).toEqual(DEFAULT_VIEW.columns);
   });
 
   it("builds a URL with the view parameter and parses it back", () => {
-    const url = viewToUrl(custom, "https://example.test/work/table?x=1");
-    const parsed = new URL(url);
+    const parsed = new URL(viewToUrl(custom, "https://example.test/desk?x=1"));
     expect(parsed.searchParams.get("x")).toBe("1");
     expect(parseView(parsed.searchParams.get("view"))).toEqual(custom);
   });
@@ -152,48 +180,20 @@ describe("view serialization", () => {
     expect(hasActiveFilters(custom.filters)).toBe(true);
     expect(hasActiveFilters(DEFAULT_VIEW.filters)).toBe(false);
   });
-
-  it("leaves a view without a name unnamed, for the caller to label", () => {
-    expect(parseView(btoa(JSON.stringify({ n: "  " })))?.name).toBe("");
-    expect(parseView(btoa(JSON.stringify({})))?.columns).toEqual(DEFAULT_VIEW.columns);
-  });
 });
 
-describe("presets and saved views", () => {
-  it("names presets by id, with a label for each in the language module", () => {
-    expect(PRESET_VIEWS.map((v) => v.name)).toEqual(["all", "urgent", "finance", "action"]);
-    for (const v of PRESET_VIEWS) {
-      expect(isPreset(v.name)).toBe(true);
-      expect(en.presets[v.name as keyof typeof en.presets]).toBeTruthy();
-    }
-    expect(isPreset("Мой вид")).toBe(false);
-  });
-
-  it("has a view of the requests that need action: open ones, SLA shown, tightest first", () => {
-    const action = PRESET_VIEWS.find((v) => v.name === "action")!;
-    expect(action.filters.status).toEqual([Status.New, Status.InProgress, Status.AwaitingClient, Status.InReview]);
-    expect(action.filters.status.every((s) => s < Status.Approved)).toBe(true);
-    expect(action.columns.slice(0, 4)).toEqual(["id", "client", "status", "sla"]);
-    expect(action.sort).toEqual({ id: "sla", desc: false });
-    for (const labels of [en, ru, ar]) expect(labels.presets.action).toBeTruthy();
-    expect(validateViewName("action")).toEqual({ code: "name-is-preset" });
-  });
-
+describe("saved views", () => {
   it("validates a name with codes", () => {
     expect(validateViewName("  ")).toEqual({ code: "name-empty" });
-    expect(validateViewName("x".repeat(VIEW_NAME_MAX + 1))).toEqual({
-      code: "name-too-long",
-      max: VIEW_NAME_MAX,
-      length: VIEW_NAME_MAX + 1,
-    });
-    expect(validateViewName("urgent")).toEqual({ code: "name-is-preset" });
+    expect(validateViewName("x".repeat(VIEW_NAME_MAX + 1))).toEqual({ code: "name-too-long", max: VIEW_NAME_MAX, length: VIEW_NAME_MAX + 1 });
+    expect(validateViewName("overdue")).toEqual({ code: "name-is-preset" });
     expect(validateViewName(` ${"x".repeat(VIEW_NAME_MAX)} `)).toBeNull();
   });
 
   it("saves, replaces by name and removes", () => {
     let saved = saveView([], custom, "  Mine ");
     expect(saved.map((v) => v.name)).toEqual(["Mine"]);
-    saved = saveView(saved, PRESET_VIEWS[2]!, "Other");
+    saved = saveView(saved, preset("overdue"), "Other");
     saved = saveView(saved, { ...custom, density: "comfortable" }, "Mine");
     expect(saved.map((v) => v.name)).toEqual(["Other", "Mine"]);
     expect(saved[1]?.density).toBe("comfortable");
@@ -201,7 +201,7 @@ describe("presets and saved views", () => {
   });
 
   it("stores a saved list as one string and drops unreadable entries", () => {
-    const saved = saveView(saveView([], custom, "A"), PRESET_VIEWS[1]!, "B");
+    const saved = saveView(saveView([], custom, "A"), preset("forwarded"), "B");
     expect(parseViews(serializeViews(saved))).toEqual(saved);
     expect(parseViews(JSON.stringify([serializeView(custom), 7, "!!"]))).toEqual([custom]);
     expect(parseViews("{")).toEqual([]);

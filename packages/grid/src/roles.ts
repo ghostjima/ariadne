@@ -1,37 +1,64 @@
-import { COLUMN_BY_ID, MARGIN_COLUMNS, OPERATOR_REGIONS, PINNED_COLUMNS } from "./schema.js";
+import { inScope, type Scope } from "./filter.js";
+import { COLUMN_BY_ID, PINNED_COLUMNS, SELF_ASSIGNEE, SELF_SIGNATORY, Stage, type EditColumn } from "./schema.js";
 import type { ColumnStore } from "./store.js";
 
 /*
-  Role rules. An operator works a subset of regions and does not see
-  margins; a manager sees everything and may bulk-edit and export. The
-  rules are data, so a UI and the engine read the same answer.
+  Role rules. The operator works the cases assigned to them: drafts, asks
+  for facts, decides the outcome and names the ground, and hands the reply
+  to legal review and then to signature. The signatory signs and sends the
+  replies assigned to them, or returns one to drafting. The supervisor
+  sees every case, approves extensions, reassigns cases in bulk and
+  exports. A column that would show the same name in every row the role
+  sees (the operator's own name as assignee) is hidden for that role. The
+  rules are data, so the interface and the engine read the same answer.
 */
 
-export type Role = "operator" | "manager";
-export const ROLES: readonly Role[] = ["operator", "manager"];
+export type Role = "operator" | "signatory" | "supervisor";
+export const ROLES: readonly Role[] = ["operator", "signatory", "supervisor"];
 
 export type RoleRules = {
-  /* Column ids the role may not see */
+  /* Column ids the role does not see */
   hiddenColumns: readonly string[];
-  /* Region codes the role may see, or null for all */
-  visibleRegions: readonly number[] | null;
-  canEdit: boolean;
+  /* The rows the role sees */
+  scope: Scope;
+  /* Columns the role edits inline */
+  editable: readonly EditColumn[];
+  /* The stages the role may move a case to */
+  stages: readonly number[];
   canBulk: boolean;
   canExport: boolean;
 };
 
 const RULES: Readonly<Record<Role, RoleRules>> = {
   operator: {
-    hiddenColumns: MARGIN_COLUMNS,
-    visibleRegions: OPERATOR_REGIONS,
-    canEdit: true,
+    hiddenColumns: ["assignee"],
+    scope: { assignees: [SELF_ASSIGNEE], signatories: null },
+    editable: ["stage", "outcome", "ground", "note"],
+    stages: [Stage.Registered, Stage.WaitingForFacts, Stage.Drafting, Stage.LegalReview, Stage.AwaitingSignature],
     canBulk: false,
     canExport: false,
   },
-  manager: {
+  signatory: {
+    hiddenColumns: ["signatory"],
+    scope: { assignees: null, signatories: [SELF_SIGNATORY] },
+    editable: ["stage", "note"],
+    stages: [Stage.Drafting, Stage.Sent],
+    canBulk: false,
+    canExport: false,
+  },
+  supervisor: {
     hiddenColumns: [],
-    visibleRegions: null,
-    canEdit: true,
+    scope: { assignees: null, signatories: null },
+    editable: ["stage", "outcome", "ground", "extension", "assignee", "note"],
+    stages: [
+      Stage.Registered,
+      Stage.WaitingForFacts,
+      Stage.Drafting,
+      Stage.LegalReview,
+      Stage.AwaitingSignature,
+      Stage.Sent,
+      Stage.Closed,
+    ],
     canBulk: true,
     canExport: true,
   },
@@ -41,14 +68,14 @@ export function roleRules(role: Role): RoleRules {
   return RULES[role];
 }
 
-/* Column ids the role may not see */
+/* Column ids the role does not see */
 export function forbiddenColumns(role: Role): readonly string[] {
   return RULES[role].hiddenColumns;
 }
 
-/* Region codes the role may see, or null for all */
-export function allowedRegions(role: Role): readonly number[] | null {
-  return RULES[role].visibleRegions;
+/* The rows the role sees */
+export function roleScope(role: Role): Scope {
+  return RULES[role].scope;
 }
 
 /* Columns of the view that are hidden because of the role, in view order */
@@ -74,9 +101,13 @@ export function visibleColumns(view: { columns: readonly string[] }, role: Role)
   return out;
 }
 
-/* Both roles edit status and comment; managers additionally get bulk actions */
-export function canEdit(role: Role): boolean {
-  return RULES[role].canEdit;
+export function canEditColumn(role: Role, column: EditColumn): boolean {
+  return RULES[role].editable.includes(column);
+}
+
+/* Whether the role may move a case to `stage` */
+export function canSetStage(role: Role, stage: number): boolean {
+  return RULES[role].stages.includes(stage);
 }
 
 export function canBulk(role: Role): boolean {
@@ -89,6 +120,5 @@ export function canExport(role: Role): boolean {
 
 /* Whether the role may see (and so act on) a row */
 export function canSeeRow(store: ColumnStore, row: number, role: Role): boolean {
-  const regions = RULES[role].visibleRegions;
-  return regions === null || regions.includes(store.region[row] ?? -1);
+  return inScope(store, row, RULES[role].scope);
 }

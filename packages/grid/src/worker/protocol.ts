@@ -26,7 +26,9 @@ export type Post = (msg: WorkerResponse, transfer: ArrayBuffer[]) => void;
 
 /*
   The worker's message handler, kept apart from the global scope so the
-  same code runs inside a worker, on the main thread and in tests.
+  same code runs inside a worker, on the main thread and in tests. It
+  generates synchronously, so the rules module must be loaded before the
+  first message is handed to it (see worker/entry.ts).
 */
 export function createChunkProducer(post: Post): (msg: WorkerRequest) => void {
   const failedOnce = new Set<number>();
@@ -38,7 +40,7 @@ export function createChunkProducer(post: Post): (msg: WorkerRequest) => void {
       post({ type: "chunk-error", index, start, count }, []);
       return;
     }
-    const chunk = generateChunk(seed, start, count);
+    const chunk = generateChunk(seed, start, count, total);
     post({ type: "chunk", index, chunk }, chunkTransferables(chunk));
   };
 

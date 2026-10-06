@@ -18,10 +18,9 @@ function texts(v: unknown): string[] {
 }
 
 describe("language tables", () => {
-  it("English, Russian and Arabic have the same keys, with the same kinds of value", () => {
-    const en = shape(strings.en).sort();
-    expect(shape(strings.ru).sort()).toEqual(en);
-    expect(shape(strings.ar).sort()).toEqual(en);
+  it("are English and Russian, with the same keys and the same kinds of value", () => {
+    expect(LANGUAGES).toEqual(["en", "ru"]);
+    expect(shape(strings.ru).sort()).toEqual(shape(strings.en).sort());
   });
 
   it("no string is empty", () => {
@@ -35,23 +34,25 @@ describe("language tables", () => {
         expect(s[0], `${lang}: ${s}`).toBe(s[0]!.toLocaleUpperCase(lang));
       }
     }
+    expect(strings.en.title).toBe("Ariadne Desk");
+    expect(strings.ru.title).toBe("Ariadne Стол заявок");
   });
 
   it("Russian words agree with the number", () => {
     const ru = strings.ru;
-    expect(ru.shownOf("1", "50 000", 1)).toBe("1 заявка из 50 000");
-    expect(ru.shownOf("3", "50 000", 3)).toBe("3 заявки из 50 000");
-    expect(ru.shownOf("11", "50 000", 11)).toBe("11 заявок из 50 000");
-    expect(ru.shownOf("21", "50 000", 21)).toBe("21 заявка из 50 000");
-    expect(strings.en.shownOf("1", "50,000", 1)).toBe("1 of 50,000 request");
-    expect(strings.en.shownOf("2", "50,000", 2)).toBe("2 of 50,000 requests");
+    expect(ru.shownOf("1", "1 200", 1)).toBe("1 обращение из 1 200");
+    expect(ru.shownOf("3", "1 200", 3)).toBe("3 обращения из 1 200");
+    expect(ru.shownOf("11", "1 200", 11)).toBe("11 обращений из 1 200");
+    expect(ru.shownOf("21", "1 200", 21)).toBe("21 обращение из 1 200");
+    expect(ru.workingDaysLeft("2", 2)).toBe("2 рабочих дня");
+    expect(ru.overdueBy("5", 5)).toBe("просрочено на 5 рабочих дней");
+    expect(strings.en.shownOf("1", "1,200", 1)).toBe("1 of 1,200 case");
+    expect(strings.en.workingDaysLeft("1", 1)).toBe("1 working day");
   });
 
-  it("the Arabic and Russian tables use Latin letters only for the product name, CSV, SLA, the file name and key names", () => {
-    const allowed = new Set(["Ariadne", "CSV", "SLA", "requests", "csv", "zayavki", "p"]);
-    for (const lang of ["ar", "ru"] as const) {
-      const latin = texts(strings[lang]).flatMap((s) => s.match(/[A-Za-z]+/g) ?? []);
-      expect(latin.filter((w) => !allowed.has(w)), lang).toEqual([]);
-    }
+  it("the Russian table uses Latin letters only for the product name, CSV and the file name", () => {
+    const allowed = new Set(["Ariadne", "CSV", "csv", "obrashcheniya", "p"]);
+    const latin = texts(strings.ru).flatMap((s) => s.match(/[A-Za-z]+/g) ?? []);
+    expect(latin.filter((w) => !allowed.has(w))).toEqual([]);
   });
 });

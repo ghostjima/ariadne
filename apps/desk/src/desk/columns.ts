@@ -3,101 +3,144 @@
 // page's store directly, so an edit shows as soon as the grid renders.
 import {
   COLUMN_BY_ID,
-  CURRENCIES,
-  METRIC_COUNT,
-  METRIC_IDS,
+  GROUND_COUNT,
   PINNED_COLUMNS,
-  checkComment,
-  checkStatus,
-  commentText,
-  getComment,
-  isCommentBlank,
+  canEditColumn,
+  checkField,
+  checkNote,
+  clientName,
+  editContext,
+  effectiveDue,
+  getNote,
+  moscowMs,
+  noteText,
+  opRefText,
+  reasonText,
   rowId,
-  tagsText,
+  subjectText,
+  workingDaysLeft,
   type CellValue,
   type ColumnStore,
+  type EditColumn,
   type EditError,
+  type EnumField,
+  type Labels,
+  type Role,
 } from "@ariadne/grid";
 import type { DataGridColumn } from "@ghostjima/stoa-react";
 import { LOCALES, type Lang, type Strings } from "../i18n";
 import { POOLS } from "../data/query";
 
 export type Formats = {
-  date: Intl.DateTimeFormat;
-  money: Intl.NumberFormat[];
+  /** A day number (days since 1970-01-01) */
+  day: (day: number) => string;
+  dateTime: Intl.DateTimeFormat;
+  money: Intl.NumberFormat;
   integer: Intl.NumberFormat;
   one: Intl.NumberFormat;
-  two: Intl.NumberFormat;
 };
 
 export function makeFormats(lang: Lang): Formats {
   const locale = LOCALES[lang];
+  const date = new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
   return {
-    date: new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }),
-    money: CURRENCIES.map((currency) => new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 })),
+    day: (day) => date.format(day * 86_400_000),
+    dateTime: new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }),
+    money: new Intl.NumberFormat(locale, { style: "currency", currency: "RUB", maximumFractionDigits: 0 }),
     integer: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
     one: new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
-    two: new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   };
 }
 
-/** An amount in its currency. In a right-to-left language a symbol with
- * Latin letters ("US$") is isolated left to right: unisolated, its "$"
- * takes the cell's direction and is drawn before the letters, "$US". The
- * grid's cell takes a string, so the isolate is written into it (LRI and
- * PDI) where a component would use Stoa's Ltr. */
-export function formatMoney(format: Intl.NumberFormat, value: number, rtl: boolean): string {
-  if (!rtl) return format.format(value);
-  return format
-    .formatToParts(value)
-    .map((p) => (p.type === "currency" && /[A-Za-z]/.test(p.value) ? `\u2066${p.value}\u2069` : p.value))
-    .join("");
-}
-
-/** Width in CSS pixels by column id; metrics share one width. */
+/** Width in CSS pixels by column id. */
 const WIDTHS: Record<string, number> = {
-  id: 104,
+  id: 112,
   client: 216,
-  date: 144,
-  amount: 128,
-  currency: 88,
-  status: 152,
-  owner: 168,
-  region: 144,
-  priority: 104,
-  sla: 128,
-  tags: 184,
-  comment: 280,
-  channel: 112,
-  updatedAt: 144,
-  createdBy: 144,
+  applicant: 152,
+  stream: 216,
+  reason: 280,
+  subject: 280,
+  source: 152,
+  channel: 184,
+  received: 152,
+  registered: 136,
+  left: 200,
+  due: 136,
+  extension: 200,
+  stage: 192,
+  outcome: 184,
+  ground: 240,
+  assignee: 184,
+  signatory: 184,
+  linked: 112,
+  operation: 136,
+  opAmount: 144,
+  claim: 144,
+  note: 280,
+  updatedAt: 136,
 };
-const METRIC_WIDTH = 120;
 
-const metricIndex = new Map<string, number>(METRIC_IDS.map((m, i) => [m, i]));
-/** Metrics shown with one decimal; the others are whole numbers or two decimals. */
-const ONE_DECIMAL = new Set(["marginPct", "conversion"]);
-const TWO_DECIMALS = new Set(["commission", "weight"]);
+/** The column a role edits is named in the role's refusal. */
+const label = (labels: Labels, column: EditColumn) => labels.columns[column] ?? column;
 
 /** The sentence for an engine edit error, in the interface's language. */
-export function editErrorText(t: Strings, formats: Formats, error: EditError): string {
+export function editErrorText(t: Strings, formats: Formats, labels: Labels, error: EditError): string {
   switch (error.code) {
-    case "status-unknown":
-      return t.editErrors.statusUnknown;
-    case "approve-needs-comment":
-      return t.editErrors.approveNeedsComment;
-    case "comment-too-long":
-      return t.editErrors.commentTooLong(formats.integer.format(error.max), formats.integer.format(error.length));
-    case "reject-needs-comment":
-      return t.editErrors.rejectNeedsComment;
+    case "value-unknown":
+      return t.editErrors.valueUnknown;
+    case "role-cannot-edit":
+      return t.editErrors.roleCannotEdit(label(labels, error.column));
+    case "stage-not-for-role":
+      return t.editErrors.stageNotForRole;
+    case "reply-needs-outcome":
+      return t.editErrors.replyNeedsOutcome;
+    case "refusal-needs-ground":
+      return t.editErrors.refusalNeedsGround;
+    case "ground-other-stream":
+      return t.editErrors.groundOtherStream;
+    case "send-needs-signature":
+      return t.editErrors.sendNeedsSignature;
+    case "reply-locked":
+      return t.editErrors.replyLocked;
+    case "extension-not-allowed":
+      return t.editErrors.extensionNotAllowed;
+    case "extension-too-late":
+      return t.editErrors.extensionTooLate(formats.day(error.lastDay));
+    case "extension-after-reply":
+      return t.editErrors.extensionAfterReply;
+    case "note-too-long":
+      return t.editErrors.noteTooLong(formats.integer.format(error.max), formats.integer.format(error.length));
+  }
+}
+
+/** The labels of a code field, in the store's code order. */
+export function fieldLabels(lang: Lang, field: EnumField): readonly string[] {
+  const { pools, labels } = POOLS[lang];
+  switch (field) {
+    case "stage":
+      return labels.stage;
+    case "outcome":
+      return labels.outcome;
+    case "ground":
+      return labels.ground.slice(0, GROUND_COUNT);
+    case "extension":
+      return labels.extension;
+    case "assignee":
+      return pools.assignees;
   }
 }
 
 /** The displayed text of an editable cell's value. */
 export function cellValueText(value: CellValue, lang: Lang, t: Strings): string {
-  const { pools, labels } = POOLS[lang];
-  if (value.col === "status") return labels.status[value.value] ?? "";
-  return commentText(value.value, pools) || t.emptyComment;
+  const { pools } = POOLS[lang];
+  if (value.col === "note") return noteText(value.value, pools) || t.emptyNote;
+  return fieldLabels(lang, value.col)[value.value] ?? "";
+}
+
+/** Working days left as the time-left column writes them. */
+export function leftText(t: Strings, formats: Formats, left: number): string {
+  if (left === 0) return t.dueToday;
+  return left > 0 ? t.workingDaysLeft(formats.integer.format(left), left) : t.overdueBy(formats.integer.format(-left), -left);
 }
 
 export type ColumnContext = {
@@ -105,104 +148,145 @@ export type ColumnContext = {
   lang: Lang;
   t: Strings;
   formats: Formats;
-  /** Editors for status and comment. */
-  editable: boolean;
-  /** Pin ID and client at the start; off on a narrow screen. */
+  role: Role;
+  /** Pin the case and the applicant at the start; off on a narrow screen. */
   pin?: boolean;
 };
 
-export function buildColumns(ids: readonly string[], { store, lang, t, formats, editable, pin = true }: ColumnContext): DataGridColumn<number>[] {
+export function buildColumns(ids: readonly string[], { store, lang, t, formats, role, pin = true }: ColumnContext): DataGridColumn<number>[] {
   const { pools, labels } = POOLS[lang];
   const pinned = new Set<string>(pin ? PINNED_COLUMNS : []);
   const columns: DataGridColumn<number>[] = [];
+  const code = (list: readonly string[], data: ArrayLike<number>) => (i: number) => list[data[i] ?? 0] ?? "";
+  /** An enum column with an editor when the role edits it. */
+  const enumColumn = (base: DataGridColumn<number>, field: EnumField): DataGridColumn<number> => {
+    const list = fieldLabels(lang, field);
+    return {
+      ...base,
+      // The option id: the enum editor starts from it, and the grid shows its label.
+      accessor: (i) => String(store[field][i] ?? 0),
+      format: (v) => list[Number(v)] ?? String(v),
+      editor: canEditColumn(role, field)
+        ? {
+            kind: "enum",
+            options: list.map((text, value) => ({ id: String(value), label: text })),
+            validate: (value, i) => {
+              const error = checkField(field, Number(value), editContext(store, i), role);
+              return error ? editErrorText(t, formats, labels, error) : null;
+            },
+          }
+        : undefined,
+    };
+  };
   for (const id of ids) {
-    const spec = COLUMN_BY_ID.get(id);
-    if (!spec) continue;
-    const base = { id, header: labels.columns[id] ?? id, width: WIDTHS[id] ?? METRIC_WIDTH, pinned: pinned.has(id), sortable: true };
+    if (!COLUMN_BY_ID.has(id)) continue;
+    const base: DataGridColumn<number> = {
+      id,
+      header: labels.columns[id] ?? id,
+      width: WIDTHS[id] ?? 144,
+      pinned: pinned.has(id),
+      sortable: true,
+      accessor: () => "",
+    };
     switch (id) {
       case "id":
         columns.push({ ...base, accessor: (i) => rowId(i) });
         break;
       case "client":
-        columns.push({ ...base, accessor: (i) => pools.clients[store.client[i] ?? 0] ?? "" });
+        columns.push({ ...base, accessor: (i) => clientName(store.applicant[i] ?? 0, store.client[i] ?? 0, pools) });
         break;
-      case "owner":
-        columns.push({ ...base, accessor: (i) => pools.owners[store.owner[i] ?? 0] ?? "" });
+      case "applicant":
+        columns.push({ ...base, accessor: code(labels.applicant, store.applicant) });
         break;
-      case "createdBy":
-        columns.push({ ...base, accessor: (i) => pools.authors[store.createdBy[i] ?? 0] ?? "" });
+      case "stream":
+        columns.push({ ...base, accessor: code(labels.stream, store.stream) });
         break;
-      case "region":
-        columns.push({ ...base, accessor: (i) => pools.regions[store.region[i] ?? 0] ?? "" });
+      case "reason":
+        columns.push({ ...base, accessor: (i) => reasonText(store.stream[i] ?? 0, store.reason[i] ?? 0, labels) });
         break;
-      case "tags":
-        columns.push({ ...base, accessor: (i) => tagsText(store.tags[i] ?? 0, pools) });
+      case "subject":
+        columns.push({ ...base, accessor: (i) => subjectText(store, i, pools) });
         break;
-      case "currency":
-        columns.push({ ...base, accessor: (i) => CURRENCIES[store.currency[i] ?? 0] ?? "" });
-        break;
-      case "priority":
-        columns.push({ ...base, accessor: (i) => labels.priority[store.priority[i] ?? 0] ?? "" });
+      case "source":
+        columns.push({ ...base, accessor: code(labels.source, store.source) });
         break;
       case "channel":
-        columns.push({ ...base, accessor: (i) => labels.channel[store.channel[i] ?? 0] ?? "" });
+        columns.push({ ...base, accessor: code(labels.channel, store.channel) });
         break;
-      case "date":
-      case "updatedAt": {
-        const data = id === "date" ? store.date : store.updatedAt;
+      case "received":
         // A date reads with its month's name: words, so the sans face.
-        columns.push({ ...base, accessor: (i) => data[i] ?? 0, format: (v) => formats.date.format(Number(v)), mono: false });
+        columns.push({
+          ...base,
+          accessor: (i) => moscowMs(store.received[i] ?? 0, store.receivedMinute[i] ?? 0),
+          format: (v) => formats.dateTime.format(Number(v)),
+          mono: false,
+        });
+        break;
+      case "registered":
+        columns.push({ ...base, accessor: (i) => store.registered[i] ?? 0, format: (v) => formats.day(Number(v)), mono: false });
+        break;
+      case "due":
+        columns.push({ ...base, accessor: (i) => effectiveDue(store, i), format: (v) => formats.day(Number(v)), mono: false });
+        break;
+      case "updatedAt":
+        columns.push({
+          ...base,
+          accessor: (i) => Math.floor((store.updatedAt[i] ?? 0) / 86_400_000),
+          format: (v) => formats.day(Number(v)),
+          mono: false,
+        });
+        break;
+      case "left":
+        columns.push({
+          ...base,
+          accessor: (i) => ((store.stage[i] ?? 0) >= 5 ? "" : workingDaysLeft(store, i)),
+          format: (v) => (v === "" ? "" : leftText(t, formats, Number(v))),
+          mono: false,
+        });
+        break;
+      case "stage":
+      case "outcome":
+      case "ground":
+      case "extension":
+      case "assignee":
+        columns.push(enumColumn(base, id));
+        break;
+      case "signatory":
+        columns.push({ ...base, accessor: (i) => pools.signatories[store.signatory[i] ?? 0] ?? "" });
+        break;
+      case "linked":
+        columns.push({
+          ...base,
+          accessor: (i) => {
+            const l = store.linked[i] ?? -1;
+            return l < 0 ? "" : rowId(l);
+          },
+        });
+        break;
+      case "operation":
+        columns.push({ ...base, accessor: (i) => ((store.operation[i] ?? 0) === 0 ? "" : opRefText(store.opRef[i] ?? 0)) });
+        break;
+      case "opAmount":
+      case "claim": {
+        const data = id === "opAmount" ? store.opAmount : store.claim;
+        columns.push({ ...base, accessor: (i) => data[i] ?? 0, format: (v) => (Number(v) === 0 ? "" : formats.money.format(Number(v))) });
         break;
       }
-      case "amount":
+      case "note":
         columns.push({
           ...base,
-          accessor: (i) => store.amount[i] ?? 0,
-          format: (v, i) => formatMoney(formats.money[store.currency[i] ?? 0] ?? formats.integer, Number(v), lang === "ar"),
-        });
-        break;
-      case "sla":
-        columns.push({ ...base, accessor: (i) => store.sla[i] ?? 0, format: (v) => formats.one.format(Number(v)) });
-        break;
-      case "status":
-        columns.push({
-          ...base,
-          // The option id: the enum editor starts from it, and the grid shows its label.
-          accessor: (i) => String(store.status[i] ?? 0),
-          editor: editable
-            ? {
-                kind: "enum",
-                options: labels.status.map((label, code) => ({ id: String(code), label })),
-                validate: (value, i) => {
-                  const error = checkStatus(Number(value), isCommentBlank(store, i));
-                  return error ? editErrorText(t, formats, error) : null;
-                },
-              }
-            : undefined,
-          format: (v) => labels.status[Number(v)] ?? String(v),
-        });
-        break;
-      case "comment":
-        columns.push({
-          ...base,
-          accessor: (i) => commentText(getComment(store, i), pools),
-          editor: editable
+          accessor: (i) => noteText(getNote(store, i), pools),
+          editor: canEditColumn(role, "note")
             ? {
                 kind: "text",
-                validate: (value, i) => {
-                  const error = checkComment(value, store.status[i] ?? 0);
-                  return error ? editErrorText(t, formats, error) : null;
+                validate: (value) => {
+                  const error = checkNote(value, role);
+                  return error ? editErrorText(t, formats, labels, error) : null;
                 },
               }
             : undefined,
         });
         break;
-      default: {
-        const k = metricIndex.get(id);
-        if (k === undefined) break;
-        const format = ONE_DECIMAL.has(id) ? formats.one : TWO_DECIMALS.has(id) ? formats.two : formats.integer;
-        columns.push({ ...base, accessor: (i) => store.metrics[i * METRIC_COUNT + k] ?? 0, format: (v) => format.format(Number(v)) });
-      }
     }
   }
   return columns;

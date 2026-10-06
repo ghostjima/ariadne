@@ -1,36 +1,32 @@
-import { checkCommentValue, checkStatus, type EditError } from "./edit.js";
-import {
-  getComment,
-  isCommentBlank,
-  sameComment,
-  writeComment,
-  writeStatus,
-  type ColumnStore,
-  type CommentValue,
-} from "./store.js";
+import { checkField, checkNoteValue, editContext, type EditError } from "./edit.js";
+import type { Role } from "./roles.js";
+import type { EnumField } from "./schema.js";
+import { getNote, sameNote, writeField, writeNote, type ColumnStore, type NoteValue } from "./store.js";
 
 /*
   Local edits with an undo stack. Every edit records what it overwrote, so
-  undo restores status, SLA flag, comment and updatedAt exactly. A row that
-  someone else changed after the edit (the simulated colleague) is a
-  conflict: undo leaves it alone and reports it, unless told to overwrite.
+  undo restores the value, the day a reply went out and updatedAt exactly.
+  A row that someone else changed after the edit (the simulated colleague)
+  is a conflict: undo leaves it alone and reports it, unless told to
+  overwrite.
 */
 
-export type StatusEntry = {
-  kind: "status";
+export type FieldEntry = {
+  kind: "field";
+  field: EnumField;
   rows: Uint32Array;
   value: number;
-  before: { status: Uint8Array; slaBreached: Uint8Array; updatedAt: Float64Array };
+  before: { value: Uint8Array; sentOn: Int32Array; updatedAt: Float64Array };
 };
 
-export type CommentEntry = {
-  kind: "comment";
+export type NoteEntry = {
+  kind: "note";
   row: number;
-  value: CommentValue;
-  before: { comment: CommentValue; updatedAt: number };
+  value: NoteValue;
+  before: { note: NoteValue; updatedAt: number };
 };
 
-export type HistoryEntry = StatusEntry | CommentEntry;
+export type HistoryEntry = FieldEntry | NoteEntry;
 
 export type Rejection = { row: number; error: EditError };
 
@@ -72,45 +68,52 @@ export class EditHistory {
     if (this.entries.length > this.limit) this.entries.splice(0, this.entries.length - this.limit);
   }
 
-  /* Sets one status on one or many rows; rows the rules refuse are skipped */
-  setStatus(store: ColumnStore, rows: ArrayLike<number>, status: number, now: number): EditResult {
+  /* Sets one code field on one or many rows; rows the rules refuse are skipped */
+  setField(
+    store: ColumnStore,
+    rows: ArrayLike<number>,
+    field: EnumField,
+    value: number,
+    role: Role,
+    now: number,
+  ): EditResult {
     const accepted: number[] = [];
     const rejected: Rejection[] = [];
     for (let k = 0; k < rows.length; k++) {
       const row = rows[k]!;
-      const error = checkStatus(status, isCommentBlank(store, row));
+      const error = checkField(field, value, editContext(store, row), role);
       if (error) rejected.push({ row, error });
       else accepted.push(row);
     }
     const applied = Uint32Array.from(accepted);
     if (applied.length === 0) return { entry: null, applied, rejected };
     const before = {
-      status: new Uint8Array(applied.length),
-      slaBreached: new Uint8Array(applied.length),
+      value: new Uint8Array(applied.length),
+      sentOn: new Int32Array(applied.length),
       updatedAt: new Float64Array(applied.length),
     };
     applied.forEach((row, k) => {
-      before.status[k] = store.status[row] ?? 0;
-      before.slaBreached[k] = store.slaBreached[row] ?? 0;
+      before.value[k] = store[field][row] ?? 0;
+      before.sentOn[k] = store.sentOn[row] ?? -1;
       before.updatedAt[k] = store.updatedAt[row] ?? 0;
-      writeStatus(store, row, status, now);
+      writeField(store, row, field, value, now);
     });
-    const entry: StatusEntry = { kind: "status", rows: applied, value: status, before };
+    const entry: FieldEntry = { kind: "field", field, rows: applied, value, before };
     this.push(entry);
     return { entry, applied, rejected };
   }
 
-  /* Sets a comment on one row; text values should already be normalised */
-  setComment(store: ColumnStore, row: number, value: CommentValue, now: number): EditResult {
-    const error = checkCommentValue(value, store.status[row] ?? 0);
+  /* Sets a note on one row; text values should already be normalised */
+  setNote(store: ColumnStore, row: number, value: NoteValue, role: Role, now: number): EditResult {
+    const error = checkNoteValue(value, role);
     if (error) return { entry: null, applied: new Uint32Array(0), rejected: [{ row, error }] };
-    const entry: CommentEntry = {
-      kind: "comment",
+    const entry: NoteEntry = {
+      kind: "note",
       row,
       value,
-      before: { comment: getComment(store, row), updatedAt: store.updatedAt[row] ?? 0 },
+      before: { note: getNote(store, row), updatedAt: store.updatedAt[row] ?? 0 },
     };
-    writeComment(store, row, value, now);
+    writeNote(store, row, value, now);
     this.push(entry);
     return { entry, applied: Uint32Array.of(row), rejected: [] };
   }
@@ -122,21 +125,21 @@ export class EditHistory {
     const overwrite = options.overwrite === true;
     const restored: number[] = [];
     const conflicts: number[] = [];
-    if (entry.kind === "status") {
+    if (entry.kind === "field") {
       entry.rows.forEach((row, k) => {
-        if (!overwrite && store.status[row] !== entry.value) {
+        if (!overwrite && store[entry.field][row] !== entry.value) {
           conflicts.push(row);
           return;
         }
-        store.status[row] = entry.before.status[k] ?? 0;
-        store.slaBreached[row] = entry.before.slaBreached[k] ?? 0;
+        store[entry.field][row] = entry.before.value[k] ?? 0;
+        store.sentOn[row] = entry.before.sentOn[k] ?? -1;
         store.updatedAt[row] = entry.before.updatedAt[k] ?? 0;
         restored.push(row);
       });
-    } else if (!overwrite && !sameComment(getComment(store, entry.row), entry.value)) {
+    } else if (!overwrite && !sameNote(getNote(store, entry.row), entry.value)) {
       conflicts.push(entry.row);
     } else {
-      writeComment(store, entry.row, entry.before.comment, 0);
+      writeNote(store, entry.row, entry.before.note, 0);
       store.updatedAt[entry.row] = entry.before.updatedAt;
       restored.push(entry.row);
     }

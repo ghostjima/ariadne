@@ -36,10 +36,13 @@ runner, rules, ariadne (repository-wide).
 
 ## Layout
 
-- `apps/desk`: the operations desk (a 50,000-row grid of requests).
+- `apps/desk`: the operations desk (the complaints register in one grid).
 - `apps/agent`: the agent run screen (a plan an assistant proposes and a
   person approves, runs, stops and undoes).
 - `packages/grid` (`@ariadne/grid`): the desk's data engine.
+- `packages/rules` (`@ariadne/rules`): the TypeScript adapter over the
+  rules crate's WebAssembly build; it needs that build (see the crate's
+  README) before `pnpm build`.
 - `packages/runner` (`@ariadne/runner`): the agent's run engine.
 - `crates/ariadne-rules`: the legal rules engine, in Rust compiled to
   WebAssembly. Every rule cites the act, article, part and revision it
@@ -55,6 +58,7 @@ Acceptance is the full CI command list, run locally; compiling is not
 passing. Before a change is finished, run and pass:
 
 ```bash
+wasm-pack build crates/ariadne-rules --release --target web --out-dir pkg --out-name ariadne_rules -- --no-default-features --features wasm
 pnpm install --frozen-lockfile
 pnpm build
 pnpm -r typecheck
