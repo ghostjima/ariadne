@@ -118,8 +118,10 @@ The workflows the desk is built around, and what exists of each today:
   the agent's run engine: seeded plan, consent rule, confirmations, undo
   windows, replay and the event stream.
 - [`crates/ariadne-rules`](crates/ariadne-rules/README.md): the legal
-  rules engine in Rust compiled to WebAssembly; so far its skeleton,
-  built and tested in CI.
+  rules engine in Rust compiled to WebAssembly; so far the Russian
+  production calendar for 2025 to 2027, counting in working days, and
+  the legal clocks of 442-FZ, 123-FZ, 161-FZ and 115-FZ, each deadline
+  with its act, article, part and revision.
 
 Both apps are built on the [Stoa](https://github.com/ghostjima/stoa)
 design system and are tested with axe in English, Russian and Arabic,
