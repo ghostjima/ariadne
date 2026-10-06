@@ -1,0 +1,11 @@
+[workspace]
+members = ["crates/ariadne-rules"]
+resolver = "2"
+
+# Profiles apply to the whole workspace; a member's own [profile] would be
+# ignored. The WebAssembly module ships to the browser, so the release
+# build is optimised across the crate in one codegen unit, as in the
+# sibling bond engine's measured choice.
+[profile.release]
+lto = true
+codegen-units = 1

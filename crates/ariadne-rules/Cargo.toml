@@ -1,0 +1,22 @@
+[package]
+name = "ariadne-rules"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Deterministic legal rules for a complaints desk: the Russian production calendar, working days, legal clocks, reason codes and a reply rubric"
+repository = "https://github.com/ghostjima/ariadne"
+readme = "README.md"
+keywords = ["calendar", "compliance", "regtech", "wasm"]
+categories = ["date-and-time", "finance"]
+
+[features]
+default = []
+# JavaScript bindings for the browser (wasm-bindgen).
+wasm = ["dep:wasm-bindgen"]
+
+[dependencies]
+wasm-bindgen = { version = "0.2", optional = true }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
