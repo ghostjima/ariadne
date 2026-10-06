@@ -2,7 +2,7 @@
 // a forced reload, an update while a run streams, a dropped connection, and
 // a browser where workers are blocked.
 import { expect, test, type Page } from "@playwright/test";
-import { dialog, en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation, agentUrl } from "./agent-helpers";
+import { en, expectNoSeriousViolations, expectPlanState, logLines, ready, runSteps, confirmation, agentUrl } from "./agent-helpers";
 
 const controlled = (page: Page) => page.evaluate(() => navigator.serviceWorker.controller !== null);
 
@@ -21,7 +21,7 @@ async function finish(page: Page) {
 /** Every step started and finished exactly once in the log. */
 async function expectNoRepeats(page: Page) {
   const log = await logLines(page);
-  for (let n = 1; n <= 12; n += 1) {
+  for (let n = 1; n <= 5; n += 1) {
     expect(log.filter((l) => l.includes(`Step ${n} started`)), `step ${n} started`).toHaveLength(1);
     expect(log.filter((l) => l.includes(`Step ${n} done`)), `step ${n} done`).toHaveLength(1);
   }
@@ -59,8 +59,8 @@ test("a reload is controlled from the start, and a forced reload is claimed agai
   await ready(page);
   expect(await controlled(page)).toBe(true);
   await page.getByRole("button", { name: en.plan.run }).click();
-  await dialog(page);
-  await expect(runSteps(page).nth(1)).toContainText("Done");
+  await expect(page.getByRole("button", { name: en.step.retry, exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(runSteps(page).nth(0)).toContainText("Done");
 });
 
 test("a new worker deployed during a run takes over, and the run goes on without a gap or a repeat", async ({ page, context, baseURL }) => {
@@ -104,7 +104,7 @@ test.describe("where service workers are blocked", () => {
     await page.getByRole("button", { name: en.service.usePage }).click();
     await expect(page.getByText(en.service.pageNote)).toBeVisible();
     await page.getByRole("button", { name: en.plan.run }).click();
-    await dialog(page);
+    await expect(page.getByRole("button", { name: en.step.retry, exact: true })).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press("s");
     await expectPlanState(page, "stopped");
     await expect(page.locator(".run")).toContainText(en.service.pageNote);

@@ -10,6 +10,7 @@ import {
   AlertDialog,
   Button,
   Callout,
+  Disclosure,
   LiveRegion,
   ProgressBar,
   ShortcutsDialog,
@@ -19,19 +20,22 @@ import {
   type Shortcut,
   type ToastQueue,
 } from "@ghostjima/stoa-react";
-import type { Autonomy, PlanStateValue } from "@ariadne/runner";
+import { CASE_STAGES, stepStatusOf, type Autonomy, type PlanStateValue, type ReplyDraft } from "@ariadne/runner";
+import type { CaseFacts } from "@ariadne/rules";
+import { POOLS } from "../data/query";
 import { makeFmt } from "./format";
 import { LOCALES, strings, type Lang } from "./i18n";
 import { mark } from "./marks";
 import type { RunService } from "./service";
 import type { RunSession } from "./session";
-import { summaryText, undoText, type Text } from "./text";
+import { stageName, summaryText, undoText, type Text } from "./text";
 import { useRunSteps, useSession } from "./ui/hooks";
 import { TaskPanel } from "./ui/TaskPanel";
 import { PlanPanel } from "./ui/PlanPanel";
 import { RunPanel } from "./ui/RunPanel";
 import { Decisions } from "./ui/Decisions";
 import { LogPanel, SummaryPanel } from "./ui/SidePanels";
+import { ReplyCheck, ReplyDraftView } from "./ui/ReplyCheck";
 
 function setSeedParam(seed: number) {
   const url = new URL(location.href);
@@ -42,6 +46,8 @@ function setSeedParam(seed: number) {
 export type AgentPanelProps = {
   lang: Lang;
   session: RunSession;
+  /** The case's facts as ariadne-rules takes them, for the rubric check. */
+  facts: CaseFacts;
   service: RunService;
   toasts: ToastQueue;
   /** Keys of the view around the panel, listed with its own in the help. */
@@ -53,10 +59,10 @@ export type AgentPanelProps = {
   visible: boolean;
 };
 
-export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen, onHelpOpenChange, visible }: AgentPanelProps) {
+export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, helpOpen, onHelpOpenChange, visible }: AgentPanelProps) {
   const t = strings[lang];
   const f = makeFmt(LOCALES[lang]);
-  const x: Text = useMemo(() => ({ t, f }), [t, f]);
+  const x: Text = useMemo(() => ({ t, f, labels: POOLS[lang].labels, lang }), [t, f, lang]);
   const [askNewPlan, setAskNewPlan] = useState(false);
   const [announcement, setAnnouncement] = useState("");
 
@@ -80,7 +86,7 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
   }, [service.takeovers, toasts]);
 
   // Undo windows and reconnections, as toasts.
-  const undoToasts = useRef(new Map<string, { key: string; timer: ReturnType<typeof setTimeout> }>());
+  const undoToasts = useRef(new Map<string, { key: string; timer: ReturnType<typeof setTimeout>; deadline: number }>());
   const closeUndoToast = useCallback(
     (stepId: string) => {
       const entry = undoToasts.current.get(stepId);
@@ -99,32 +105,48 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
     },
     [session, toasts, closeUndoToast],
   );
+  // An undo window, as a toast with Undo. One at a time, the newest
+  // window's: the older windows keep their Undo and countdown in the step
+  // list. The toast's own timer pauses while it is hovered or focused; the
+  // undo window does not, so the toast closes when the window does.
+  const showUndoToast = useCallback(
+    (stepId: string, deadline: number) => {
+      const ref = session.plan.getSnapshot().context.stepRefs[stepId];
+      const result = ref?.getSnapshot().context.result;
+      const left = deadline - Date.now();
+      if (!result || left <= 0 || !ref?.getSnapshot().matches({ done: "undoable" })) return;
+      const { t: words, f: format } = latestText.current;
+      for (const id of [...undoToasts.current.keys()]) closeUndoToast(id);
+      const key = toasts.add({
+        tone: "info",
+        text: words.toast.undoable(summaryText(latestText.current, result.summary), format.time(deadline)),
+        action: { label: words.step.undo, onAction: () => undo(stepId) },
+        timeout: null,
+      });
+      const timer = setTimeout(() => closeUndoToast(stepId), left);
+      undoToasts.current.set(stepId, { key, timer, deadline });
+    },
+    [session, toasts, undo, closeUndoToast],
+  );
+  // While a confirmation is open the toast steps aside: on a phone it would
+  // lie over the dialog's buttons. It comes back when the dialog closes, if
+  // its window is still open.
+  const heldToast = useRef<{ stepId: string; deadline: number } | null>(null);
+  const confirming = useRef(false);
   useEffect(
     () =>
       session.onNotice((notice) => {
-        const { t: words, f: format } = latestText.current;
         if (notice.kind === "reconnected") {
-          toasts.add({ tone: "positive", text: words.toast.reconnected });
+          toasts.add({ tone: "positive", text: latestText.current.t.toast.reconnected });
           return;
         }
-        const result = session.plan.getSnapshot().context.stepRefs[notice.stepId]?.getSnapshot().context.result;
-        if (!result) return;
-        // One undo toast at a time, the newest window's: the older windows
-        // keep their Undo and countdown in the step list.
-        for (const stepId of [...undoToasts.current.keys()]) closeUndoToast(stepId);
-        const left = notice.deadline - Date.now();
-        const key = toasts.add({
-          tone: "info",
-          text: words.toast.undoable(summaryText(latestText.current, result.summary), format.time(notice.deadline)),
-          action: { label: words.step.undo, onAction: () => undo(notice.stepId) },
-          timeout: null,
-        });
-        // The toast's own timer pauses while it is hovered or focused; the
-        // undo window does not, so the toast closes when the window does.
-        const timer = setTimeout(() => closeUndoToast(notice.stepId), Math.max(0, left));
-        undoToasts.current.set(notice.stepId, { key, timer });
+        if (confirming.current) {
+          heldToast.current = { stepId: notice.stepId, deadline: notice.deadline };
+          return;
+        }
+        showUndoToast(notice.stepId, notice.deadline);
       }),
-    [session, toasts, undo, closeUndoToast],
+    [session, toasts, showUndoToast],
   );
   // The panel goes (another case, the queue): its undo toasts go with it;
   // the windows stay in the run, and come back with the case.
@@ -170,7 +192,9 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
     }
   }, [planState, ctx.stopRequested, stream.status, steps, t, f]);
 
-  const canRun = draft && ctx.steps.length > 0 && (status === "ready" || status === "page");
+  // A reply past drafting (legal review onwards) has nothing left to draft.
+  const pastDrafting = CASE_STAGES.indexOf(ctx.brief.stage) >= CASE_STAGES.indexOf("legal_review");
+  const canRun = draft && !pastDrafting && ctx.steps.length > 0 && (status === "ready" || status === "page");
   const canStop = session.canStop();
   const run = () => {
     if (canRun) session.start();
@@ -250,12 +274,47 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
       </Callout>
     ) : null;
 
+  // What a finished step produced: the reply it drafted, the rubric's
+  // findings on that reply (none when no draft was written).
+  const draftStep = steps.find((s) => s.snapshot.context.step.type === "draft_reply");
+  const writtenDraft: ReplyDraft | null =
+    draftStep && stepStatusOf(draftStep.snapshot.value) === "done" && draftStep.snapshot.context.step.draft.kind === "reply"
+      ? draftStep.snapshot.context.step.draft
+      : null;
+  const produced = (stepId: string) => {
+    const view = steps.find((s) => s.id === stepId);
+    const summary = view?.snapshot.context.result?.summary;
+    if (summary?.code === "reply_drafted" && writtenDraft)
+      return (
+        <Disclosure className="reply-shown" summary={t.rubric.draftShown}>
+          <ReplyDraftView x={x} draft={writtenDraft} />
+        </Disclosure>
+      );
+    if (summary?.code === "draft_checked") return <ReplyCheck x={x} draft={writtenDraft} facts={facts} />;
+    return null;
+  };
+
   const decisionOpen = stream.status === "waiting" && !ctx.stopRequested && stream.waiting !== null && !stream.waiting.accepts.includes("retry");
+  useEffect(() => {
+    confirming.current = decisionOpen;
+    if (decisionOpen) {
+      const [open] = [...undoToasts.current.entries()];
+      if (open) {
+        heldToast.current = { stepId: open[0], deadline: open[1].deadline };
+        closeUndoToast(open[0]);
+      }
+    } else if (heldToast.current) {
+      const held = heldToast.current;
+      heldToast.current = null;
+      showUndoToast(held.stepId, held.deadline);
+    }
+  }, [decisionOpen, closeUndoToast, showUndoToast]);
 
   return (
     <div className="agent" data-plan-state={planState} data-stream={stream.status}>
       <TaskPanel
         x={x}
+        brief={ctx.brief}
         seed={ctx.seed}
         autonomy={ctx.autonomy}
         editable={draft}
@@ -272,6 +331,13 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
             steps={ctx.steps}
             autonomy={ctx.autonomy}
             service={serviceView}
+            notice={
+              pastDrafting ? (
+                <Callout tone="info" role="none">
+                  {t.task.pastDrafting(stageName(x, ctx.brief.stage))}
+                </Callout>
+              ) : null
+            }
             canRun={canRun}
             onRun={run}
             onRestore={() => session.plan.send({ type: "RESTORE" })}
@@ -304,6 +370,7 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
             onDecide={(stepId, command) => session.decide(stepId, command)}
             onUndo={undo}
             notice={status === "page" ? serviceView : null}
+            produced={produced}
           />
         )}
         <div className="agent__side">
@@ -323,8 +390,10 @@ export function AgentPanel({ lang, session, service, toasts, shortcuts, helpOpen
           <LogPanel x={x} log={ctx.log} steps={steps} />
         </div>
       </div>
-      {/* What the assistant is, said once, under its work. */}
+      {/* What the assistant is, and what it is given, said once, under
+          its work. */}
       <p className="muted">{t.task.scripted}</p>
+      <p className="muted">{t.task.untrusted}</p>
       <Decisions x={x} steps={steps} waiting={stream.waiting} open={decisionOpen} onDecide={(stepId, command) => session.decide(stepId, command)} />
       <AlertDialog
         isOpen={askNewPlan && ended}

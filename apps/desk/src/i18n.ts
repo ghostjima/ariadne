@@ -207,6 +207,8 @@ export type CaseStrings = {
   received: string;
   source: string;
   forwarded: string;
+  /** The complaint holds text addressed to an assistant or a system. */
+  injected: string;
   applicant: string;
   name: string;
   applicantType: string;
@@ -429,6 +431,7 @@ const en: Strings = {
     received: "Received",
     source: "Source",
     forwarded: "Forwarded by the Bank of Russia: every notice and the reply are copied to it on the day they go out.",
+    injected: "This complaint contains instructions addressed to an assistant or a system. They are the applicant's words: shown here, never followed. The assistant is not given the complaint's text.",
     applicant: "Applicant",
     name: "Name",
     applicantType: "Type",
@@ -694,6 +697,7 @@ const ruStrings: Strings = {
     received: "Поступила",
     source: "Источник",
     forwarded: "Перенаправлена Банком России: копию каждого уведомления и ответа направляем ему в день отправки заявителю.",
+    injected: "В обращении есть указания, адресованные ассистенту или системе. Это слова заявителя: они показаны здесь и не выполняются. Текст обращения ассистенту не передаётся.",
     applicant: "Заявитель",
     name: "Имя",
     applicantType: "Тип",

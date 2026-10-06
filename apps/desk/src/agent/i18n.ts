@@ -6,29 +6,39 @@
 // the locale's.
 import type {
   ActionType,
+  AmlReasonCode,
   Autonomy,
+  ClassificationStatus,
+  ClientDeadlineKind,
+  ClientOption,
   Command,
   ConflictReason,
   Decidable,
   DeviationProposalCode,
   DeviationReason,
-  DocumentCode,
   DraftKind,
+  DraftStatus,
   ErrorCode,
-  LetterStatus,
-  MatchField,
+  FactQuestion,
+  LinkStatus,
+  NextStep,
   ObjectKind,
+  OutcomeCode,
   ProgressPhase,
+  Regime,
   RequestStatus,
   Risk,
   Service,
   SkipReason,
   StepStatus,
   TaskCode,
+  Team,
 } from "@ariadne/runner";
+
 import type { StreamStatus } from "./session";
 import type { StreamError } from "./transport";
 import type { WorkerError } from "./worker";
+import type { FindingCode } from "./rubric";
 
 import { LOCALES, type Lang } from "../i18n";
 
@@ -49,8 +59,6 @@ type Count = { n: number; text: string };
 export type Strings = {
   title: string;
   subtitle: string;
-  /** The suppliers' names, by the engine's supplier index. */
-  suppliers: string[];
   shortcutsButton: string;
   shortcuts: { title: string; run: string; general: string; start: string; stop: string; pauseResume: string; help: string; other: string };
   service: {
@@ -63,7 +71,18 @@ export type Strings = {
     pageNote: string;
     updated: string;
   };
-  task: { panel: string; task: string; scenario: string; scenarioHelp: string; autonomy: string; scripted: string };
+  task: {
+    panel: string;
+    task: string;
+    scenario: string;
+    scenarioHelp: string;
+    autonomy: string;
+    scripted: string;
+    /** What the assistant is given about the case, and what it is not. */
+    untrusted: string;
+    /** The case is past drafting: there is no reply left to draft. */
+    pastDrafting: (stage: string) => string;
+  };
   plan: {
     panel: string;
     list: string;
@@ -196,70 +215,99 @@ export type Strings = {
   skipReason: Record<SkipReason, string>;
   stepStatus: Record<StepStatus, string>;
   objectKind: Record<ObjectKind, string>;
+  classificationStatus: Record<ClassificationStatus, string>;
   requestStatus: Record<RequestStatus, string>;
-  letterStatus: Record<LetterStatus, string>;
-  document: Record<DocumentCode, string>;
-  documentAge: (document: string, days: Count) => string;
-  matchField: Record<MatchField, string>;
+  linkStatus: Record<LinkStatus, string>;
+  draftStatus: Record<DraftStatus, string>;
+  regime: Record<Regime, string>;
+  /** The team a fact request goes to. */
+  team: Record<Team, string>;
+  /** What a fact request asks, as a question. */
+  question: Record<FactQuestion, string>;
   draftKind: Record<DraftKind, string>;
   serviceName: Record<Service, string>;
   streamError: Record<StreamError, string>;
-  taskName: Record<TaskCode, (requests: string) => string>;
+  taskName: Record<TaskCode, (caseId: string) => string>;
   stepTitle: {
-    check: (request: string, supplier: string) => string;
-    extend: (contract: string, supplier: string) => string;
-    reject_duplicate: (request: string, supplier: string) => string;
-    request_documents: (request: string, supplier: string) => string;
-    check_by_archive: (request: string) => string;
+    classify: string;
+    request_facts: (team: string) => string;
+    reuse_facts: (linkedCase: string) => string;
+    draft_reply: string;
+    check_draft: string;
+    hand_to_review: string;
   };
   draft: {
-    check_request: (request: string, supplier: string, external: boolean) => string[];
-    extend_contract: (contract: string, supplier: string, months: Count, before: string, after: string, termsChanged: boolean) => string[];
-    reject_duplicate: (request: string, supplier: string, duplicateOf: string, date: string, fields: string, notify: boolean) => string[];
-    request_documents: (request: string, supplier: string, documents: string, due: string) => string[];
-    check_by_archive: (request: string, archiveRequest: string, uploaded: string, sendsLetter: boolean) => string[];
+    classify: (stream: string, reason: string | null, regime: string) => string[];
+    request_facts: (caseId: string, team: string, operation: string | null, questions: string[], due: string) => string[];
+    reuse_linked_facts: (linkedCase: string, sendsRequest: boolean) => string[];
+    /** Above the reply itself, in the confirmation. */
+    reply: string[];
+    check_draft: string[];
+    hand_to_review: (caseId: string, stage: string, due: string, sends: boolean) => string[];
   };
   object: {
-    request: (request: string, before: string, after: string) => string;
-    contract: (contract: string, before: string, after: string) => string;
-    letter: (supplier: string, request: string, before: string, after: string) => string;
+    classification: (caseId: string, before: string, after: string) => string;
+    fact_request: (team: string, before: string, after: string) => string;
+    linked_facts: (linkedCase: string, before: string, after: string) => string;
+    reply_draft: (before: string, after: string) => string;
+    case: (caseId: string, before: string, after: string) => string;
   };
   summaryText: {
-    request_checked: (request: string, registryMatch: boolean) => string;
-    contract_extended: (contract: string, until: string, request: string) => string;
-    request_rejected_duplicate: (request: string, duplicateOf: string, notified: boolean) => string;
-    documents_requested: (supplier: string, request: string) => string;
-    request_checked_by_archive: (request: string, letterSent: boolean) => string;
+    case_classified: (caseId: string, stream: string, reason: string | null) => string;
+    facts_requested: (team: string, due: string) => string;
+    linked_facts_reused: (linkedCase: string) => string;
+    reply_drafted: (caseId: string) => string;
+    draft_checked: string;
+    handed_to_review: (caseId: string, due: string) => string;
   };
   undoText: {
-    unmark_checked: (request: string) => string;
-    restore_contract_term: (contract: string, until: string, request: string) => string;
-    return_to_queue: (request: string, recalled: boolean) => string;
-    recall_letter: (supplier: string, request: string) => string;
-    unmark_checked_by_archive: (request: string) => string;
+    unconfirm_classification: (caseId: string) => string;
+    recall_fact_request: (team: string) => string;
+    unlink_facts: (linkedCase: string) => string;
+    discard_draft: string;
+    clear_check: string;
+    return_to_drafting: (caseId: string, stage: string) => string;
   };
   errorText: Record<ErrorCode, (service: string, seconds: string) => string>;
-  deviationReason: Record<DeviationReason, (archiveRequest: string, uploaded: string) => string>;
+  deviationReason: Record<DeviationReason, (linkedCase: string) => string>;
   deviationProposal: Record<DeviationProposalCode, string>;
-  conflict: Record<ConflictReason, (a: string, b: string, request: string) => string>;
+  conflict: Record<ConflictReason, (a: string, b: string) => string>;
+  /** The rubric's findings on the drafted reply. */
+  rubric: {
+    title: string;
+    clean: string;
+    count: (n: Count) => string;
+    source: (name: string) => string;
+    finding: Record<FindingCode, (subject: string, words: string) => string>;
+    /** The subjects of option and deadline findings. */
+    option: Record<ClientOption, string>;
+    deadline: Record<ClientDeadlineKind, string>;
+    /** The draft as written, under a finished drafting step. */
+    draftShown: string;
+    /** The check ran with no draft written (skipped, undone, or later). */
+    noDraft: string;
+  };
+  /** The reply, written out from the draft's codes. One sentence a line. */
+  reply: {
+    greeting: string;
+    reviewed: (received: string, caseId: string) => string;
+    operation: (operation: string, reference: string, day: string, amount: string) => string;
+    claim: (amount: string) => string;
+    outcome: Record<OutcomeCode, string>;
+    suspended: (sign: string) => string;
+    refused: (sign: string) => string;
+    aml: Record<AmlReasonCode, string>;
+    ground: (citation: string) => string;
+    contract: string;
+    option: Record<ClientOption, string>;
+    deadline: Record<ClientDeadlineKind, (day: string) => string>;
+    next: Record<NextStep, string>;
+  };
 };
 
 const en: Strings = {
   title: "Assistant",
   subtitle: "It proposes, you decide, and you can stop it at any step",
-  suppliers: [
-    "Northwind Metals",
-    "Harbour Logistics",
-    "Cedar Office Supply",
-    "Bluestone Packaging",
-    "Meridian Electric",
-    "Willow Textiles",
-    "Summit Fasteners",
-    "Riverside Printing",
-    "Granite Tools",
-    "Lakeshore Foods",
-    "Orchard Chemicals",
-  ],
   shortcutsButton: "Shortcuts",
   shortcuts: {
     title: "Keyboard shortcuts",
@@ -289,9 +337,11 @@ const en: Strings = {
     panel: "Task",
     task: "Task",
     scenario: "Scenario number",
-    scenarioHelp: "Each number gives a different set of requests, the same every time.",
+    scenarioHelp: "The same number gives the same run of this case every time. It sets the agent's confidence and how long each step takes; with an odd number the fact request times out once.",
     autonomy: "Autonomy",
-    scripted: "The agent is a script: the same scenario and the same decisions always give the same run. It is here to show the controls, not the answers.",
+    scripted: "The agent is a script: the same case, scenario number and decisions always give the same run. It is here to show the controls; its replies are templates over the case's facts, not a model's answers.",
+    untrusted: "The assistant is given the case's codes, dates and amounts from the register, never the complaint's text: nothing the applicant wrote can instruct it.",
+    pastDrafting: (stage) => `This case is at "${stage}": its reply is past drafting, so the assistant has nothing to draft. It drafts replies for cases before legal review.`,
   },
   plan: {
     panel: "Plan",
@@ -360,7 +410,7 @@ const en: Strings = {
     stopHint: "To stop the whole run instead, press",
     escapeSkips: "skips this step, like the Skip step button.",
     skip: "Skip step",
-    confirm: { email: "Send letter", decision: "Reject request", change: "Apply change" },
+    confirm: { change: "Apply change", request: "Send request", reply: "Write the draft" },
   },
   deviation: {
     title: (n) => `Step ${n}: the agent asks to change the plan`,
@@ -437,7 +487,14 @@ const en: Strings = {
     reconnecting: "Connection dropped, reconnecting.",
     streamFailed: "The run stopped receiving events.",
   },
-  actionType: { check: "Check", extend: "Extension", reject_duplicate: "Duplicate rejection", request_documents: "Document request" },
+  actionType: {
+    classify: "Classification",
+    request_facts: "Fact request",
+    reuse_facts: "Facts from a linked case",
+    draft_reply: "Reply draft",
+    check_draft: "Rubric check",
+    hand_to_review: "Handover",
+  },
   risk: { low: "low risk", medium: "medium risk", high: "high risk" },
   autonomy: { ask_all: "Ask every time", high_only: "Ask for marked steps", ask_none: "Ask only when required" },
   autonomyHelp: {
@@ -447,14 +504,18 @@ const en: Strings = {
   },
   command: { confirm: "Confirm", skip: "Skip", retry: "Retry", allow: "Allow", deny: "Deny", stop: "Stop" },
   phase: {
-    matching_registry: "Matching against the registry",
-    reviewing_supplier_history: "Reviewing the supplier's history",
-    preparing_amendment: "Preparing the amendment",
-    recording_new_term: "Recording the new term",
-    changing_request_status: "Changing the request's status",
-    notifying_supplier: "Notifying the supplier",
-    composing_letter: "Composing the letter",
-    sending_letter: "Sending the letter",
+    reading_case_facts: "Reading the case's facts",
+    matching_reason_codes: "Matching the reason codes",
+    composing_request: "Composing the request",
+    sending_request: "Sending the request",
+    opening_linked_case: "Opening the linked case",
+    copying_facts: "Copying the facts",
+    filling_template: "Filling in the template",
+    citing_grounds: "Citing the grounds",
+    checking_grounds: "Checking the grounds",
+    checking_deadlines: "Checking the deadlines",
+    assembling_package: "Assembling the package",
+    assigning_reviewer: "Assigning a reviewer",
   },
   skipReason: {
     skipped_by_user: "you skipped it",
@@ -470,21 +531,26 @@ const en: Strings = {
     undone: "Undone",
     error: "Error",
   },
-  objectKind: { request: "Request", contract: "Contract", letter: "Letter" },
-  requestStatus: {
-    under_review: "under review",
-    checked: "checked",
-    checked_by_archive: "checked against the archive",
-    approved: "approved",
-    rejected_duplicate: "rejected as a duplicate",
-    documents_requested: "documents requested",
+  objectKind: { classification: "Classification", fact_request: "Fact request", linked_facts: "Linked facts", reply_draft: "Reply draft", case: "Case" },
+  classificationStatus: { unconfirmed: "not confirmed", confirmed: "confirmed" },
+  requestStatus: { not_sent: "not sent", sent: "sent" },
+  linkStatus: { not_linked: "not used", linked: "used for this case" },
+  draftStatus: { none: "none", drafted: "drafted", checked: "checked" },
+  regime: { complaint: "a complaint under the sector's law", ombudsman_claim: "a money claim under 123-FZ" },
+  team: { antifraud: "the antifraud team", aml: "the AML compliance team", operations: "operations" },
+  question: {
+    sign_detected: "Which sign was detected, and on what data?",
+    client_confirmation: "Did the client confirm the order, and when?",
+    database_match: "Is the recipient in the Bank of Russia's database?",
+    decision_basis: "Which category was the decision taken under, and on what day?",
+    documents_received: "Which documents has the client submitted?",
+    measure_status: "Is the measure still in force?",
+    operation_record: "What does the operation's record show, and what is its status?",
+    contract_terms: "Which terms of the contract applied?",
+    charges: "Which fees or sums were charged?",
   },
-  letterStatus: { not_sent: "not sent", sent: "sent" },
-  document: { registry_extract: "a registry extract", company_card: "the company card", license_copy: "a copy of the licence" },
-  documentAge: (document, days) => `${document} no older than ${days.text} ${days.n === 1 ? "day" : "days"}`,
-  matchField: { tax_id: "tax number", subject: "subject", amount: "amount" },
-  draftKind: { email: "Letter", decision: "Decision", change: "Change" },
-  serviceName: { contracts: "The contracts service" },
+  draftKind: { change: "Change", request: "Request", reply: "Reply draft" },
+  serviceName: { fact_requests: "The fact request service" },
   streamError: {
     missing_plan: "The run request carried no plan.",
     invalid_plan: "The plan in the run request could not be read.",
@@ -493,82 +559,176 @@ const en: Strings = {
     too_many_steps: "The plan has more steps than the scenario.",
     unknown_step: "The plan names a step the scenario does not have.",
     method_not_allowed: "The run service answers only requests to read.",
+    unsupported_version: "The run service speaks another version of the protocol.",
+    invalid_case: "The case in the run request could not be read.",
     stream_lost: "The connection to the run service was lost.",
   },
-  taskName: { triage_supplier_requests: (requests) => `Triage ${requests} incoming supplier requests` },
+  taskName: { answer_complaint: (caseId) => `Prepare the reply in case ${caseId}` },
   stepTitle: {
-    check: (r, s) => `Check request ${r} from ${s}`,
-    extend: (c, s) => `Extend contract ${c} with ${s}`,
-    reject_duplicate: (r, s) => `Reject request ${r} from ${s} as a duplicate`,
-    request_documents: (r, s) => `Ask ${s} for documents on request ${r}`,
-    check_by_archive: (r) => `Check request ${r} against archived documents`,
+    classify: "Classify the complaint",
+    request_facts: (team) => `Request the facts from ${team}`,
+    reuse_facts: (linked) => `Use the facts of linked case ${linked}`,
+    draft_reply: "Draft the reply",
+    check_draft: "Check the draft against the rubric",
+    hand_to_review: "Hand the draft to legal review",
   },
   draft: {
-    check_request: (r, s, external) => [
-      `Mark request ${r} from ${s} as checked.`,
-      external ? "This reaches outside the organisation." : "Nothing leaves the organisation.",
+    classify: (stream, reason, regime) => [
+      `Stream: ${stream}.`,
+      reason ? `Reason: ${reason}.` : "No reason code.",
+      `Regime: ${regime}.`,
+      "Nothing leaves the complaints team.",
     ],
-    extend_contract: (c, s, months, before, after, termsChanged) => [
-      `Extend contract ${c} with ${s} by ${months.text} ${months.n === 1 ? "month" : "months"}: valid until ${after} instead of ${before}.`,
-      termsChanged ? "The terms change." : "The terms stay the same.",
+    request_facts: (caseId, team, operation, questions, due) => [
+      `To ${team}, on case ${caseId}.`,
+      ...(operation ? [`Operation: ${operation}.`] : []),
+      ...questions,
+      `Answer by ${due}.`,
     ],
-    reject_duplicate: (r, s, d, date, fields, notify) => [
-      `Reject request ${r} from ${s} as a duplicate of request ${d} of ${date}.`,
-      `Matched on ${fields}.`,
-      notify ? "The supplier is notified." : "The supplier is not notified.",
+    reuse_linked_facts: (linked, sendsRequest) => [
+      `Use the facts already on file in case ${linked}.`,
+      sendsRequest ? "A request is sent." : "No request is sent.",
     ],
-    request_documents: (r, s, documents, due) => [`Letter to ${s} about request ${r}.`, `Please send ${documents} by ${due}.`],
-    check_by_archive: (r, a, uploaded, sendsLetter) => [
-      `Check request ${r} with the documents uploaded on ${uploaded} for request ${a}.`,
-      sendsLetter ? "A letter is sent." : "No letter is sent.",
+    reply: [
+      "The agent writes this reply from the case's facts and its templates, citing the law from ariadne-rules.",
+      "Nothing is sent: the draft goes to legal review, and a signatory sends the reply.",
+    ],
+    check_draft: [
+      "Check the draft with the rubric of ariadne-rules: grounds, the client's options and deadlines, sentence length.",
+      "Its findings are shown to you; the draft is not changed.",
+    ],
+    hand_to_review: (caseId, stage, due, sends) => [
+      `Move case ${caseId} from "${stage}" to legal review.`,
+      `The reply is due by ${due}.`,
+      sends ? "The reply is sent." : "The assistant does not send the reply: a signatory does, after the review.",
     ],
   },
   object: {
-    request: (r, before, after) => `Request ${r}: ${before} → ${after}`,
-    contract: (c, before, after) => `Contract ${c}: valid until ${before} → ${after}`,
-    letter: (s, r, before, after) => `Letter to ${s} about request ${r}: ${before} → ${after}`,
+    classification: (c, before, after) => `Classification of case ${c}: ${before} → ${after}`,
+    fact_request: (team, before, after) => `Request to ${team}: ${before} → ${after}`,
+    linked_facts: (linked, before, after) => `Facts of case ${linked}: ${before} → ${after}`,
+    reply_draft: (before, after) => `Reply draft: ${before} → ${after}`,
+    case: (c, before, after) => `Case ${c}: ${before} → ${after}`,
   },
   summaryText: {
-    request_checked: (r, match) => `Request ${r} checked; ${match ? "it matches the registry" : "it does not match the registry"}.`,
-    contract_extended: (c, until, r) => `Contract ${c} extended to ${until}; request ${r} approved.`,
-    request_rejected_duplicate: (r, d, notified) =>
-      `Request ${r} rejected as a duplicate of ${d}; ${notified ? "the supplier was notified" : "the supplier was not notified"}.`,
-    documents_requested: (s, r) => `Letter sent to ${s} about request ${r}.`,
-    request_checked_by_archive: (r, sent) => `Request ${r} checked against the archive; ${sent ? "a letter was sent" : "no letter was sent"}.`,
+    case_classified: (c, stream, reason) => `Case ${c} classified: ${stream}${reason ? `, ${reason}` : ""}.`,
+    facts_requested: (team, due) => `Facts requested from ${team}, due ${due}.`,
+    linked_facts_reused: (linked) => `Facts of case ${linked} used; no request sent.`,
+    reply_drafted: (c) => `Reply in case ${c} drafted.`,
+    draft_checked: "Draft checked against the rubric.",
+    handed_to_review: (c, due) => `Case ${c} handed to legal review; the reply is due by ${due}.`,
   },
   undoText: {
-    unmark_checked: (r) => `Request ${r} is back under review.`,
-    restore_contract_term: (c, until, r) => `Contract ${c} is valid until ${until} again; request ${r} is back under review.`,
-    return_to_queue: (r, recalled) => `Request ${r} is back in the queue${recalled ? "; the notice was recalled" : ""}.`,
-    recall_letter: (s, r) => `The letter to ${s} about request ${r} was recalled.`,
-    unmark_checked_by_archive: (r) => `Request ${r} is back under review.`,
+    unconfirm_classification: (c) => `The classification of case ${c} is unconfirmed again.`,
+    recall_fact_request: (team) => `The request to ${team} was recalled.`,
+    unlink_facts: (linked) => `The facts of case ${linked} are no longer used.`,
+    discard_draft: "The draft of the reply was discarded.",
+    clear_check: "The rubric check was cleared.",
+    return_to_drafting: (c, stage) => `Case ${c} is back at "${stage}".`,
   },
   errorText: { service_timeout: (service, seconds) => `${service} did not answer within ${seconds} s.` },
   deviationReason: {
-    fresh_documents_in_archive: (a, uploaded) => `Fresh documents from this supplier were uploaded on ${uploaded} with request ${a}.`,
+    facts_in_linked_case: (linked) => `Linked case ${linked} already holds the facts this request asks for.`,
   },
-  deviationProposal: { check_by_archive: "Check the request against those documents instead of writing to the supplier." },
+  deviationProposal: { reuse_linked_facts: "Use those facts instead of sending a new request to another team." },
   conflict: {
-    extend_and_reject_duplicate: (a, b, r) => `Steps ${a} and ${b} both act on request ${r}: one approves it, the other rejects it as a duplicate.`,
+    draft_before_facts: (a, b) => `Step ${a} drafts the reply before step ${b} asks for the facts.`,
+    check_before_draft: (a, b) => `Step ${a} checks a draft that step ${b} has not written yet.`,
+    review_before_draft: (a, b) => `Step ${a} hands over a draft that step ${b} has not written yet.`,
+  },
+  rubric: {
+    title: "Rubric findings",
+    clean: "The rubric found nothing to flag. That is not a verdict: a person decides.",
+    count: (n) => `${n.text} ${n.n === 1 ? "finding" : "findings"} for a person to weigh.`,
+    source: (name) => `Source: ${name}`,
+    finding: {
+      ground_missing: () => "No legal ground is named.",
+      ground_without_article: () => "A law is named without its article.",
+      grounds_mixed: () => "161-FZ and 115-FZ grounds are mixed.",
+      stream_ground_missing: () => "The law of the case's stream is not named.",
+      next_steps_missing: () => "No next step is stated.",
+      client_option_missing: (subject) => `An option the law gives the client is not offered: ${subject}.`,
+      deadline_missing: (subject) => `A running deadline is not stated: ${subject}.`,
+      deadline_mismatch: (subject) => `A deadline is stated with another date: ${subject}.`,
+      text_empty: () => "The reply has no text.",
+      sentence_too_long: (_subject, words) => `A sentence of ${words} words.`,
+      sentences_long_on_average: (_subject, words) => `Sentences of ${words} words on average.`,
+    },
+    option: {
+      confirm_order: "confirming the order",
+      repeat_operation: "repeating the operation",
+      submit_documents: "submitting documents",
+      apply_to_commission: "applying to the interagency commission",
+      apply_to_ombudsman: "applying to the financial ombudsman",
+    },
+    deadline: {
+      antifraud_suspension_ends: "the end of the suspension",
+      antifraud_confirmation: "the last day to confirm the order",
+      antifraud_repeat_suspension_ends: "the end of the second suspension",
+      antifraud_after_repeat_suspension: "the day the order is carried out",
+      exclusion_decision: "the decision on the exclusion request",
+      antifraud_refund: "the refund",
+      aml_documents_answer: "the answer on the documents",
+      aml_commission_decision: "the commission's decision",
+      high_risk_commission_application: "the last day to apply to the commission",
+    },
+    draftShown: "The draft",
+    noDraft: "There was no draft to check: the drafting step has not written one.",
+  },
+  reply: {
+    greeting: "Dear client,",
+    reviewed: (received, caseId) => `We have reviewed your complaint of ${received}, case ${caseId}.`,
+    operation: (operation, reference, day, amount) => `It concerns this operation: ${operation}, reference ${reference}, of ${day}, for ${amount}.`,
+    claim: (amount) => `You claim ${amount}.`,
+    outcome: {
+      pending: "[The decision on the complaint: for the reviewer to state.]",
+      upheld: "We find your complaint justified.",
+      partly_upheld: "We find your complaint partly justified.",
+      refused: "We find no grounds to uphold your complaint.",
+    },
+    suspended: (sign) => `We suspended the transfer: it matched sign ${sign} of Bank of Russia Order OD-2506.`,
+    refused: (sign) => `We refused the operation: it matched sign ${sign} of Bank of Russia Order OD-2506.`,
+    aml: {
+      aml_operation_refused: "We refused to carry out the operation under the anti-money-laundering law.",
+      aml_account_refused: "We refused to open the account under the anti-money-laundering law.",
+      aml_account_terminated: "We terminated the account contract under the anti-money-laundering law.",
+      aml_operation_suspended: "We suspended the operation under the anti-money-laundering law.",
+      aml_operation_suspended_by_decision: "We suspended the operation by a decision under the anti-money-laundering law.",
+      aml_funds_frozen: "We froze the funds under the anti-money-laundering law.",
+      aml_high_risk_measures: "We applied the measures for a high-risk client under the anti-money-laundering law.",
+    },
+    ground: (citation) => `The ground is ${citation}.`,
+    contract: "Our position rests on the terms of your contract with the bank.",
+    option: {
+      confirm_order: "You can confirm the transfer order, and we will carry it out.",
+      repeat_operation: "You can repeat the operation.",
+      submit_documents: "You can send us documents that explain the operation.",
+      apply_to_commission: "After our answer on the documents, you can apply to the interagency commission at the Bank of Russia.",
+      apply_to_ombudsman: "If you disagree, you can apply to the financial ombudsman.",
+    },
+    deadline: {
+      antifraud_suspension_ends: (d) => `The suspension ends on ${d}.`,
+      antifraud_confirmation: (d) => `Please confirm the order by ${d}.`,
+      antifraud_repeat_suspension_ends: (d) => `The second suspension ends on ${d}.`,
+      antifraud_after_repeat_suspension: (d) => `After it, the order is carried out on ${d}.`,
+      exclusion_decision: (d) => `The decision on your exclusion request is due by ${d}.`,
+      antifraud_refund: (d) => `The money is to be returned by ${d}.`,
+      aml_documents_answer: (d) => `We will answer on your documents by ${d}.`,
+      aml_commission_decision: (d) => `The commission decides by ${d}.`,
+      high_risk_commission_application: (d) => `You can apply to the commission until ${d}.`,
+    },
+    next: {
+      contact_bank: "If you have questions, reply to this letter or call us.",
+      apply_to_bank_of_russia: "You can also apply to the Bank of Russia.",
+    },
   },
 };
 
+// A Russian date ends in "г.", which ends the sentence too: a sentence
+// that ends with a date takes no full stop of its own.
 const ruStrings: Strings = {
   title: "Ассистент",
   subtitle: "Предлагает он, решаете вы, и его можно остановить на любом шаге",
-  suppliers: [
-    "«Северметалл»",
-    "«Гавань-Логистик»",
-    "«Кедр-Офис»",
-    "«Синий камень»",
-    "«Меридиан-Электро»",
-    "«Ива-Текстиль»",
-    "«Вершина-Крепёж»",
-    "«Прибрежная типография»",
-    "«Гранит-Инструмент»",
-    "«Озёрные продукты»",
-    "«Сад-Химия»",
-  ],
   shortcutsButton: "Клавиши",
   shortcuts: {
     title: "Сочетания клавиш",
@@ -598,9 +758,11 @@ const ruStrings: Strings = {
     panel: "Задача",
     task: "Задача",
     scenario: "Номер сценария",
-    scenarioHelp: "Каждый номер даёт свой набор заявок, каждый раз один и тот же.",
+    scenarioHelp: "Один и тот же номер каждый раз даёт один и тот же запуск по этому делу. Он задаёт уверенность агента и длительность шагов; при нечётном номере запрос фактов один раз не дождётся ответа.",
     autonomy: "Самостоятельность",
-    scripted: "Агент — это сценарий: один и тот же номер и одни и те же решения всегда дают один и тот же запуск. Он показывает управление, а не качество ответов.",
+    scripted: "Агент — это сценарий: одно и то же дело, номер сценария и решения всегда дают один и тот же запуск. Он показывает управление; его ответы — шаблоны по фактам дела, а не ответы модели.",
+    untrusted: "Ассистент получает из реестра коды, даты и суммы дела, но не текст обращения: ничто из написанного заявителем не может им управлять.",
+    pastDrafting: (stage) => `Дело на этапе «${stage}»: ответ уже прошёл подготовку, и ассистенту нечего готовить. Он готовит ответы по делам до юридической проверки.`,
   },
   plan: {
     panel: "План",
@@ -669,7 +831,7 @@ const ruStrings: Strings = {
     stopHint: "Чтобы вместо этого остановить весь запуск, нажмите",
     escapeSkips: "пропускает этот шаг, как кнопка «Пропустить шаг».",
     skip: "Пропустить шаг",
-    confirm: { email: "Отправить письмо", decision: "Отклонить заявку", change: "Применить изменение" },
+    confirm: { change: "Применить изменение", request: "Отправить запрос", reply: "Подготовить проект" },
   },
   deviation: {
     title: (n) => `Шаг ${n}: агент просит изменить план`,
@@ -746,7 +908,14 @@ const ruStrings: Strings = {
     reconnecting: "Соединение прервалось, переподключение.",
     streamFailed: "Запуск перестал получать события.",
   },
-  actionType: { check: "Проверка", extend: "Продление", reject_duplicate: "Отклонение дубликата", request_documents: "Запрос документов" },
+  actionType: {
+    classify: "Классификация",
+    request_facts: "Запрос фактов",
+    reuse_facts: "Факты из связанного дела",
+    draft_reply: "Проект ответа",
+    check_draft: "Проверка по критериям",
+    hand_to_review: "Передача на проверку",
+  },
   risk: { low: "низкий риск", medium: "средний риск", high: "высокий риск" },
   autonomy: { ask_all: "Спрашивать всегда", high_only: "Спрашивать по отметке", ask_none: "Спрашивать только обязательное" },
   autonomyHelp: {
@@ -756,14 +925,18 @@ const ruStrings: Strings = {
   },
   command: { confirm: "Подтвердить", skip: "Пропустить", retry: "Повторить", allow: "Разрешить", deny: "Отказать", stop: "Остановить" },
   phase: {
-    matching_registry: "Сверка с реестром",
-    reviewing_supplier_history: "Просмотр истории поставщика",
-    preparing_amendment: "Подготовка допсоглашения",
-    recording_new_term: "Запись нового срока",
-    changing_request_status: "Смена статуса заявки",
-    notifying_supplier: "Уведомление поставщика",
-    composing_letter: "Составление письма",
-    sending_letter: "Отправка письма",
+    reading_case_facts: "Чтение фактов дела",
+    matching_reason_codes: "Сверка кодов причин",
+    composing_request: "Составление запроса",
+    sending_request: "Отправка запроса",
+    opening_linked_case: "Открытие связанного дела",
+    copying_facts: "Перенос фактов",
+    filling_template: "Заполнение шаблона",
+    citing_grounds: "Ссылки на основания",
+    checking_grounds: "Проверка оснований",
+    checking_deadlines: "Проверка сроков",
+    assembling_package: "Сборка пакета",
+    assigning_reviewer: "Назначение проверяющего",
   },
   skipReason: {
     skipped_by_user: "вы его пропустили",
@@ -779,21 +952,26 @@ const ruStrings: Strings = {
     undone: "Отменено",
     error: "Ошибка",
   },
-  objectKind: { request: "Заявка", contract: "Договор", letter: "Письмо" },
-  requestStatus: {
-    under_review: "на рассмотрении",
-    checked: "проверена",
-    checked_by_archive: "проверена по архиву",
-    approved: "одобрена",
-    rejected_duplicate: "отклонена как дубликат",
-    documents_requested: "документы запрошены",
+  objectKind: { classification: "Классификация", fact_request: "Запрос фактов", linked_facts: "Факты связанного дела", reply_draft: "Проект ответа", case: "Дело" },
+  classificationStatus: { unconfirmed: "не подтверждена", confirmed: "подтверждена" },
+  requestStatus: { not_sent: "не отправлен", sent: "отправлен" },
+  linkStatus: { not_linked: "не использованы", linked: "использованы в этом деле" },
+  draftStatus: { none: "нет", drafted: "подготовлен", checked: "проверен" },
+  regime: { complaint: "жалоба по отраслевому закону", ombudsman_claim: "имущественное требование по 123-ФЗ" },
+  team: { antifraud: "Антифрод", aml: "ПОД/ФТ", operations: "Операционный отдел" },
+  question: {
+    sign_detected: "Какой признак выявлен и по каким данным?",
+    client_confirmation: "Подтверждал ли клиент распоряжение и когда?",
+    database_match: "Есть ли получатель в базе данных Банка России?",
+    decision_basis: "По какой категории и в какой день принято решение?",
+    documents_received: "Какие документы представил клиент?",
+    measure_status: "Действует ли мера сейчас?",
+    operation_record: "Что показывает запись об операции и каков её статус?",
+    contract_terms: "Какие условия договора применены?",
+    charges: "Какие комиссии или суммы списаны?",
   },
-  letterStatus: { not_sent: "не отправлено", sent: "отправлено" },
-  document: { registry_extract: "выписку из реестра", company_card: "карточку компании", license_copy: "копию лицензии" },
-  documentAge: (document, days) => `${document} не старше ${days.text} ${ru(days.n, "дня", "дней", "дней")}`,
-  matchField: { tax_id: "ИНН", subject: "предмет", amount: "сумма" },
-  draftKind: { email: "Письмо", decision: "Решение", change: "Изменение" },
-  serviceName: { contracts: "Сервис договоров" },
+  draftKind: { change: "Изменение", request: "Запрос", reply: "Проект ответа" },
+  serviceName: { fact_requests: "Сервис запросов фактов" },
   streamError: {
     missing_plan: "В запросе на запуск нет плана.",
     invalid_plan: "План в запросе на запуск не удалось прочитать.",
@@ -802,63 +980,168 @@ const ruStrings: Strings = {
     too_many_steps: "В плане больше шагов, чем в сценарии.",
     unknown_step: "В плане есть шаг, которого нет в сценарии.",
     method_not_allowed: "Служба выполнения отвечает только на запросы чтения.",
+    unsupported_version: "Служба выполнения работает с другой версией протокола.",
+    invalid_case: "Дело в запросе на запуск не удалось прочитать.",
     stream_lost: "Соединение со службой выполнения потеряно.",
   },
-  taskName: { triage_supplier_requests: (requests) => `Разобрать входящие заявки поставщиков: ${requests}` },
+  taskName: { answer_complaint: (caseId) => `Подготовить ответ по делу ${caseId}` },
   stepTitle: {
-    check: (r, s) => `Проверить заявку ${r} от ${s}`,
-    extend: (c, s) => `Продлить договор ${c} с ${s}`,
-    reject_duplicate: (r, s) => `Отклонить заявку ${r} от ${s} как дубликат`,
-    request_documents: (r, s) => `Запросить у ${s} документы по заявке ${r}`,
-    check_by_archive: (r) => `Проверить заявку ${r} по документам из архива`,
+    classify: "Классифицировать обращение",
+    request_facts: (team) => `Запросить факты: ${team}`,
+    reuse_facts: (linked) => `Взять факты из связанного дела ${linked}`,
+    draft_reply: "Подготовить проект ответа",
+    check_draft: "Проверить проект по критериям",
+    hand_to_review: "Передать проект на юридическую проверку",
   },
   draft: {
-    check_request: (r, s, external) => [
-      `Отметить заявку ${r} от ${s} как проверенную.`,
-      external ? "Это затрагивает внешних получателей." : "Ничего не уходит за пределы организации.",
+    classify: (stream, reason, regime) => [
+      `Поток: ${stream}.`,
+      reason ? `Причина: ${reason}.` : "Кода причины нет.",
+      `Режим: ${regime}.`,
+      "Ничего не уходит из отдела обращений.",
     ],
-    extend_contract: (c, s, months, before, after, termsChanged) => [
-      `Продлить договор ${c} с ${s} на ${months.text} ${ru(months.n, "месяц", "месяца", "месяцев")} (срок действия: до ${after} вместо ${before}).`,
-      termsChanged ? "Условия меняются." : "Условия не меняются.",
+    request_facts: (caseId, team, operation, questions, due) => [
+      `Кому: ${team}, по делу ${caseId}.`,
+      ...(operation ? [`Операция: ${operation}`] : []),
+      ...questions,
+      `Ответить до ${due}`,
     ],
-    reject_duplicate: (r, s, d, date, fields, notify) => [
-      `Отклонить заявку ${r} от ${s} как дубликат заявки ${d} (${date}).`,
-      `Совпали: ${fields}.`,
-      notify ? "Поставщик получит уведомление." : "Поставщик не получит уведомления.",
+    reuse_linked_facts: (linked, sendsRequest) => [
+      `Взять факты, которые уже есть в деле ${linked}.`,
+      sendsRequest ? "Запрос отправляется." : "Запрос не отправляется.",
     ],
-    request_documents: (r, s, documents, due) => [`Письмо для ${s} по заявке ${r}.`, `До ${due} просим прислать ${documents}.`],
-    check_by_archive: (r, a, uploaded, sendsLetter) => [
-      `Проверить заявку ${r} по документам, загруженным ${uploaded} с заявкой ${a}.`,
-      sendsLetter ? "Письмо отправляется." : "Письмо не отправляется.",
+    reply: [
+      "Агент пишет этот ответ по фактам дела и своим шаблонам, со ссылками на закон из ariadne-rules.",
+      "Ничего не отправляется: проект уходит на юридическую проверку, а ответ отправляет подписант.",
+    ],
+    check_draft: [
+      "Проверить проект по критериям ariadne-rules: основания, возможности и сроки клиента, длина предложений.",
+      "Замечания показываются вам; проект не меняется.",
+    ],
+    hand_to_review: (caseId, stage, due, sends) => [
+      `Перевести дело ${caseId} с этапа «${stage}» на юридическую проверку.`,
+      `Срок ответа: ${due}`,
+      sends ? "Ответ отправляется." : "Ассистент не отправляет ответ: это делает подписант после проверки.",
     ],
   },
   object: {
-    request: (r, before, after) => `Заявка ${r}: ${before} → ${after}`,
-    contract: (c, before, after) => `Договор ${c}: срок до ${before} → до ${after}`,
-    letter: (s, r, before, after) => `Письмо для ${s} по заявке ${r}: ${before} → ${after}`,
+    classification: (c, before, after) => `Классификация дела ${c}: ${before} → ${after}`,
+    fact_request: (team, before, after) => `Запрос (${team}): ${before} → ${after}`,
+    linked_facts: (linked, before, after) => `Факты дела ${linked}: ${before} → ${after}`,
+    reply_draft: (before, after) => `Проект ответа: ${before} → ${after}`,
+    case: (c, before, after) => `Дело ${c}: ${before} → ${after}`,
   },
   summaryText: {
-    request_checked: (r, match) => `Заявка ${r} проверена; ${match ? "совпадает с реестром" : "не совпадает с реестром"}.`,
-    contract_extended: (c, until, r) => `Договор ${c} продлён до ${until}; заявка ${r} одобрена.`,
-    request_rejected_duplicate: (r, d, notified) =>
-      `Заявка ${r} отклонена как дубликат ${d}; ${notified ? "поставщик уведомлён" : "поставщик не уведомлён"}.`,
-    documents_requested: (s, r) => `Письмо для ${s} по заявке ${r} отправлено.`,
-    request_checked_by_archive: (r, sent) => `Заявка ${r} проверена по архиву; ${sent ? "письмо отправлено" : "письмо не отправлялось"}.`,
+    case_classified: (c, stream, reason) => `Дело ${c} классифицировано: ${stream}${reason ? `, ${reason}` : ""}.`,
+    facts_requested: (team, due) => `Факты запрошены (${team}), срок ${due}`,
+    linked_facts_reused: (linked) => `Использованы факты дела ${linked}; запрос не отправлялся.`,
+    reply_drafted: (c) => `Проект ответа по делу ${c} подготовлен.`,
+    draft_checked: "Проект проверен по критериям.",
+    handed_to_review: (c, due) => `Дело ${c} передано на юридическую проверку; срок ответа ${due}`,
   },
   undoText: {
-    unmark_checked: (r) => `Заявка ${r} снова на рассмотрении.`,
-    restore_contract_term: (c, until, r) => `Договор ${c} снова действует до ${until}; заявка ${r} снова на рассмотрении.`,
-    return_to_queue: (r, recalled) => `Заявка ${r} вернулась в очередь${recalled ? "; уведомление отозвано" : ""}.`,
-    recall_letter: (s, r) => `Письмо для ${s} по заявке ${r} отозвано.`,
-    unmark_checked_by_archive: (r) => `Заявка ${r} снова на рассмотрении.`,
+    unconfirm_classification: (c) => `Классификация дела ${c} снова не подтверждена.`,
+    recall_fact_request: (team) => `Запрос (${team}) отозван.`,
+    unlink_facts: (linked) => `Факты дела ${linked} больше не используются.`,
+    discard_draft: "Проект ответа удалён.",
+    clear_check: "Проверка по критериям снята.",
+    return_to_drafting: (c, stage) => `Дело ${c} вернулось на этап «${stage}».`,
   },
   errorText: { service_timeout: (service, seconds) => `${service} не ответил за ${seconds} с.` },
   deviationReason: {
-    fresh_documents_in_archive: (a, uploaded) => `Свежие документы этого поставщика загружены ${uploaded} с заявкой ${a}.`,
+    facts_in_linked_case: (linked) => `В связанном деле ${linked} уже есть факты, о которых спрашивает этот запрос.`,
   },
-  deviationProposal: { check_by_archive: "Проверить заявку по этим документам, не отправляя письмо поставщику." },
+  deviationProposal: { reuse_linked_facts: "Взять эти факты вместо нового запроса в другое подразделение." },
   conflict: {
-    extend_and_reject_duplicate: (a, b, r) => `Шаги ${a} и ${b} относятся к одной заявке ${r}: один её одобряет, другой отклоняет как дубликат.`,
+    draft_before_facts: (a, b) => `Шаг ${a} готовит ответ раньше, чем шаг ${b} запрашивает факты.`,
+    check_before_draft: (a, b) => `Шаг ${a} проверяет проект, который шаг ${b} ещё не подготовил.`,
+    review_before_draft: (a, b) => `Шаг ${a} передаёт проект, который шаг ${b} ещё не подготовил.`,
+  },
+  rubric: {
+    title: "Замечания по критериям",
+    clean: "Замечаний по критериям нет. Это не вывод: решает человек.",
+    count: (n) => `${n.text} ${ru(n.n, "замечание", "замечания", "замечаний")} для оценки человеком.`,
+    source: (name) => `Источник: ${name}`,
+    finding: {
+      ground_missing: () => "Не названо правовое основание.",
+      ground_without_article: () => "Закон назван без статьи.",
+      grounds_mixed: () => "Смешаны основания 161-ФЗ и 115-ФЗ.",
+      stream_ground_missing: () => "Не назван закон потока этого дела.",
+      next_steps_missing: () => "Не указаны дальнейшие действия.",
+      client_option_missing: (subject) => `Не предложена возможность, которую закон даёт клиенту: ${subject}.`,
+      deadline_missing: (subject) => `Не указан текущий срок: ${subject}.`,
+      deadline_mismatch: (subject) => `Срок указан с другой датой: ${subject}.`,
+      text_empty: () => "В ответе нет текста.",
+      sentence_too_long: (_subject, words) => `Предложение из ${words} слов.`,
+      sentences_long_on_average: (_subject, words) => `В среднем ${words} слов в предложении.`,
+    },
+    option: {
+      confirm_order: "подтвердить распоряжение",
+      repeat_operation: "повторить операцию",
+      submit_documents: "представить документы",
+      apply_to_commission: "обратиться в межведомственную комиссию",
+      apply_to_ombudsman: "обратиться к финансовому уполномоченному",
+    },
+    deadline: {
+      antifraud_suspension_ends: "окончание приостановления",
+      antifraud_confirmation: "последний день подтверждения распоряжения",
+      antifraud_repeat_suspension_ends: "окончание повторного приостановления",
+      antifraud_after_repeat_suspension: "день исполнения распоряжения",
+      exclusion_decision: "решение по запросу об исключении",
+      antifraud_refund: "возврат средств",
+      aml_documents_answer: "ответ по документам",
+      aml_commission_decision: "решение комиссии",
+      high_risk_commission_application: "последний день обращения в комиссию",
+    },
+    draftShown: "Проект",
+    noDraft: "Проверять было нечего: шаг подготовки проекта его не написал.",
+  },
+  reply: {
+    greeting: "Уважаемый клиент!",
+    reviewed: (received, caseId) => `Мы рассмотрели вашу жалобу от ${received}, дело ${caseId}.`,
+    operation: (operation, reference, day, amount) => `Жалоба касается операции «${operation}» № ${reference} от ${day} на сумму ${amount}.`,
+    claim: (amount) => `Вы требуете ${amount}.`,
+    outcome: {
+      pending: "[Решение по жалобе: указывает проверяющий.]",
+      upheld: "Мы признаём вашу жалобу обоснованной.",
+      partly_upheld: "Мы признаём вашу жалобу обоснованной частично.",
+      refused: "Оснований для удовлетворения жалобы мы не нашли.",
+    },
+    suspended: (sign) => `Мы приостановили перевод: он соответствовал признаку ${sign} приказа Банка России № ОД-2506.`,
+    refused: (sign) => `Мы отказали в операции: она соответствовала признаку ${sign} приказа Банка России № ОД-2506.`,
+    aml: {
+      aml_operation_refused: "Мы отказали в проведении операции по закону о противодействии отмыванию доходов.",
+      aml_account_refused: "Мы отказали в открытии счёта по закону о противодействии отмыванию доходов.",
+      aml_account_terminated: "Мы расторгли договор счёта по закону о противодействии отмыванию доходов.",
+      aml_operation_suspended: "Мы приостановили операцию по закону о противодействии отмыванию доходов.",
+      aml_operation_suspended_by_decision: "Мы приостановили операцию по решению на основании закона о противодействии отмыванию доходов.",
+      aml_funds_frozen: "Мы заморозили средства по закону о противодействии отмыванию доходов.",
+      aml_high_risk_measures: "Мы применили меры для клиента с высоким уровнем риска по закону о противодействии отмыванию доходов.",
+    },
+    ground: (citation) => `Основание: ${citation}.`,
+    contract: "Наша позиция основана на условиях вашего договора с банком.",
+    option: {
+      confirm_order: "Вы можете подтвердить распоряжение о переводе, и мы его исполним.",
+      repeat_operation: "Вы можете повторить операцию.",
+      submit_documents: "Вы можете представить нам документы, поясняющие операцию.",
+      apply_to_commission: "После нашего ответа по документам вы можете обратиться в межведомственную комиссию при Банке России.",
+      apply_to_ombudsman: "Если вы не согласны, вы можете обратиться к финансовому уполномоченному.",
+    },
+    deadline: {
+      antifraud_suspension_ends: (d) => `Приостановление заканчивается ${d}`,
+      antifraud_confirmation: (d) => `Подтвердите распоряжение не позднее ${d}`,
+      antifraud_repeat_suspension_ends: (d) => `Повторное приостановление заканчивается ${d}`,
+      antifraud_after_repeat_suspension: (d) => `После него распоряжение исполняется ${d}`,
+      exclusion_decision: (d) => `Решение по вашему запросу об исключении будет принято не позднее ${d}`,
+      antifraud_refund: (d) => `Средства должны быть возвращены не позднее ${d}`,
+      aml_documents_answer: (d) => `Мы ответим по вашим документам не позднее ${d}`,
+      aml_commission_decision: (d) => `Комиссия примет решение не позднее ${d}`,
+      high_risk_commission_application: (d) => `Обратиться в комиссию можно до ${d}`,
+    },
+    next: {
+      contact_bank: "Если у вас есть вопросы, ответьте на это письмо или позвоните нам.",
+      apply_to_bank_of_russia: "Вы также можете обратиться в Банк России.",
+    },
   },
 };
 

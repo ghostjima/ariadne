@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
 import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
-import { clientName, isAnswered, rowId, workingDaysLeft, type ColumnStore } from "@ariadne/grid";
+import { caseFacts, clientName, isAnswered, rowId, workingDaysLeft, type ColumnStore } from "@ariadne/grid";
 import { AgentPanel } from "../agent/AgentPanel";
 import { strings as agentStrings } from "../agent/i18n";
 import { sessionFor, type RunService } from "../agent/service";
@@ -14,6 +14,7 @@ import { POOLS } from "../data/query";
 import { DUE_SOON, stageTone } from "../desk/columns";
 import type { Lang, Strings } from "../i18n";
 import { CaseCard } from "./CaseCard";
+import { caseBrief } from "./brief";
 
 /** The rules module, loaded once for the page: the card asks it for the
  * case's whole clock. */
@@ -54,7 +55,9 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
   const id = rowId(row);
   const name = clientName(store.applicant[row] ?? 0, store.client[row] ?? 0, pools);
   const stage = store.stage[row] ?? 0;
-  const session = sessionFor(row, service.transport);
+  // The assistant is told the case's codes, dates and amounts, never its
+  // text (brief.ts); the session is made once the rules have loaded.
+  const session = ready ? sessionFor(row, caseBrief(store, row), service.transport) : null;
 
   // The case's heading takes the focus when the case opens, so the next
   // Tab starts in the case, never at the top of the page.
@@ -82,17 +85,22 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
           <h3 id="assistant-heading">{agentStrings[lang].title}</h3>
         </VisuallyHidden>
       )}
-      <AgentPanel
-        key={row}
-        lang={lang}
-        session={session}
-        service={service}
-        toasts={toasts}
-        shortcuts={shortcuts}
-        helpOpen={helpOpen}
-        onHelpOpenChange={setHelpOpen}
-        visible={wide || tab === "assistant"}
-      />
+      {session ? (
+        <AgentPanel
+          key={row}
+          lang={lang}
+          session={session}
+          facts={caseFacts(store, row)}
+          service={service}
+          toasts={toasts}
+          shortcuts={shortcuts}
+          helpOpen={helpOpen}
+          onHelpOpenChange={setHelpOpen}
+          visible={wide || tab === "assistant"}
+        />
+      ) : (
+        <ProgressBar label={agentStrings[lang].service.starting} isIndeterminate />
+      )}
     </aside>
   );
 

@@ -52,6 +52,9 @@ export type RunPanelProps = {
   onUndo: (stepId: string) => void;
   /** The service notice (the run streams in this tab). */
   notice: ReactNode;
+  /** What a finished step produced, shown under its result (the draft,
+   * the rubric's findings). */
+  produced?: (stepId: string) => ReactNode;
 };
 
 export function RunPanel(props: RunPanelProps) {
@@ -152,6 +155,7 @@ export function RunPanel(props: RunPanelProps) {
         explanation = (
           <>
             <p className="step-text">{summaryText(x, result.summary)}</p>
+            {props.produced?.(id)}
             {deadline === null ? (
               <p className="muted">{t.step.undoPermanent}</p>
             ) : irreversible ? (

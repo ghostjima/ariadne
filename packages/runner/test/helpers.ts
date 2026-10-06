@@ -8,7 +8,9 @@ import {
   type PlanPayload,
   type RunEvent,
   type RunInput,
+  type CaseBrief,
 } from "../src/index.js";
+import { BRIEF } from "./briefs.js";
 
 export type Segment = {
   events: { id: number; event: RunEvent }[];
@@ -22,11 +24,14 @@ export function payloadFor(
   autonomy: Autonomy = "high_only",
   askFirst: string[] = [],
   seed = 7,
+  brief: CaseBrief = BRIEF,
 ): PlanPayload {
   return {
+    v: 2,
     seed,
     autonomy,
-    steps: generatePlan(seed)
+    brief,
+    steps: generatePlan(seed, brief)
       .filter((s) => !ids || ids.includes(s.id))
       .map((s) => ({ id: s.id, askFirst: askFirst.includes(s.id) })),
   };

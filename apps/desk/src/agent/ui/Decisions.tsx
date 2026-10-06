@@ -1,13 +1,21 @@
 // The confirmations the run stops for: a risky step's draft (confirm or
-// skip) and the agent's request to leave the plan (allow or keep it). Each
+// skip; a reply shows the letter itself, as the agent will write it) and
+// the agent's request to leave the plan (allow or keep it). Each
 // is an AlertDialog with the focus on the safe action, so an Enter pressed
 // by habit skips the step or keeps the plan; Escape does the same, and the
 // dialog says so. Stop stays one key away while the dialog is open.
-import { useRef } from "react";
+//
+// One decision can follow another at once (the agent's request kept, then
+// the same step's confirmation). A dialog notes where the focus was when
+// it opened, to give it back when it closes; opened while the focus is
+// still in the dialog that is closing, it would note a button that is
+// about to go. So a dialog opens once the focus has left the last one.
+import { useEffect, useRef, useState } from "react";
 import { AlertDialog, Kbd } from "@ghostjima/stoa-react";
-import type { WaitingNotice } from "@ariadne/runner";
-import { draftLines, objectLine, stepTitle, type Text } from "../text";
+import { applyDeviation, type WaitingNotice } from "@ariadne/runner";
+import { caseId, draftLines, objectLine, stepTitle, type Text } from "../text";
 import type { StepView } from "./hooks";
+import { ReplyDraftView } from "./ReplyCheck";
 
 export type DecisionsProps = {
   x: Text;
@@ -30,9 +38,32 @@ function KeyHints({ x, escape }: { x: Text; escape: string }) {
   );
 }
 
+/** True once no dialog holds the focus (or after a few frames, so a
+ * dialog never waits for long), for each new decision `key`. */
+function useFocusSettled(key: string | null): boolean {
+  const [settled, setSettled] = useState<string | null>(null);
+  useEffect(() => {
+    if (key === null) return;
+    let frames = 0;
+    let id = 0;
+    const check = () => {
+      const inDialog = document.activeElement?.closest('[role="alertdialog"], [role="dialog"]');
+      if (!inDialog || frames >= 10) setSettled(key);
+      else {
+        frames += 1;
+        id = requestAnimationFrame(check);
+      }
+    };
+    check();
+    return () => cancelAnimationFrame(id);
+  }, [key]);
+  return key !== null && settled === key;
+}
+
 export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps) {
   const { t, f } = x;
   const accepted = useRef(false);
+  const settled = useFocusSettled(waiting ? `${waiting.stepId}-${waiting.accepts.join("-")}` : null);
   if (!waiting) return null;
   const index = steps.findIndex((s) => s.id === waiting.stepId);
   const view = steps[index];
@@ -54,11 +85,11 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
 
   if (waiting.accepts.includes("allow") && ctx.deviation) {
     const deviation = ctx.deviation;
-    const proposed = stepTitle(x, { ...ctx.step, deviatedTo: deviation.proposal });
+    const proposed = stepTitle(x, applyDeviation(ctx.step));
     return (
       <AlertDialog
         key={key}
-        isOpen={open}
+        isOpen={open && settled}
         onOpenChange={onOpenChange("deny")}
         title={t.deviation.title(position)}
         confirmLabel={t.deviation.allow}
@@ -69,7 +100,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
         }}
       >
         <p>{stepTitle(x, ctx.step)}</p>
-        <p>{t.deviationReason[deviation.reason](f.id(deviation.archiveRequest), f.date(deviation.archiveUploaded))}</p>
+        <p>{t.deviationReason[deviation.reason](caseId(deviation.linkedCase))}</p>
         <p>{t.deviationProposal[deviation.proposal]}</p>
         <p>{t.deviation.instead(proposed, t.risk[deviation.newRisk])}</p>
         <KeyHints x={x} escape={t.deviation.escapeKeeps} />
@@ -82,7 +113,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
     return (
       <AlertDialog
         key={key}
-        isOpen={open}
+        isOpen={open && settled}
         onOpenChange={onOpenChange("skip")}
         title={t.confirm.title(position, stepTitle(x, ctx.step))}
         confirmLabel={t.confirm.confirm[draft.kind]}
@@ -99,6 +130,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
         {draftLines(x, draft).map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {draft.kind === "reply" && <ReplyDraftView x={x} draft={draft} />}
         <p className="draft-heading">{t.confirm.changes}</p>
         <ul className="draft-objects">
           {ctx.step.objects.map((object) => {

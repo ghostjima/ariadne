@@ -34,6 +34,11 @@ const NAMES: Record<string, Record<Lang, string>> = {
 /** Every source id the desk names; a test checks the clocks cite no other. */
 export const NAMED_SOURCES: readonly string[] = Object.keys(NAMES);
 
+/** A source's short name, or its id when the desk has none. */
+export function sourceName(source: string, lang: Lang): string {
+  return NAMES[source]?.[lang] ?? source;
+}
+
 /** Acts whose articles are divided into items rather than parts. */
 const ITEMS = new Set(["insurance_law_6_2", "securities_law_15_11", "aml_law_7", "aml_law_7_7", "aml_law_7_8"]);
 

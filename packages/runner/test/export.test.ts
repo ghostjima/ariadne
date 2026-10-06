@@ -1,3 +1,4 @@
+import { BRIEF } from "./briefs.js";
 import { describe, expect, it } from "vitest";
 import { clockShort, clockTime, countdown, exportLog, type LogEntry } from "../src/index.js";
 
@@ -22,22 +23,24 @@ describe("clock helpers", () => {
 });
 
 describe("exportLog", () => {
-  const header = { seed: 7, autonomy: "high_only" as const, total: 12 };
+  const header = { seed: 7, autonomy: "high_only" as const, total: 5, brief: BRIEF };
 
   it("puts the honest header first and stamps every entry", () => {
     const entries: LogEntry[] = [
-      { at: at(10, 0, 0), kind: "approved", total: 12, autonomy: "high_only", confirmations: 6 },
+      { at: at(10, 0, 0), kind: "approved", total: 5, autonomy: "high_only", confirmations: 1 },
       { at: at(10, 0, 12), kind: "event", event: { type: "plan.finished", at: at(10, 0, 12) } },
     ];
     const out = exportLog(entries, header);
     expect(out).toMatchObject({
       format: "ariadne_runner.session_log",
-      version: 1,
-      task: { code: "triage_supplier_requests", requests: 12 },
+      version: 2,
+      protocol: 2,
+      task: { code: "answer_complaint", caseNo: 867 },
+      brief: BRIEF,
       agent: "scripted",
       seed: 7,
       autonomy: "high_only",
-      total: 12,
+      total: 5,
       started: true,
     });
     expect(out.entries.map((e) => [e.time, e.kind])).toEqual([

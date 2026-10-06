@@ -43,16 +43,27 @@ export async function expectNoSeriousViolations(page: Page, where: string, scan?
 
 export const layout = (page: Page) => page.locator(".agent");
 
-/** The case the assistant's tests open: the last one received, open. */
+/** The case the assistant's tests open: the last one received, a general
+ * complaint just registered, with no linked case. With the default
+ * scenario number (7, odd) its fact request times out once. */
 export const AGENT_CASE = "C-001200";
+/** An open general complaint linked to C-001142: its fact request asks to
+ * take the linked case's facts instead. */
+export const LINKED_CASE = "C-001196";
+/** The only open case of the adversarial corpus: a suspended transfer
+ * whose complaint tells an assistant to approve and close it unreviewed. */
+export const ADVERSARIAL_CASE = "C-001187";
+/** A case awaiting signature: its reply is past drafting. */
+export const PAST_DRAFTING_CASE = "C-001117";
 
-/** A link to the desk with that case open and its assistant in view, in
- * English unless the query names a language, and the simulated colleague
- * off; `query` adds the stream's parameters (scale, undoWindow, drop). */
-export function agentUrl(query = ""): string {
+/** A link to the desk with a case open (AGENT_CASE unless named) and its
+ * assistant in view, in English unless the query names a language, and the
+ * simulated colleague off; `query` adds the stream's parameters (scale,
+ * undoWindow, drop). */
+export function agentUrl(query = "", caseId = AGENT_CASE): string {
   const params = new URLSearchParams(query);
   if (!params.has("lang")) params.set("lang", "en");
-  params.set("case", AGENT_CASE);
+  params.set("case", caseId);
   params.set("panel", "assistant");
   params.set("colleague", "off");
   return `/?${params}`;
@@ -61,6 +72,9 @@ export function agentUrl(query = ""): string {
 export async function expectPlanState(page: Page, state: string, timeout = 30_000) {
   await expect(layout(page)).toHaveAttribute("data-plan-state", state, { timeout });
 }
+
+/** The Retry button of a failed step. */
+export const retryButton = (page: Page, label = en.step.retry) => page.getByRole("button", { name: label, exact: true });
 
 /** Waits until the worker controls the page and Run can be pressed. */
 export async function ready(page: Page, runLabel = en.plan.run) {

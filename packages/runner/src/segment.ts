@@ -50,8 +50,9 @@ export function parseSegmentRequest(
 ): SegmentRequestResult {
   const planText = params.get("plan");
   if (!planText) return { ok: false, error: "missing_plan" };
-  const payload = decodePlanPayload(planText);
-  if (!payload) return { ok: false, error: "invalid_plan" };
+  const decoded = decodePlanPayload(planText);
+  if (!decoded.ok) return { ok: false, error: decoded.error };
+  const payload = decoded.payload;
   const decisions = decodeDecisions(params.get("decisions"));
   if (!decisions) return { ok: false, error: "invalid_decisions" };
   const plan = resolvePlan(payload);

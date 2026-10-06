@@ -1,155 +1,240 @@
 /*
   Deterministic scenario of the agent run. Nothing here depends on the clock or
-  on randomness outside the seeded generator, so the same seed gives the same
-  plan wherever it is generated (a page, a Service Worker, a test).
+  on randomness outside the seeded generator, so the same seed and the same
+  case give the same plan wherever it is generated (a page, a Service Worker,
+  a test).
 
-  Domain: procurement. Twelve incoming supplier requests, one step per request.
-  Suppliers are indexes (0 .. SUPPLIER_COUNT - 1); their names and addresses
-  belong to the application, as does every sentence about a step.
+  Domain: one complaint to a bank. The application describes the case in a
+  CaseBrief: codes, numbers and dates that it worked out from its register and
+  from ariadne-rules (the stream, the reason, the reply's last day, the
+  grounds, the client's options and deadlines). The brief never carries the
+  complaint's text: what the applicant wrote is data for a person to read, and
+  nothing in it can reach the plan. decodePlanPayload refuses a brief with a
+  string that is not a code.
+
+  The plan for a case is five steps: classify the complaint, request the facts
+  from the team that holds them, draft the reply, check the draft with the
+  rubric, hand it to legal review. Drafting the reply is high risk: it always
+  waits for a person. The engine never sends anything to the client; sending
+  stays with the signatory, outside the run.
 */
 
 import type {
   ActionType,
   Autonomy,
+  CaseStage,
+  ClassificationStatus,
+  ClientDeadlineKind,
+  ClientOption,
   ConflictReason,
   DeviationProposalCode,
   DeviationReason,
-  DocumentCode,
+  DraftStatus,
   ErrorCode,
-  LetterStatus,
-  MatchField,
+  FactQuestion,
+  GroundCode,
+  LinkStatus,
+  NextStep,
+  OperationCode,
+  OutcomeCode,
+  ReasonCode,
+  Regime,
   RequestStatus,
   Risk,
   Service,
+  StreamCode,
   TaskCode,
+  Team,
 } from "./codes.js";
+import { NEXT_STEPS } from "./codes.js";
 
 export const DEFAULT_SEED = 7;
 export const DEFAULT_AUTONOMY: Autonomy = "high_only";
-/* Undo window for outgoing letters and notifications, in seconds (demo value) */
+/* Undo window for a fact request sent to another team, in seconds (demo value) */
 export const DEFAULT_UNDO_WINDOW_SEC = 60;
-/* Number of distinct suppliers a scenario refers to */
-export const SUPPLIER_COUNT = 11;
+/* How long the fact request service waits before it reports a timeout */
+export const SERVICE_TIMEOUT_SEC = 5;
 
 /* ISO 8601 calendar date, for example 2026-09-30 */
 export type IsoDate = string;
 
-export type RequestObject = {
-  kind: "request";
-  request: number;
+/* A deadline the reply states to the client */
+export type ClientDeadline = { kind: ClientDeadlineKind; due: IsoDate };
+
+/*
+  The case, as the application describes it. Codes, numbers and dates only.
+*/
+export type CaseBrief = {
+  /* The case number (C-000867 is 867) */
+  caseNo: number;
+  stream: StreamCode;
+  regime: Regime;
+  /* The OD-2506 sign or the 115-FZ category, when the stream has one */
+  reason: ReasonCode | null;
+  operation: OperationCode;
+  /* The operation's reference number, 0 when there is no operation */
+  opRef: number;
+  opOn: IsoDate | null;
+  amountKopecks: number;
+  /* The money claimed, 0 when none */
+  claimKopecks: number;
+  /* Forwarded by the Bank of Russia: the reply is copied to it */
+  forwarded: boolean;
+  stage: CaseStage;
+  outcome: OutcomeCode;
+  receivedOn: IsoDate;
+  /* The day the reply would be dated: the day the data is taken */
+  asOf: IsoDate;
+  /* The reply's last day */
+  replyDue: IsoDate;
+  /* The fact request's own deadline (an internal term, not the law's) */
+  factsDue: IsoDate;
+  /* A linked case whose facts may already answer the request */
+  linkedCase: number | null;
+  /* The grounds the reply names */
+  grounds: GroundCode[];
+  /* The options the law gives the client in this case */
+  clientOptions: ClientOption[];
+  /* The deadlines that concern the client and still run on asOf */
+  deadlines: ClientDeadline[];
+};
+
+export type ClassificationObject = {
+  kind: "classification";
+  caseNo: number;
+  before: { status: ClassificationStatus };
+  after: { status: ClassificationStatus };
+};
+
+export type FactRequestObject = {
+  kind: "fact_request";
+  caseNo: number;
+  team: Team;
   before: { status: RequestStatus };
   after: { status: RequestStatus };
 };
 
-export type ContractObject = {
-  kind: "contract";
-  contract: number;
-  /* Last day of the contract term */
-  before: { validUntil: IsoDate };
-  after: { validUntil: IsoDate };
+export type LinkedFactsObject = {
+  kind: "linked_facts";
+  caseNo: number;
+  linkedCase: number;
+  before: { status: LinkStatus };
+  after: { status: LinkStatus };
 };
 
-export type LetterObject = {
-  kind: "letter";
-  supplier: number;
-  request: number;
-  before: { status: LetterStatus };
-  after: { status: LetterStatus };
+export type ReplyDraftObject = {
+  kind: "reply_draft";
+  caseNo: number;
+  before: { status: DraftStatus };
+  after: { status: DraftStatus };
+};
+
+export type CaseObject = {
+  kind: "case";
+  caseNo: number;
+  before: { stage: CaseStage };
+  after: { stage: CaseStage };
 };
 
 /* An object a step changes, with its state before and after the step */
-export type AffectedObject = RequestObject | ContractObject | LetterObject;
+export type AffectedObject =
+  | ClassificationObject
+  | FactRequestObject
+  | LinkedFactsObject
+  | ReplyDraftObject
+  | CaseObject;
 
 /* Identity of an affected object, without its states */
-export type ObjectRef =
-  | { kind: "request"; request: number }
-  | { kind: "contract"; contract: number }
-  | { kind: "letter"; supplier: number; request: number };
+export type ObjectRef = { kind: AffectedObject["kind"]; caseNo: number };
 
-export type DocumentRequirement = {
-  document: DocumentCode;
-  /* Maximum age of the document in days; null when any age is accepted */
-  maxAgeDays: number | null;
+/* The reply as the agent drafts it: what the application writes out, in the
+   reader's language, and what the rubric checks */
+export type ReplyDraft = {
+  kind: "reply";
+  template: "reply";
+  caseNo: number;
+  repliedOn: IsoDate;
+  stream: StreamCode;
+  regime: Regime;
+  outcome: OutcomeCode;
+  operation: OperationCode;
+  opRef: number;
+  opOn: IsoDate | null;
+  amountKopecks: number;
+  claimKopecks: number;
+  receivedOn: IsoDate;
+  grounds: GroundCode[];
+  reasons: ReasonCode[];
+  clientOptions: ClientOption[];
+  deadlines: ClientDeadline[];
+  nextSteps: NextStep[];
 };
 
 /* What the user sees before a step runs */
 export type Draft =
   | {
       kind: "change";
-      template: "check_request";
-      supplier: number;
-      request: number;
-      /* Whether the step does anything outside the organisation */
-      externalEffects: boolean;
+      template: "classify";
+      caseNo: number;
+      stream: StreamCode;
+      regime: Regime;
+      reason: ReasonCode | null;
+    }
+  | {
+      kind: "request";
+      template: "request_facts";
+      caseNo: number;
+      team: Team;
+      questions: FactQuestion[];
+      operation: OperationCode;
+      opRef: number;
+      opOn: IsoDate | null;
+      factsDue: IsoDate;
     }
   | {
       kind: "change";
-      template: "extend_contract";
-      supplier: number;
-      contract: number;
-      extendMonths: number;
-      validUntilBefore: IsoDate;
-      validUntilAfter: IsoDate;
-      termsChanged: boolean;
+      template: "reuse_linked_facts";
+      caseNo: number;
+      linkedCase: number;
+      sendsRequest: boolean;
     }
-  | {
-      kind: "decision";
-      template: "reject_duplicate";
-      supplier: number;
-      request: number;
-      duplicateOf: number;
-      duplicateOfDate: IsoDate;
-      matchedFields: MatchField[];
-      notifySupplier: boolean;
-    }
-  | {
-      kind: "email";
-      template: "request_documents";
-      /* Recipient: the supplier's index */
-      supplier: number;
-      request: number;
-      documents: DocumentRequirement[];
-      dueDate: IsoDate;
-    }
+  | ReplyDraft
+  | { kind: "change"; template: "check_draft"; caseNo: number }
   | {
       kind: "change";
-      template: "check_by_archive";
-      supplier: number;
-      request: number;
-      archiveRequest: number;
-      archiveUploaded: IsoDate;
-      sendsLetter: boolean;
+      template: "hand_to_review";
+      caseNo: number;
+      stageBefore: CaseStage;
+      replyDue: IsoDate;
+      /* The reply is still sent by a person, after review and signature */
+      sends: boolean;
     };
 
 /* What a finished step reports */
 export type Summary =
-  | { code: "request_checked"; request: number; registryMatch: boolean }
-  | { code: "contract_extended"; contract: number; validUntil: IsoDate; request: number }
-  | {
-      code: "request_rejected_duplicate";
-      request: number;
-      duplicateOf: number;
-      supplierNotified: boolean;
-    }
-  | { code: "documents_requested"; supplier: number; request: number }
-  | { code: "request_checked_by_archive"; request: number; letterSent: boolean };
+  | { code: "case_classified"; caseNo: number; stream: StreamCode; reason: ReasonCode | null }
+  | { code: "facts_requested"; caseNo: number; team: Team; factsDue: IsoDate }
+  | { code: "linked_facts_reused"; caseNo: number; linkedCase: number }
+  | { code: "reply_drafted"; caseNo: number }
+  | { code: "draft_checked"; caseNo: number }
+  | { code: "handed_to_review"; caseNo: number; replyDue: IsoDate };
 
 /* What undoing a finished step rolls back */
 export type UndoEffect =
-  | { code: "unmark_checked"; request: number }
-  | { code: "restore_contract_term"; contract: number; validUntil: IsoDate; request: number }
-  | { code: "return_to_queue"; request: number; noticeRecalled: boolean }
-  | { code: "recall_letter"; supplier: number; request: number }
-  | { code: "unmark_checked_by_archive"; request: number };
+  | { code: "unconfirm_classification"; caseNo: number }
+  | { code: "recall_fact_request"; caseNo: number; team: Team }
+  | { code: "unlink_facts"; caseNo: number; linkedCase: number }
+  | { code: "discard_draft"; caseNo: number }
+  | { code: "clear_check"; caseNo: number }
+  | { code: "return_to_drafting"; caseNo: number; stage: CaseStage };
 
 export type StepError = { code: ErrorCode; service: Service; timeoutSec: number };
 
 /* A proposal to leave the plan, which the user allows or denies */
 export type Deviation = {
   reason: DeviationReason;
-  /* The earlier request whose documents are already in the archive */
-  archiveRequest: number;
-  archiveUploaded: IsoDate;
+  /* The linked case whose facts are already on file */
+  linkedCase: number;
   proposal: DeviationProposalCode;
   newType: ActionType;
   newRisk: Risk;
@@ -158,10 +243,7 @@ export type Deviation = {
 export type ScenarioStep = {
   id: string;
   type: ActionType;
-  supplier: number;
-  request: number;
-  /* Contract number for steps that change a contract, otherwise null */
-  contract: number | null;
+  caseNo: number;
   risk: Risk;
   /* 0..1, two decimals */
   confidence: number;
@@ -182,18 +264,20 @@ export type ScenarioStep = {
 
 export type Scenario = {
   seed: number;
+  brief: CaseBrief;
   steps: ScenarioStep[];
-  errorStepId: string;
-  deviationStepId: string;
+  /* The step that fails once (odd seeds), or null */
+  errorStepId: string | null;
+  /* The step that asks to leave the plan (cases with a linked case), or null */
+  deviationStepId: string | null;
 };
 
 export type PlanStep = ScenarioStep & { askFirst: boolean };
 
-/* The task the scenario represents: triage twelve incoming supplier requests */
-export const TASK: { code: TaskCode; requests: number } = {
-  code: "triage_supplier_requests",
-  requests: 12,
-};
+/* The task the scenario represents: answer one complaint */
+export function taskOf(brief: CaseBrief): { code: TaskCode; caseNo: number } {
+  return { code: "answer_complaint", caseNo: brief.caseNo };
+}
 
 /* Small deterministic PRNG (mulberry32) */
 export function createRng(seed: number): () => number {
@@ -207,231 +291,240 @@ export function createRng(seed: number): () => number {
   };
 }
 
-/* Structural plan: supplier index and the action for that request */
-type Blueprint = { supplier: number; type: ActionType };
-
-const BLUEPRINT: readonly Blueprint[] = [
-  { supplier: 0, type: "check" },
-  { supplier: 1, type: "extend" },
-  { supplier: 2, type: "request_documents" },
-  { supplier: 3, type: "extend" },
-  { supplier: 4, type: "reject_duplicate" },
-  { supplier: 5, type: "check" },
-  { supplier: 6, type: "request_documents" },
-  { supplier: 7, type: "extend" },
-  { supplier: 8, type: "reject_duplicate" },
-  { supplier: 9, type: "extend" },
-  { supplier: 9, type: "reject_duplicate" },
-  { supplier: 10, type: "request_documents" },
+/* The five steps, in the order the agent proposes them */
+const BLUEPRINT: readonly ActionType[] = [
+  "classify",
+  "request_facts",
+  "draft_reply",
+  "check_draft",
+  "hand_to_review",
 ];
-
-/* Fixed positions of the scripted events (0-based indexes into BLUEPRINT) */
-const ERROR_INDEX = 3;
-const DEVIATION_INDEX = 6;
-const CONFLICT_PAIR: readonly [number, number] = [9, 10];
-
-/* Fixed calendar of the scenario */
-const CONTRACT_END = "2026-09-30";
-const CONTRACT_END_EXTENDED = "2027-09-30";
-const EXTEND_MONTHS = 12;
-const DUPLICATE_OF_DATE = "2026-08-21";
-const DOCUMENTS_DUE = "2026-09-12";
-const ARCHIVE_UPLOADED = "2026-08-28";
-const MATCHED_FIELDS: readonly MatchField[] = ["tax_id", "subject", "amount"];
-const REQUIRED_DOCUMENTS: readonly DocumentRequirement[] = [
-  { document: "registry_extract", maxAgeDays: 30 },
-  { document: "company_card", maxAgeDays: null },
-  { document: "license_copy", maxAgeDays: null },
-];
-const CONTRACT_SERVICE_TIMEOUT: StepError = {
-  code: "service_timeout",
-  service: "contracts",
-  timeoutSec: 5,
-};
 
 export const RISK_BY_TYPE: Record<ActionType, Risk> = {
-  check: "low",
-  extend: "medium",
-  reject_duplicate: "high",
-  request_documents: "high",
+  classify: "low",
+  request_facts: "medium",
+  reuse_facts: "low",
+  /* A regulated reply: always a person's decision */
+  draft_reply: "high",
+  check_draft: "low",
+  hand_to_review: "medium",
 };
 
 const CONFIDENCE_RANGE: Record<ActionType, [number, number]> = {
-  check: [0.86, 0.97],
-  extend: [0.8, 0.93],
-  reject_duplicate: [0.62, 0.9],
-  request_documents: [0.7, 0.85],
+  classify: [0.88, 0.98],
+  request_facts: [0.8, 0.93],
+  reuse_facts: [0.75, 0.9],
+  draft_reply: [0.62, 0.84],
+  check_draft: [0.9, 0.99],
+  hand_to_review: [0.85, 0.97],
+};
+
+/* The team that holds the facts of a stream */
+export function teamOf(stream: StreamCode): Team {
+  if (stream === "antifraud") return "antifraud";
+  if (stream === "aml_refusal") return "aml";
+  return "operations";
+}
+
+/* What the fact request asks the team */
+export const QUESTIONS_BY_TEAM: Record<Team, readonly FactQuestion[]> = {
+  antifraud: ["sign_detected", "client_confirmation", "database_match", "measure_status"],
+  aml: ["decision_basis", "documents_received", "measure_status"],
+  operations: ["operation_record", "contract_terms", "charges"],
+};
+
+const FACT_SERVICE_TIMEOUT: StepError = {
+  code: "service_timeout",
+  service: "fact_requests",
+  timeoutSec: SERVICE_TIMEOUT_SEC,
 };
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function requestObject(request: number, after: RequestStatus): RequestObject {
+/* The case number mixed into the seed, so two cases differ under one seed */
+function mix(seed: number, caseNo: number): number {
+  return (Math.imul(seed >>> 0, 0x9e3779b1) ^ caseNo) >>> 0;
+}
+
+/* The reply the agent drafts for a case */
+export function replyDraft(brief: CaseBrief): ReplyDraft {
   return {
-    kind: "request",
-    request,
-    before: { status: "under_review" },
-    after: { status: after },
+    kind: "reply",
+    template: "reply",
+    caseNo: brief.caseNo,
+    repliedOn: brief.asOf,
+    stream: brief.stream,
+    regime: brief.regime,
+    outcome: brief.outcome,
+    operation: brief.operation,
+    opRef: brief.opRef,
+    opOn: brief.opOn,
+    amountKopecks: brief.amountKopecks,
+    claimKopecks: brief.claimKopecks,
+    receivedOn: brief.receivedOn,
+    grounds: [...brief.grounds],
+    reasons: brief.reason === null ? [] : [brief.reason],
+    clientOptions: [...brief.clientOptions],
+    deadlines: brief.deadlines.map((d) => ({ ...d })),
+    nextSteps: [...NEXT_STEPS],
   };
 }
 
-export function generateScenario(seed: number = DEFAULT_SEED): Scenario {
-  const rng = createRng(seed);
-  const firstRequest = 1041 + Math.floor(rng() * 40) * 10;
-  const contractBase = 180 + Math.floor(rng() * 60);
-  const duplicateOf = firstRequest - 3 - Math.floor(rng() * 6);
+function stepOf(
+  type: ActionType,
+  brief: CaseBrief,
+  base: { id: string; confidence: number; durationMs: number },
+  odd: boolean,
+): ScenarioStep {
+  const caseNo = brief.caseNo;
+  const common = { ...base, caseNo, type, risk: RISK_BY_TYPE[type] };
+  switch (type) {
+    case "classify":
+      return {
+        ...common,
+        objects: [
+          {
+            kind: "classification",
+            caseNo,
+            before: { status: "unconfirmed" },
+            after: { status: "confirmed" },
+          },
+        ],
+        draft: {
+          kind: "change",
+          template: "classify",
+          caseNo,
+          stream: brief.stream,
+          regime: brief.regime,
+          reason: brief.reason,
+        },
+        summary: { code: "case_classified", caseNo, stream: brief.stream, reason: brief.reason },
+        undo: { code: "unconfirm_classification", caseNo },
+        undoWindowSec: null,
+      };
+    case "request_facts": {
+      const team = teamOf(brief.stream);
+      return {
+        ...common,
+        objects: [
+          {
+            kind: "fact_request",
+            caseNo,
+            team,
+            before: { status: "not_sent" },
+            after: { status: "sent" },
+          },
+        ],
+        draft: {
+          kind: "request",
+          template: "request_facts",
+          caseNo,
+          team,
+          questions: [...QUESTIONS_BY_TEAM[team]],
+          operation: brief.operation,
+          opRef: brief.opRef,
+          opOn: brief.opOn,
+          factsDue: brief.factsDue,
+        },
+        summary: { code: "facts_requested", caseNo, team, factsDue: brief.factsDue },
+        undo: { code: "recall_fact_request", caseNo, team },
+        /* The request leaves the complaints team: it can be recalled only
+           while the other team has not taken it */
+        undoWindowSec: DEFAULT_UNDO_WINDOW_SEC,
+        ...(odd ? { error: FACT_SERVICE_TIMEOUT } : {}),
+        ...(brief.linkedCase !== null
+          ? {
+              deviation: {
+                reason: "facts_in_linked_case",
+                linkedCase: brief.linkedCase,
+                proposal: "reuse_linked_facts",
+                newType: "reuse_facts",
+                newRisk: RISK_BY_TYPE.reuse_facts,
+              } satisfies Deviation,
+            }
+          : {}),
+      };
+    }
+    case "draft_reply":
+      return {
+        ...common,
+        objects: [
+          { kind: "reply_draft", caseNo, before: { status: "none" }, after: { status: "drafted" } },
+        ],
+        draft: replyDraft(brief),
+        summary: { code: "reply_drafted", caseNo },
+        undo: { code: "discard_draft", caseNo },
+        undoWindowSec: null,
+      };
+    case "check_draft":
+      return {
+        ...common,
+        objects: [
+          {
+            kind: "reply_draft",
+            caseNo,
+            before: { status: "drafted" },
+            after: { status: "checked" },
+          },
+        ],
+        draft: { kind: "change", template: "check_draft", caseNo },
+        summary: { code: "draft_checked", caseNo },
+        undo: { code: "clear_check", caseNo },
+        undoWindowSec: null,
+      };
+    case "hand_to_review":
+      return {
+        ...common,
+        objects: [
+          {
+            kind: "case",
+            caseNo,
+            before: { stage: brief.stage },
+            after: { stage: "legal_review" },
+          },
+        ],
+        draft: {
+          kind: "change",
+          template: "hand_to_review",
+          caseNo,
+          stageBefore: brief.stage,
+          replyDue: brief.replyDue,
+          sends: false,
+        },
+        summary: { code: "handed_to_review", caseNo, replyDue: brief.replyDue },
+        undo: { code: "return_to_drafting", caseNo, stage: brief.stage },
+        undoWindowSec: null,
+      };
+    case "reuse_facts":
+      /* Not in the blueprint: a step becomes reuse_facts only through an
+         allowed deviation (applyDeviation) */
+      throw new RangeError("reuse_facts");
+  }
+}
 
-  const steps: ScenarioStep[] = BLUEPRINT.map((bp, i): ScenarioStep => {
-    const supplier = bp.supplier;
-    const requestNo = firstRequest + i;
-    /* The conflicting pair shares one request */
-    const request = i === CONFLICT_PAIR[1] ? firstRequest + CONFLICT_PAIR[0] : requestNo;
-    const contractNo = contractBase + i * 7;
-    const [lo, hi] = CONFIDENCE_RANGE[bp.type];
+export function generateScenario(seed: number, brief: CaseBrief): Scenario {
+  const rng = createRng(mix(seed, brief.caseNo));
+  /* Odd scenario numbers make the fact request service time out once */
+  const odd = Math.abs(Math.trunc(seed)) % 2 === 1;
+  const steps = BLUEPRINT.map((type, i): ScenarioStep => {
+    const [lo, hi] = CONFIDENCE_RANGE[type];
     const confidence = round2(lo + rng() * (hi - lo));
     const durationMs = 300 + Math.floor(rng() * 600);
-    const id = `s${i + 1}`;
-    const base = { id, supplier, request, confidence, durationMs };
-
-    switch (bp.type) {
-      case "check":
-        return {
-          ...base,
-          type: "check",
-          contract: null,
-          risk: RISK_BY_TYPE.check,
-          objects: [requestObject(request, "checked")],
-          draft: {
-            kind: "change",
-            template: "check_request",
-            supplier,
-            request,
-            externalEffects: false,
-          },
-          summary: { code: "request_checked", request, registryMatch: true },
-          undo: { code: "unmark_checked", request },
-          undoWindowSec: null,
-        };
-      case "extend":
-        return {
-          ...base,
-          type: "extend",
-          contract: contractNo,
-          risk: RISK_BY_TYPE.extend,
-          objects: [
-            {
-              kind: "contract",
-              contract: contractNo,
-              before: { validUntil: CONTRACT_END },
-              after: { validUntil: CONTRACT_END_EXTENDED },
-            },
-            requestObject(request, "approved"),
-          ],
-          draft: {
-            kind: "change",
-            template: "extend_contract",
-            supplier,
-            contract: contractNo,
-            extendMonths: EXTEND_MONTHS,
-            validUntilBefore: CONTRACT_END,
-            validUntilAfter: CONTRACT_END_EXTENDED,
-            termsChanged: false,
-          },
-          summary: {
-            code: "contract_extended",
-            contract: contractNo,
-            validUntil: CONTRACT_END_EXTENDED,
-            request,
-          },
-          undo: {
-            code: "restore_contract_term",
-            contract: contractNo,
-            validUntil: CONTRACT_END,
-            request,
-          },
-          undoWindowSec: null,
-          ...(i === ERROR_INDEX ? { error: CONTRACT_SERVICE_TIMEOUT } : {}),
-        };
-      case "reject_duplicate":
-        return {
-          ...base,
-          type: "reject_duplicate",
-          contract: null,
-          risk: RISK_BY_TYPE.reject_duplicate,
-          objects: [requestObject(request, "rejected_duplicate")],
-          draft: {
-            kind: "decision",
-            template: "reject_duplicate",
-            supplier,
-            request,
-            duplicateOf,
-            duplicateOfDate: DUPLICATE_OF_DATE,
-            matchedFields: [...MATCHED_FIELDS],
-            notifySupplier: true,
-          },
-          summary: {
-            code: "request_rejected_duplicate",
-            request,
-            duplicateOf,
-            supplierNotified: true,
-          },
-          undo: { code: "return_to_queue", request, noticeRecalled: true },
-          undoWindowSec: DEFAULT_UNDO_WINDOW_SEC,
-        };
-      case "request_documents":
-        return {
-          ...base,
-          type: "request_documents",
-          contract: null,
-          risk: RISK_BY_TYPE.request_documents,
-          objects: [
-            requestObject(request, "documents_requested"),
-            {
-              kind: "letter",
-              supplier,
-              request,
-              before: { status: "not_sent" },
-              after: { status: "sent" },
-            },
-          ],
-          draft: {
-            kind: "email",
-            template: "request_documents",
-            supplier,
-            request,
-            documents: REQUIRED_DOCUMENTS.map((d) => ({ ...d })),
-            dueDate: DOCUMENTS_DUE,
-          },
-          summary: { code: "documents_requested", supplier, request },
-          undo: { code: "recall_letter", supplier, request },
-          undoWindowSec: DEFAULT_UNDO_WINDOW_SEC,
-          ...(i === DEVIATION_INDEX
-            ? {
-                deviation: {
-                  reason: "fresh_documents_in_archive",
-                  archiveRequest: requestNo - 7,
-                  archiveUploaded: ARCHIVE_UPLOADED,
-                  proposal: "check_by_archive",
-                  newType: "check",
-                  newRisk: "low",
-                } satisfies Deviation,
-              }
-            : {}),
-        };
-    }
+    return stepOf(type, brief, { id: `s${i + 1}`, confidence, durationMs }, odd);
   });
-
   return {
     seed,
+    brief,
     steps,
-    errorStepId: steps[ERROR_INDEX]!.id,
-    deviationStepId: steps[DEVIATION_INDEX]!.id,
+    errorStepId: steps.find((s) => s.error)?.id ?? null,
+    deviationStepId: steps.find((s) => s.deviation)?.id ?? null,
   };
 }
 
-export function generatePlan(seed: number = DEFAULT_SEED): PlanStep[] {
-  return generateScenario(seed).steps.map((s) => ({ ...s, askFirst: false }));
+export function generatePlan(seed: number, brief: CaseBrief): PlanStep[] {
+  return generateScenario(seed, brief).steps.map((s) => ({ ...s, askFirst: false }));
 }
 
 /*
@@ -450,79 +543,76 @@ export function requiresConfirmation(
 
 /* The identity of an affected object, without its states */
 export function objectRef(o: AffectedObject): ObjectRef {
-  switch (o.kind) {
-    case "request":
-      return { kind: "request", request: o.request };
-    case "contract":
-      return { kind: "contract", contract: o.contract };
-    case "letter":
-      return { kind: "letter", supplier: o.supplier, request: o.request };
-  }
+  return { kind: o.kind, caseNo: o.caseNo };
 }
 
 /* Whether two affected objects are the same object */
 export function sameObject(a: AffectedObject, b: AffectedObject): boolean {
-  if (a.kind !== b.kind) return false;
-  switch (a.kind) {
-    case "request":
-      return a.request === (b as RequestObject).request;
-    case "contract":
-      return a.contract === (b as ContractObject).contract;
-    case "letter": {
-      const l = b as LetterObject;
-      return a.supplier === l.supplier && a.request === l.request;
-    }
-  }
+  return a.kind === b.kind && a.caseNo === b.caseNo;
 }
 
 export type Conflict = { a: string; b: string; object: ObjectRef; reason: ConflictReason };
 
-/* Two steps conflict when one extends and another rejects the same request */
+/* Pairs of step types that must run in this order, and the reason a plan
+   that puts the second first is flagged */
+const ORDER: readonly {
+  first: ActionType;
+  then: ActionType;
+  object: ObjectRef["kind"];
+  reason: ConflictReason;
+}[] = [
+  { first: "request_facts", then: "draft_reply", object: "fact_request", reason: "draft_before_facts" },
+  { first: "draft_reply", then: "check_draft", object: "reply_draft", reason: "check_before_draft" },
+  { first: "draft_reply", then: "hand_to_review", object: "reply_draft", reason: "review_before_draft" },
+];
+
+/* Two steps conflict when the plan puts a step before the one it needs: a
+   reply drafted before the facts are asked for, a check or a review of a
+   draft that does not exist yet. The pair is named in plan order. */
 export function findConflicts(steps: readonly PlanStep[]): Conflict[] {
   const out: Conflict[] = [];
   for (let i = 0; i < steps.length; i++) {
     for (let j = i + 1; j < steps.length; j++) {
       const a = steps[i]!;
       const b = steps[j]!;
-      const opposite =
-        (a.type === "extend" && b.type === "reject_duplicate") ||
-        (a.type === "reject_duplicate" && b.type === "extend");
-      if (!opposite) continue;
-      const shared = a.objects.find((o) => b.objects.some((p) => sameObject(o, p)));
-      if (!shared) continue;
-      out.push({
-        a: a.id,
-        b: b.id,
-        object: objectRef(shared),
-        reason: "extend_and_reject_duplicate",
-      });
+      const rule = ORDER.find((r) => r.then === a.type && r.first === b.type);
+      if (!rule) continue;
+      out.push({ a: a.id, b: b.id, object: { kind: rule.object, caseNo: a.caseNo }, reason: rule.reason });
     }
   }
   return out;
 }
 
-/* Applies an allowed deviation to a step */
+/* Applies an allowed deviation to a step: the facts of the linked case are
+   taken instead of a new request, so nothing leaves the team and nothing can
+   time out */
 export function applyDeviation(step: ScenarioStep): ScenarioStep {
   const d = step.deviation;
   if (!d) return step;
+  const { error: _error, deviation: _deviation, ...rest } = step;
   return {
-    ...step,
+    ...rest,
     type: d.newType,
     risk: d.newRisk,
-    objects: [requestObject(step.request, "checked_by_archive")],
+    objects: [
+      {
+        kind: "linked_facts",
+        caseNo: step.caseNo,
+        linkedCase: d.linkedCase,
+        before: { status: "not_linked" },
+        after: { status: "linked" },
+      },
+    ],
     draft: {
       kind: "change",
-      template: "check_by_archive",
-      supplier: step.supplier,
-      request: step.request,
-      archiveRequest: d.archiveRequest,
-      archiveUploaded: d.archiveUploaded,
-      sendsLetter: false,
+      template: "reuse_linked_facts",
+      caseNo: step.caseNo,
+      linkedCase: d.linkedCase,
+      sendsRequest: false,
     },
-    summary: { code: "request_checked_by_archive", request: step.request, letterSent: false },
-    undo: { code: "unmark_checked_by_archive", request: step.request },
+    summary: { code: "linked_facts_reused", caseNo: step.caseNo, linkedCase: d.linkedCase },
+    undo: { code: "unlink_facts", caseNo: step.caseNo, linkedCase: d.linkedCase },
     undoWindowSec: null,
-    deviation: undefined,
     deviatedTo: d.proposal,
   };
 }

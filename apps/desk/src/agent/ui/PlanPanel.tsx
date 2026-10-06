@@ -13,6 +13,8 @@ export type PlanPanelProps = {
   autonomy: Autonomy;
   /** Shown under Run while the run service starts or after it failed. */
   service: ReactNode;
+  /** Shown above the steps: why Run cannot be pressed for this case. */
+  notice?: ReactNode;
   canRun: boolean;
   onRun: () => void;
   onRestore: () => void;
@@ -51,7 +53,7 @@ function AskFirst({ x, step, autonomy, onAskFirst }: { x: Text; step: PlanStep; 
   );
 }
 
-export function PlanPanel({ x, steps, autonomy, service, canRun, onRun, onRestore, onReorder, onRemove, onAskFirst }: PlanPanelProps) {
+export function PlanPanel({ x, steps, autonomy, service, notice, canRun, onRun, onRestore, onReorder, onRemove, onAskFirst }: PlanPanelProps) {
   const { t, f } = x;
   const position = new Map(steps.map((s, i) => [s.id, f.int(i + 1)]));
   const conflicts = findConflicts(steps);
@@ -96,12 +98,12 @@ export function PlanPanel({ x, steps, autonomy, service, canRun, onRun, onRestor
             <p className="muted">{t.plan.summary(f.int(steps.length), f.int(asks))}</p>
           </div>
           {service}
+          {notice}
           {conflicts.length > 0 && (
             <Callout tone="warning" role="none" title={t.plan.conflictTitle}>
-              {conflicts.map((c) => {
-                const request = c.object.kind === "request" ? f.id(c.object.request) : "";
-                return <p key={`${c.a}-${c.b}`}>{t.conflict[c.reason](position.get(c.a) ?? "", position.get(c.b) ?? "", request)}</p>;
-              })}
+              {conflicts.map((c) => (
+                <p key={`${c.a}-${c.b}`}>{t.conflict[c.reason](position.get(c.a) ?? "", position.get(c.b) ?? "")}</p>
+              ))}
             </Callout>
           )}
           <StepList

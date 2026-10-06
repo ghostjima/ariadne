@@ -47,7 +47,7 @@ describe("handleAgentRequest: routing and errors", () => {
     expect(missing.status).toBe(400);
     expect(await missing.json()).toEqual({ ok: false, error: "missing_plan" });
     const unknown = handleAgentRequest(
-      new Request(url({ seed: 7, autonomy: "high_only", steps: [{ id: "s99", askFirst: false }] })),
+      new Request(url({ ...payloadFor(["s1"]), steps: [{ id: "s99", askFirst: false }] })),
     )!;
     expect(await unknown.json()).toEqual({ ok: false, error: "unknown_step", stepId: "s99" });
     const post = handleAgentRequest(new Request(url(payloadFor(["s1"])), { method: "POST" }))!;
@@ -110,7 +110,7 @@ describe("handleAgentRequest: the event stream", () => {
   });
 
   it("a dropped first segment resumes with Last-Event-ID, with nothing lost or repeated", async () => {
-    const payload = payloadFor(["s1", "s2"]);
+    const payload = payloadFor(["s1", "s4"]);
     const address = url(payload, [], "&drop=1");
     const first = eventsOf(await frames(instant(new Request(address))));
     expect(first).toHaveLength(DROP_AFTER_FRAMES);
@@ -138,7 +138,7 @@ describe("handleAgentRequest: the event stream", () => {
           signal.addEventListener("abort", () => resolve(), { once: true });
         }),
     });
-    const payload = payloadFor(["s1", "s2"]);
+    const payload = payloadFor(["s1", "s4"]);
     const response = handler(new Request(url(payload)))!;
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
@@ -172,11 +172,11 @@ describe("handleAgentRequest: the event stream", () => {
     const controller = new AbortController();
     const handler = createAgentHandler({ now: () => 1000 });
     const response = handler(
-      new Request(url(payloadFor(["s1", "s2"])), { signal: controller.signal }),
+      new Request(url(payloadFor(["s1", "s4"])), { signal: controller.signal }),
     )!;
     controller.abort();
     const list = parseEventStream(await response.text());
-    expect(eventsOf(list).length).toBeLessThan(run(payloadFor(["s1", "s2"])).events.length);
+    expect(eventsOf(list).length).toBeLessThan(run(payloadFor(["s1", "s4"])).events.length);
   });
 
   it("Last-Event-ID takes precedence over the after parameter", async () => {

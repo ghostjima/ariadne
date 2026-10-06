@@ -22,6 +22,7 @@ import {
   DEFAULT_SEED,
   generatePlan,
   requiresConfirmation,
+  type CaseBrief,
   type PlanStep,
   type UndoEffect,
 } from "../scenario.js";
@@ -42,6 +43,8 @@ export type LogEntry =
 
 export type PlanContext = {
   seed: number;
+  /* The case the plan is for; set at creation, never edited */
+  brief: CaseBrief;
   steps: PlanStep[];
   autonomy: Autonomy;
   /* Execution order, fixed at approval */
@@ -59,7 +62,7 @@ export type PlanContext = {
   undos: number;
 };
 
-export type PlanInput = { seed?: number; autonomy?: Autonomy };
+export type PlanInput = { brief: CaseBrief; seed?: number; autonomy?: Autonomy };
 
 export type PlanEvent =
   | { type: "REMOVE_STEP"; id: string }
@@ -156,7 +159,7 @@ export const planMachine = setup({
       for (const ref of Object.values(context.stepRefs)) enqueue.stopChild(ref);
     }),
     resetRun: assign(({ context }) => ({
-      steps: generatePlan(context.seed),
+      steps: generatePlan(context.seed, context.brief),
       order: [],
       stepRefs: {},
       sessionId: null,
@@ -230,7 +233,8 @@ export const planMachine = setup({
   id: "plan",
   context: ({ input }) => ({
     seed: input.seed ?? DEFAULT_SEED,
-    steps: generatePlan(input.seed ?? DEFAULT_SEED),
+    brief: input.brief,
+    steps: generatePlan(input.seed ?? DEFAULT_SEED, input.brief),
     autonomy: input.autonomy ?? DEFAULT_AUTONOMY,
     order: [],
     stepRefs: {},
@@ -281,11 +285,11 @@ export const planMachine = setup({
         REGENERATE: {
           actions: assign({
             seed: ({ event }) => event.seed,
-            steps: ({ event }) => generatePlan(event.seed),
+            steps: ({ context, event }) => generatePlan(event.seed, context.brief),
           }),
         },
         RESTORE: {
-          actions: assign({ steps: ({ context }) => generatePlan(context.seed) }),
+          actions: assign({ steps: ({ context }) => generatePlan(context.seed, context.brief) }),
         },
         APPROVE: {
           guard: "hasSteps",

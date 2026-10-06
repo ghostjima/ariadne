@@ -1,6 +1,6 @@
-// Numbers, dates and times in the interface's locale, with its digits
-// (Arabic-Indic for "ar-u-nu-arab"). The engine sends numbers, ISO dates
-// and timestamps; everything a person reads is formatted here.
+// Numbers, dates and times in the interface's locale. The engine sends
+// numbers, ISO dates and timestamps; everything a person reads is
+// formatted here.
 
 export type Fmt = {
   locale: string;
@@ -22,6 +22,8 @@ export type Fmt = {
   countdown(ms: number): string;
   /** A list of items joined with the locale's "and". */
   list(items: string[]): string;
+  /** An amount in kopecks, in roubles. */
+  money(kopecks: number): string;
 };
 
 const cache = new Map<string, Fmt>();
@@ -38,6 +40,7 @@ export function makeFmt(locale: string): Fmt {
   const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
   const timeShort = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
+  const money = new Intl.NumberFormat(locale, { style: "currency", currency: "RUB", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmt: Fmt = {
     locale,
     id: (value) => id.format(value),
@@ -62,6 +65,7 @@ export function makeFmt(locale: string): Fmt {
       return `${id.format(Math.floor(total / 60))}:${two.format(total % 60)}`;
     },
     list: (items) => list.format(items),
+    money: (kopecks) => money.format(kopecks / 100),
   };
   cache.set(locale, fmt);
   return fmt;

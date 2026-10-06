@@ -153,7 +153,8 @@ try {
   results.stopWhileRunning = { ms: stats(stopRunning), loggedEventsAfterStop: stats(eventsAfterStop) };
 
   // Stop at a confirmation (the run waits; the step is skipped at once).
-  await page.getByRole("radio", { name: "Ask for marked steps" }).click();
+  // Every step asks, so the first confirmation is the first step's.
+  await page.getByRole("radio", { name: "Ask every time" }).click();
   const stopPause = [];
   for (let i = 0; i < N; i += 1) {
     await runButton(page).click();

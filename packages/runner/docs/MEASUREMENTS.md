@@ -1,7 +1,31 @@
 # Measurements
 
-Taken in the Valkyra-Labs/ariadne-runner repository before its import here; the
-commits named below are that repository's.
+## Engine timings in Node, protocol version 2 (2026-10-06, ariadne `4973f99`)
+
+Taken in this repository on commit `4973f99` with a clean tree, on the
+built `dist/` (`tsc -p tsconfig.build.json`). Host: Apple M4 Pro,
+macOS (Darwin 25.6.0), Node v22.18.0. Method: `pnpm bench`
+(`scripts/bench.mjs`), as described below for version 1. Plan: the case
+of `test/briefs.ts` (a suspended transfer with a linked case), seed 7,
+autonomy `high_only`, all five steps, every pause answered with confirm,
+allow or retry: 2 decisions (allow the linked case's facts, confirm the
+draft) and 30 events. Three runs of the script; the machine was shared
+with other work at the time, which shows in the spread of the medians.
+
+| measure | best (3 runs) | median (3 runs) |
+|---|---|---|
+| `generateScenario(7, case)`, a plan of 5 steps | 0.4-1.0 us | 0.5-1.6 us |
+| replay of the complete run (`runPlan` with the full log, 30 events) | 3.9-4.3 us | 5.0-14.2 us |
+| every segment of one session (3 replays) | 8.3-9.2 us | 8.7-25.8 us |
+| `handleAgentRequest` in Node: a `Request` for the complete run to the SSE text of its `Response` (4,895 bytes) | 50.0-51.6 us | 64.4-127.2 us |
+
+What this does not show is listed under version 1 below, and holds here.
+
+## Version 1, kept as a record
+
+Taken in the Valkyra-Labs/ariadne-runner repository before its import here, on
+the procurement scenario of protocol version 1; the commits named below are
+that repository's.
 
 Every number in the README comes from here, with its stamp. Host: Apple
 M4 Pro (12 CPU cores: 8 performance, 4 efficiency), 24 GB, macOS 26.6.2
