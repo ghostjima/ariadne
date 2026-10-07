@@ -6,6 +6,7 @@ export * from "./generator.js";
 export * from "./text.js";
 export * from "./filter.js";
 export * from "./roles.js";
+export * from "./workflow.js";
 export * from "./views.js";
 export * from "./edit.js";
 export * from "./history.js";

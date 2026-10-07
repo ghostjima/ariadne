@@ -1,6 +1,7 @@
 import { makeRng, mixSeed } from "./generator.js";
 import { ASSIGNEE_COUNT, EXTENSION_COUNT, GROUND_COUNT, OUTCOME_COUNT, Stage, type EditColumn, type EnumField } from "./schema.js";
-import { getNote, readField, sameNote, writeField, writeNote, type ColumnStore, type NoteValue } from "./store.js";
+import { getNote, readField, rememberOrigin, sameNote, writeField, writeNote, type ColumnStore, type NoteValue } from "./store.js";
+import { appendJournal, guardTransition, transitionBetween, transitionContext } from "./workflow.js";
 
 /*
   The simulated colleague: a second person working the same register.
@@ -18,10 +19,32 @@ export function colleagueRow(count: number, tick: number): number {
   return ((tick + 1) * STRIDE) % count;
 }
 
-/* The stage the colleague moves a case to: the next one, or back to
-   drafting from closed; always a different known stage */
+/* The next stage on a case's way, by the transition table: facts asked
+   for, received, the draft handed over, approved, sent, closed */
+const FORWARD: readonly number[] = [
+  Stage.WaitingForFacts,
+  Stage.Drafting,
+  Stage.LegalReview,
+  Stage.AwaitingSignature,
+  Stage.Sent,
+  Stage.Closed,
+  -1,
+];
+
+/* The stage the colleague moves a case to: the next one on its way, by a
+   transition of the table; the same stage when there is none (closed) */
 export function colleagueStage(current: number): number {
-  return current >= Stage.Closed ? Stage.Drafting : current + 1;
+  const next = FORWARD[current] ?? -1;
+  return next >= 0 && transitionBetween(current, next) ? next : current;
+}
+
+/* Whether the colleague can move this row on: a transition exists and
+   its guards hold (a reply goes to signature only decided) */
+function canMoveOn(store: ColumnStore, row: number): boolean {
+  const ctx = transitionContext(store, row);
+  const next = colleagueStage(ctx.stage);
+  const t = next === ctx.stage ? null : transitionBetween(ctx.stage, next);
+  return t !== null && guardTransition(t, ctx) === null;
 }
 
 const COUNTS: Record<Exclude<EnumField, "stage">, number> = {
@@ -104,8 +127,10 @@ export type RemoteEdit = { tick: number; row: number; cell: CellValue };
 
 /*
   What the colleague does at `tick`. While the user edits a cell, the
-  colleague edits that same cell (so the demo always shows a conflict);
-  otherwise it moves the stage of a case of the current view.
+  colleague edits that same cell (so the demo shows a conflict); otherwise
+  it moves a case of the current view on to its next stage, by a
+  transition of the table, or, when the case cannot move on (closed, or
+  undecided before signature), writes a note on it.
 */
 export function planColleagueEdit(
   store: ColumnStore,
@@ -123,11 +148,22 @@ export function planColleagueEdit(
   const position = colleagueRow(visible.length, tick);
   if (position < 0) return null;
   const row = visible[position] ?? 0;
+  if (!canMoveOn(store, row)) return { tick, row, cell: { col: "note", value: colleagueNote(tick) } };
   return { tick, row, cell: { col: "stage", value: colleagueStage(store.stage[row] ?? 0) } };
 }
 
-/* Writes a remote edit into the store; it does not enter the undo stack */
+/* Writes a remote edit into the store; it does not enter the undo stack.
+   A change of the stage goes into the case's journal as the colleague's. */
 export function applyRemoteEdit(store: ColumnStore, edit: RemoteEdit, now: number): void {
-  if (edit.cell.col === "note") writeNote(store, edit.row, edit.cell.value, now);
-  else writeField(store, edit.row, edit.cell.col, edit.cell.value, now);
+  if (edit.cell.col === "note") {
+    writeNote(store, edit.row, edit.cell.value, now);
+    return;
+  }
+  rememberOrigin(store, edit.row);
+  const before = readField(store, edit.row, edit.cell.col);
+  writeField(store, edit.row, edit.cell.col, edit.cell.value, now);
+  if (edit.cell.col === "stage" && before !== edit.cell.value) {
+    const t = transitionBetween(before, edit.cell.value);
+    appendJournal(store, edit.row, { at: now, action: t?.action ?? "undo", from: before, to: edit.cell.value, actor: { kind: "colleague" } });
+  }
 }

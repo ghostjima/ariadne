@@ -1,7 +1,8 @@
 // The assistant's accessibility and layout inside the desk: axe on every
 // main state in each language and theme, the language switch reaching the
-// assistant, no sideways scroll, Run on the first screen, and the page
-// frame (a fixed header, Stoa's scrollbars) with a long log.
+// assistant, no sideways scroll, Run (or, past drafting, the reason there
+// is none) on the first screen, and the page frame (a fixed header, Stoa's
+// scrollbars) with a long log.
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { strings } from "../src/agent/i18n";
 import type { Lang } from "../src/i18n";
@@ -123,8 +124,7 @@ for (const width of [1280, 375])
 
 /** Waits until the case's assistant is drawn and its run service is
  * ready: the plan's bar is there, and neither the service's start nor its
- * failure is shown under it. Run itself may stay disabled: a case past
- * drafting offers no run, and says why. */
+ * failure is shown under it. */
 async function serviceReady(page: Page, lang: Lang) {
   const t = strings[lang];
   const agent = page.locator(".agent");
@@ -133,20 +133,41 @@ async function serviceReady(page: Page, lang: Lang) {
   await expect(agent.getByText(t.service.failedTitle)).toHaveCount(0);
 }
 
-/** Run, and a failed run service's title, end within the first screen of
- * a case's assistant (AGENT_CASE unless named). */
-async function expectRunOnFirstScreen(browser: Browser, width: number, height: number, lang: Lang, caseId?: string) {
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The plan's reason a case past drafting has no Run, whatever its stage. */
+function pastDraftingReason(page: Page, lang: Lang) {
+  const [before, after] = strings[lang].task.pastDrafting("\u0000").split("\u0000");
+  return page.locator(".agent .plan").getByText(new RegExp(`^${escapeRegExp(before!)}.+${escapeRegExp(after!)}$`));
+}
+
+/** What a case's assistant offers in place of a run: Run for a case in
+ * drafting, the reason there is no Run for a case past it. */
+type Offer = "run" | "reason";
+
+/** What the assistant shows of its state ends within the first screen of a
+ * case's assistant (AGENT_CASE unless named): Run for a case in drafting,
+ * the reason there is no Run for a case past drafting, and a failed run
+ * service's title for either. The page shows exactly one of Run and the
+ * reason, and the one it shows is the one measured; it is returned, for
+ * the caller to hold a named case to its kind. */
+async function expectAssistantOnFirstScreen(browser: Browser, width: number, height: number, lang: Lang, caseId?: string): Promise<Offer> {
   const t = strings[lang];
   const label = `${lang}, ${caseId ?? "the assistant's case"}`;
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   await page.goto(agentUrl(`lang=${lang}`, caseId));
   await serviceReady(page, lang);
+  // The plan's bar, Run and the reason are drawn together: once the bar is
+  // there, one of the two is, and never both.
   const run = page.getByRole("button", { name: t.plan.run });
-  const box = (await run.boundingBox())!;
-  expect(box.y + box.height, `${label}: Run's bottom edge`).toBeLessThanOrEqual(height);
+  const reason = pastDraftingReason(page, lang);
+  await expect(run.or(reason), `${label}: Run or the reason there is none`).toHaveCount(1);
+  const offer: Offer = (await reason.count()) === 1 ? "reason" : "run";
+  const box = (await (offer === "run" ? run : reason).boundingBox())!;
+  expect(box.y + box.height, `${label}: ${offer === "run" ? "Run's" : "the reason's"} bottom edge`).toBeLessThanOrEqual(height);
   await context.close();
-  // A run service that failed says so where Run is.
+  // A run service that failed says so where Run is, or would be.
   const blocked = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
   const second = await blocked.newPage();
   await second.goto(agentUrl(`lang=${lang}`, caseId));
@@ -155,6 +176,7 @@ async function expectRunOnFirstScreen(browser: Browser, width: number, height: n
   const top = (await failed.boundingBox())!;
   expect(top.y + top.height, `${label}: the failure's title`).toBeLessThanOrEqual(height);
   await blocked.close();
+  return offer;
 }
 
 for (const [width, height] of [
@@ -162,13 +184,14 @@ for (const [width, height] of [
   [375, 812],
 ] as const)
   test(`Run and the run service's state are on the first screen at ${width}x${height}`, async ({ browser }) => {
-    for (const lang of LANGS) await expectRunOnFirstScreen(browser, width, height, lang);
+    for (const lang of LANGS) expect(await expectAssistantOnFirstScreen(browser, width, height, lang)).toBe("run");
   });
 
-// The check holds a case past drafting too: Run is there, disabled, and
-// the page waits for the run service, not for Run to be enabled.
-test("Run and the run service's state are on the first screen at 375x812 for a case past drafting, in Russian", async ({ browser }) => {
-  await expectRunOnFirstScreen(browser, 375, 812, "ru", PAST_DRAFTING_CASE);
+// A case past drafting has no Run: the reason there is none, and the run
+// service's state, are what the assistant shows, and they are on the
+// first screen.
+test("the reason there is no Run and the run service's state are on the first screen at 375x812 for a case past drafting, in Russian", async ({ browser }) => {
+  expect(await expectAssistantOnFirstScreen(browser, 375, 812, "ru", PAST_DRAFTING_CASE)).toBe("reason");
 });
 
 // Whatever the case: every open case is opened on a phone in Russian, the
@@ -176,8 +199,9 @@ test("Run and the run service's state are on the first screen at 375x812 for a c
 // tallest (the top of the plan's bar lowest on the page; the first in the
 // queue's order on a tie) is checked as above. A change to the register or
 // to the case's header is measured again, never assumed. The tallest may be
-// a case past drafting, whose Run is there but disabled.
-test("Run and the run service's state are on the first screen at 375x812 for the open case with the tallest content above Run, in Russian", async ({ browser }) => {
+// a case past drafting: the walk waits for the plan's bar, not for Run, and
+// the check measures the reason there is no Run in Run's place.
+test("Run, or the reason there is none, and the run service's state are on the first screen at 375x812 for the open case with the tallest content above the plan's bar, in Russian", async ({ browser }) => {
   // The walk opens every open case; a slow runner is given two minutes.
   test.setTimeout(120_000);
   const [width, height] = [375, 812];
@@ -210,7 +234,7 @@ test("Run and the run service's state are on the first screen at 375x812 for the
   }
   await context.close();
   test.info().annotations.push({ type: "tallest-open-case", description: `${tallest.id} of ${open}: the plan's bar at ${Math.round(tallest.top * 10) / 10} px` });
-  await expectRunOnFirstScreen(browser, width, height, "ru", tallest.id);
+  await expectAssistantOnFirstScreen(browser, width, height, "ru", tallest.id);
 });
 
 for (const theme of THEMES)

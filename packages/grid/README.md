@@ -41,7 +41,19 @@ they are taken again with `pnpm measure`.
   that triggered it; a refusal under 115-FZ, with its reason category.
   The signs and the categories are ariadne-rules' lists, in its order.
 - **Stages.** Registered, waiting for facts, drafting, legal review,
-  awaiting signature, reply sent, closed.
+  awaiting signature, reply sent, closed: explicit states, between which
+  a case moves only by a transition of the table below, each made by its
+  role. "Returned for rework" is the transition back to drafting from
+  legal review or from signature, with a reason.
+- **Journal.** Every case has one: each transition with who made it
+  (a person by role and name, the assistant with the person who
+  confirmed it, the simulated colleague, or the desk), when and why.
+  For a generated row the history is worked out from the row as
+  generated (its stage, its days, its people), seeded by the row: facts
+  asked for first in most cases, the first action within two working
+  days of registration, a reply returned for rework now and then. The
+  shares are the generator's own. Changes made in the page are added
+  after it, dated on the day the data is taken.
 - **Legal dates.** For each row ariadne-rules computes two clocks, without
   and with an extension of ten working days to request documents: the
   reply's last day, the extended last day and the last day for the
@@ -104,23 +116,52 @@ note. Each edit is checked before it is saved, and refused with a code:
 
 | Code | When |
 |---|---|
-| `reply-needs-outcome` | a reply goes to legal review, signature or out undecided |
+| `reply-needs-outcome` | a reply goes to signature or out undecided (legal review may get it undecided: the reviewer states the decision) |
 | `refusal-needs-ground` | a refusal without a legal ground, or the ground removed from one |
 | `ground-other-stream` | a 161-FZ ground on a 115-FZ case, or the other way |
 | `send-needs-signature` | a reply goes out before it was with the signatory |
+| `transition-not-allowed` | no transition takes the case from its stage to that one |
+| `reason-required` | a return for rework from a cell: it needs a reason, given on the case's page |
 | `reply-locked` | the decision or the ground changed while the reply is with the signatory |
 | `extension-not-allowed` | ariadne-rules refused the extension (a money claim under 123-FZ) |
 | `extension-too-late` | after the last day for the extension notice (the original reply date, the crate's conservative reading) |
 | `extension-after-reply` | the reply has gone out |
-| `role-cannot-edit`, `stage-not-for-role` | the role may not make the change |
+| `role-cannot-edit`, `stage-not-for-role` | the role may not make the change, or the transition is another role's |
 | `note-too-long` | a note over 200 characters |
 
-Roles: the operator works the cases assigned to them (stages up to
-awaiting signature, the decision, the ground, notes); the signatory signs
-and sends the replies assigned to them, or returns one to drafting; the
-supervisor sees every case, approves extensions, reassigns in bulk and
-exports. A column that would show the role's own name in every row is
-hidden for that role.
+Roles: the operator works the cases assigned to them (facts, drafting,
+the handover to legal review, the decision, the ground, notes); the
+legal reviewer sees every case, approves a reply for signature or
+returns it for rework, and states the decision and the ground; the
+signatory signs and sends the replies assigned to them, or returns one
+for rework; the supervisor sees every case, extends deadlines, closes
+answered cases, reassigns in bulk and exports. A column that would show
+the role's own name in every row is hidden for that role.
+
+## Stages and transitions
+
+| Transition | From | To | Role | Needs |
+|---|---|---|---|---|
+| `request_facts` | registered, drafting | waiting for facts | operator | |
+| `start_drafting` | registered | drafting | operator | |
+| `facts_received` | waiting for facts | drafting | operator | |
+| `hand_over` | registered, waiting for facts, drafting | legal review | operator (the assistant, once the operator confirms) | |
+| `approve` | legal review | awaiting signature | reviewer | a decision; a refusal its ground |
+| `return` | legal review | drafting | reviewer | a reason (a comment for "another reason") |
+| `return` | awaiting signature | drafting | signatory | a reason |
+| `send` | awaiting signature | sent | signatory | a decision; a refusal its ground |
+| `close` | sent | closed | supervisor | |
+
+`checkTransition` refuses with `transition-not-allowed`,
+`stage-not-for-role`, `reason-required`, `comment-required`,
+`comment-too-long`, `reply-needs-outcome` or `refusal-needs-ground`;
+`applyTransition` takes a transition and writes its journal entry.
+Extensions (`extend`, `extension_withdrawn`), undone edits (`undo`),
+and the reviewer's edit of the letter, a signature and a deferred
+signature (`edit`, `sign`, `defer`) are journaled too, without a
+transition of their own. A draft may be
+handed over from any stage before review: the operator, or the
+assistant, may have drafted without asking for facts first.
 
 ## API
 
@@ -135,6 +176,7 @@ All of it is exported from `@ariadne/grid`.
 | text | `TextPools`, `Labels`, `validatePools`, `validateLabels`, `clientName`, `complaintText`, `reasonText`, `noteText`, `rowText`, `buildSearchIndex`, `refreshSearch` |
 | filter | `filterRows(store, order, criteria, search?)` returns the index array, facets (stage, stream, source, deadline) and compute time; `sortOrder(store, sort, pools?)`; `percentile`; `splitMatches` |
 | views | `View`, `PRESET_VIEWS` (open, due within 3 working days, overdue, forwarded by the Bank of Russia, waiting for facts, awaiting signature, all), `criteriaFor(view, role)`, `serializeView` and `parseView` (base64url), `viewToUrl`, `saveView`, `removeView`, `validateViewName`, `serializeViews`, `parseViews` |
+| workflow | `TRANSITIONS`, `ACTIONS`, `RETURN_REASONS`, `transitionsFor`, `transitionBetween`, `checkTransition`, `applyTransition`, `caseJournal`, `generatedJournal`, `appendJournal`, `wasReturned`, `deskNow`, `JournalEntry`, `Actor` |
 | roles | `roleRules(role)`, `visibleColumns`, `hiddenForRole`, `roleScope`, `canEditColumn`, `canSetStage`, `canBulk`, `canExport`, `canSeeRow` |
 | edits | `checkField`, `checkNote`, `validateEdit(col, draft, row, role)` return an error code or null; `normalizeDraft`; `editContext` |
 | undo | `EditHistory`: `setField(store, rows, field, value, role, now)`, `setNote(store, row, value, role, now)`, `undo(store, { overwrite? })` |

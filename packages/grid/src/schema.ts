@@ -166,6 +166,9 @@ export const FIRST_NAME_COUNT = 20;
 export const COMPANY_COUNT = 30;
 export const ASSIGNEE_COUNT = 8;
 export const SIGNATORY_COUNT = 3;
+/* The legal reviewers and the supervisor of the complaints team */
+export const REVIEWER_COUNT = 2;
+export const SUPERVISOR_COUNT = 1;
 export const NOTE_COUNT = 9;
 /* Complaint templates per stream, and the adversarial insertions */
 export const TEMPLATE_COUNT = 5;
@@ -237,10 +240,12 @@ export const AS_OF = "2026-10-06";
 export const WINDOW_DAYS = 120;
 export const NOTE_MAX = 200;
 
-/* The person each role works as in the demo: the first operator and the
-   first signatory */
+/* The person each role works as in the demo: the first operator, reviewer,
+   signatory and supervisor */
 export const SELF_ASSIGNEE = 0;
+export const SELF_REVIEWER = 0;
 export const SELF_SIGNATORY = 0;
+export const SELF_SUPERVISOR = 0;
 
 /* Preset views. Their display names come from the language module. */
 export const PRESET_IDS = [

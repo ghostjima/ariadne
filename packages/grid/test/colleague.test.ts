@@ -16,6 +16,7 @@ import { generateAll } from "../src/generator.js";
 import { EMPTY_CRITERIA, filterRows } from "../src/filter.js";
 import { EditHistory } from "../src/history.js";
 import { getNote } from "../src/store.js";
+import { transitionBetween } from "../src/workflow.js";
 import { noteText } from "../src/text.js";
 import { pools as en } from "../src/pools/en.js";
 import { pools as ru } from "../src/pools/ru.js";
@@ -34,14 +35,13 @@ describe("simulated colleague", () => {
     expect(colleagueRow(1_000, 0)).not.toBe(colleagueRow(1_000, 1));
   });
 
-  it("always moves a case to a different known stage, the next one or back to drafting", () => {
-    for (let s = 0; s < STAGE_COUNT; s++) {
+  it("moves a case on to its next stage by a transition of the table, and leaves a closed one", () => {
+    for (let s = 0; s < STAGE_COUNT - 1; s++) {
       const next = colleagueStage(s);
-      expect(next).not.toBe(s);
-      expect(next).toBeGreaterThanOrEqual(0);
-      expect(next).toBeLessThan(STAGE_COUNT);
+      expect(next).toBe(s + 1);
+      expect(transitionBetween(s, next)).not.toBeNull();
     }
-    expect(colleagueStage(Stage.Closed)).toBe(Stage.Drafting);
+    expect(colleagueStage(Stage.Closed)).toBe(Stage.Closed);
   });
 
   it("writes a different known value into every code field", () => {

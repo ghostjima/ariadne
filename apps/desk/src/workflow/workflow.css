@@ -1,0 +1,15 @@
+/* The work on one case: what the role may do now, and the journal. */
+.case-work .stoa-panel { display: grid; gap: var(--stoa-space-3); align-content: start; }
+.case-work .stoa-panel__title { margin: 0; }
+.case-work .stoa-panel__title:focus { outline: none; }
+.case-work .stoa-panel__title:focus-visible { outline: var(--stoa-focus-width) solid var(--stoa-color-focus); outline-offset: 2px; }
+.case-work p { margin: 0; }
+.case-work__actions { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--stoa-space-2); }
+.case-work__actions li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-1) var(--stoa-space-3); }
+.case-work__journal-title { margin: 0; font-size: var(--stoa-font-size-md); font-weight: var(--stoa-font-weight-semibold); }
+.case-work__return { display: grid; gap: var(--stoa-space-3); }
+.case-work__return p { margin: 0; }
+.journal__action { font-weight: var(--stoa-font-weight-medium); }
+.journal__comment { white-space: pre-wrap; }
+.case__main { display: grid; gap: var(--stoa-space-4); align-content: start; min-inline-size: 0; }
+.handover { display: grid; gap: var(--stoa-space-1); }

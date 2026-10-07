@@ -31,16 +31,21 @@ it that proposes and stops for a person at every risky step. In Russian
   due within 3 working days, overdue, forwarded by the Bank of Russia,
   waiting for facts, awaiting signature and all cases; saved views kept
   in this browser, and a link that carries the current view (`?view=`).
-- **Roles**: the operator works the cases assigned to them (the stage up
-  to signature, the decision, the ground, notes); the signatory signs and
-  sends the replies assigned to them, or returns one to drafting; the
-  supervisor sees every case, approves extensions, reassigns cases and
-  exports.
+- **Roles**: the operator works the cases assigned to them (facts,
+  drafting, the handover to legal review, the decision, the ground,
+  notes); the legal reviewer sees every case, approves a reply for
+  signature or returns it for rework, and states the decision; the
+  signatory signs and sends the replies assigned to them, or returns one
+  for rework; the supervisor sees every case, extends deadlines, closes
+  answered cases, reassigns cases and exports. `?role=` opens the desk as
+  one of them.
 - **Inline edits** of the stage, the decision, the ground, the extension,
   the assignee and the note (Enter, F2 or a double click), checked by the
   engine before they are saved: a refusal needs a legal ground of its own
-  stream (161-FZ and 115-FZ are not mixed), a reply goes to legal review
-  only once decided and out only after signature, a money claim under
+  stream (161-FZ and 115-FZ are not mixed), a stage changes only by a
+  transition of the role's (a return for rework, which needs a reason,
+  only from the case's page), a reply goes to signature only decided and
+  out only after signature, a money claim under
   123-FZ is never extended, an extension comes no later than the last day
   for its notice, a note has at most 200 characters.
 - **Bulk reassignment** from Stoa's DataGridSelectionBar (Space, Shift
@@ -73,6 +78,14 @@ focus on it. On a wide screen the card and the assistant sit side by
 side; on a narrower one they are two tabs (`?panel=assistant` opens the
 assistant's).
 
+
+- **The work on the case**: the stage it is at, the transitions the
+  page's role may take from there (each a button that says what it
+  does), and the case's journal: every transition, oldest first, with
+  who took it, when and why. A return for rework asks for a reason from
+  a list, and a comment for another reason; after a transition the focus
+  goes to the panel's heading. The header marks a case returned for
+  rework.
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -135,7 +148,14 @@ undone: internal changes at any time, the fact request within a window
 that is counted down on screen (its toast steps aside while a
 confirmation is open). A summary closes the run. Each case keeps its own
 run while the page is open. What the run does stays in the run and its
-log: the register is not changed by it yet.
+log, with one exception: the handover. Once a person confirms it (in the
+run, when the step asked, or with Confirm the handover under the
+finished step), the case moves to legal review, the draft is kept with
+the case for the reviewer, and the journal says the assistant handed it
+over and who confirmed. The run's log stays as it was, the step is no
+longer undone from the run (a return for rework is the reviewer's), and
+a case past drafting shows no Run. The handover is the operator's, on
+their own cases.
 
 Keys in the open case: R runs the plan, S stops, P pauses or resumes, Q
 goes back to the queue, ? lists them. In a confirmation the focus is on
@@ -219,7 +239,9 @@ no serious or critical violation in Russian and English, each in the
 light and the dark theme, on: the loaded queue, a selection with its
 bar, an editor showing an error, the shortcuts, save-view and columns
 dialogs, no matches, loading, a partial load failure with the operator
-role, the open case with its card and assistant, and, in the assistant,
+role, the open case with its card and assistant, the work on a case
+with its journal, the return for rework with its refusal, and, in the
+assistant,
 the plan, the agent's request to change a step, a failed step, the
 reply's confirmation with its letter, a finished run with the draft, the
 rubric's check, its summary and toasts, New plan asking before it ends
@@ -233,13 +255,16 @@ case and going back, the app shortcuts; in the assistant, editing the
 plan, running, confirming and skipping, retrying a failed step, stopping
 from a confirmation, pausing and resuming) and editing with the mouse;
 where the focus goes after a bulk change, a Retry, the conflict dialog,
-deleting a view, opening and closing a case, and after every decision in
+deleting a view, opening and closing a case, a transition taken from
+the case and the return dialog, the confirmed handover, and after every
+decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI
 runner); `lang` and the theme set before the application's script runs;
 no sideways page scroll at 1280 and 375 px in both languages, every grid
 column reachable and editable at 375 px, and Run on the first screen of
-the assistant at 1280x800 and 375x812; the header staying put while the
+the assistant at 1280x800 and 375x812 (for a case past drafting, the
+reason there is no Run, at 375x812 in Russian); the header staying put while the
 page scrolls under it, and the scrollbars drawn in Stoa's tokens. Status
 changes are announced politely and only at the run's turns. Under
 reduced motion the undo countdown still counts, without animating.

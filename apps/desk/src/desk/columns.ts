@@ -112,6 +112,10 @@ export function editErrorText(t: Strings, formats: Formats, labels: Labels, erro
       return t.editErrors.roleCannotEdit(label(labels, error.column));
     case "stage-not-for-role":
       return t.editErrors.stageNotForRole;
+    case "transition-not-allowed":
+      return t.editErrors.transitionNotAllowed;
+    case "reason-required":
+      return t.editErrors.reasonRequired;
     case "reply-needs-outcome":
       return t.editErrors.replyNeedsOutcome;
     case "refusal-needs-ground":

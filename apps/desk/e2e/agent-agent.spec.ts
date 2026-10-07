@@ -337,10 +337,10 @@ test("a reply drafted for a case of the register states the deadlines still runn
   await expectPlanState(page, "stopped");
 });
 
-test("a case past drafting: the plan is shown, Run is not offered, and the panel says why", async ({ page }) => {
+test("a case past drafting: the plan is shown, there is no Run, and the panel says why", async ({ page }) => {
   await page.goto(agentUrl("", PAST_DRAFTING_CASE));
   await expect(page.locator(".plan")).toContainText('This case is at "Awaiting signature": its reply is past drafting');
-  await expect(page.getByRole("button", { name: en.plan.run })).toBeDisabled();
+  await expect(page.getByRole("button", { name: en.plan.run })).toHaveCount(0);
   await page.keyboard.press("r");
   await expectPlanState(page, "draft");
 });

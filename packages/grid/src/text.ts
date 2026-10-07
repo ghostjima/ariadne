@@ -17,11 +17,13 @@ import {
   OPERATION_COUNT,
   OUTCOME_COUNT,
   PRESET_IDS,
+  REVIEWER_COUNT,
   SIGNATORY_COUNT,
   SIGN_COUNT,
   SOURCE_COUNT,
   STAGE_COUNT,
   STREAM_COUNT,
+  SUPERVISOR_COUNT,
   SURNAME_COUNT,
   Stream,
   TEMPLATE_COUNT,
@@ -60,6 +62,9 @@ export type TextPools = {
   companies: readonly string[];
   assignees: readonly string[];
   signatories: readonly string[];
+  /* The legal reviewers and the supervisor, as the journal names them */
+  reviewers: readonly string[];
+  supervisors: readonly string[];
   /* Non-empty notes; code k > 0 in the store is notes[k - 1] */
   notes: readonly string[];
   /* The colleague's note; "{n}" is replaced with its number */
@@ -117,6 +122,8 @@ export function validatePools(pools: TextPools): TextIssue[] {
   checkList(issues, "companies", pools.companies, COMPANY_COUNT);
   checkList(issues, "assignees", pools.assignees, ASSIGNEE_COUNT);
   checkList(issues, "signatories", pools.signatories, SIGNATORY_COUNT);
+  checkList(issues, "reviewers", pools.reviewers, REVIEWER_COUNT);
+  checkList(issues, "supervisors", pools.supervisors, SUPERVISOR_COUNT);
   checkList(issues, "notes", pools.notes, NOTE_COUNT);
   checkList(issues, "injections", pools.injections, INJECTION_COUNT);
   if (pools.greetings.length === 0) issues.push({ code: "size", field: "greetings", expected: 1, actual: 0 });

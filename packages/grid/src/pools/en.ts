@@ -137,6 +137,8 @@ export const pools: TextPools = {
     "F. Okunev",
   ],
   signatories: ["V. Izotova", "S. Nagorny", "A. Zhemchuzhnikova"],
+  reviewers: ["K. Saburova", "L. Garanin"],
+  supervisors: ["I. Rokotova"],
   notes: [
     "Facts requested from antifraud",
     "Waiting for the AML team",

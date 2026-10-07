@@ -55,6 +55,9 @@ export type RunPanelProps = {
   /** What a finished step produced, shown under its result (the draft,
    * the rubric's findings). */
   produced?: (stepId: string) => ReactNode;
+  /** A finished step whose change is on the case now: it is not undone
+   * from the run (what it produced says why). */
+  isFinal?: (stepId: string) => boolean;
 };
 
 export function RunPanel(props: RunPanelProps) {
@@ -151,12 +154,13 @@ export function RunPanel(props: RunPanelProps) {
         const result = ctx.result;
         if (!result) break;
         const irreversible = snapshot.matches({ done: "irreversible" });
+        const final = props.isFinal?.(id) ?? false;
         const deadline = ctx.undoDeadline;
         explanation = (
           <>
             <p className="step-text">{summaryText(x, result.summary)}</p>
             {props.produced?.(id)}
-            {deadline === null ? (
+            {final ? null : deadline === null ? (
               <p className="muted">{t.step.undoPermanent}</p>
             ) : irreversible ? (
               <p className="muted">{t.step.irreversible(f.timeShort(deadline))}</p>
@@ -165,7 +169,7 @@ export function RunPanel(props: RunPanelProps) {
             )}
           </>
         );
-        if (!irreversible)
+        if (!irreversible && !final)
           actions = (
             <Button
               onPress={(e) => {
