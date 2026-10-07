@@ -106,6 +106,25 @@ they are taken again with `pnpm measure`.
   end of the client's six months to apply to the commission (art. 7.8
   item 1), a conservative reading. Together these give the register open
   cases whose reply has deadlines still running to state.
+- **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
+  `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
+  their own so every other column, and every answered case, is what it
+  was without them. A 161-FZ block may have its second step: the client
+  confirmed the suspended transfer, or repeated the refused operation, on
+  the day of the block or the next, and the Bank of Russia's database
+  answered after it (art. 8 parts 3.10 and 3.11). A block for sign 1.1
+  (the client's own data in the database) may have the client's
+  application to remove the data received by the bank (Directive
+  No. 6748-U item 1.2), with the client's card or online banking
+  suspended under art. 9 part 11.6 on the day of the operation, and its
+  receipt by the Bank of Russia the next working day once that day has
+  come. A refused operation or account under 115-FZ may have the
+  client's application to the interagency commission and the
+  commission's request for the bank's justification, with the working
+  days it gives, or none (115-FZ art. 7 items 13.5, 13.6; Regulation
+  No. 842-P item 2.8). `caseFacts` passes them to ariadne-rules, which
+  gives their measures, duties and deadlines. The shares are the
+  generator's own.
 - **Consistency.** Cases are registered by the next working day (a few
   late, and flagged), answered no earlier than registered, decided before
   legal review, and a refusal past drafting names a ground of its own
@@ -190,7 +209,7 @@ All of it is exported from `@ariadne/grid`.
 
 | area | functions and types |
 |---|---|
-| schema | `COLUMNS`, `Stream`, `Source`, `Channel`, `Applicant`, `Stage`, `Outcome`, `GROUNDS`, `Extension`, `DeadlineClass`, `Operation`, pool sizes, `CORPUS_ROWS`, `SCALE_ROWS`, `AS_OF`, `PRESET_IDS` |
+| schema | `COLUMNS`, `Stream`, `Source`, `Channel`, `Applicant`, `Stage`, `Outcome`, `GROUNDS`, `Extension`, `DeadlineClass`, `Operation`, `Path`, pool sizes, `CORPUS_ROWS`, `SCALE_ROWS`, `AS_OF`, `PRESET_IDS` |
 | store | `createStore`, `applyChunk`, `chunkTransferables`, `getRow`, `rowId`, `rowOfId`, `effectiveDue`, `workingDaysLeft`, `deadlineClass`, `isAdversarial`, `RulesFlag`, `writeField`, `writeNote` |
 | generation | `generateChunk(seed, start, count, total)`, `generateAll(seed, total?, chunkSize?)`, `chunkCount`, `chunkBounds`, `makeRng` |
 | legal | `replyClock`, `replyFacts`, `isWorking`, `nextWorking`, `plusWorkingDays`, `workingDaysFrom`: cached questions to ariadne-rules |

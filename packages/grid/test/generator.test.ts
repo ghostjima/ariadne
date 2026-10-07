@@ -178,8 +178,21 @@ describe("generator", () => {
        Re-pinned when the group's non-bank companies, a base-standard
        breach and the copies a reply owes were added: three new columns,
        drawn from a stream of their own, and the self-regulatory copy bit
-       of the rows with a breach; every other column is as it was. */
+       of the rows with a breach; every other column is as it was.
+       Re-pinned when the paths beyond the first action or decision were
+       added for open cases (a second antifraud step after a confirmation
+       or a repeat, an application to remove the client's data from the
+       database through the bank, the interagency commission's request):
+       four new columns, drawn from a stream of their own; every other
+       column is as it was, which the next test checks against the
+       previous pin. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
+  });
+
+  it("leaves every column but the paths as it was before the paths were drawn", () => {
+    const paths = new Set<string>(["path", "pathOn", "pathThen", "pathTerm"]);
+    const before = COLUMN_KEYS.filter((key) => !paths.has(key));
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_PATHS);
   });
 
   it("splits a total into chunk bounds", () => {
@@ -201,4 +214,6 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "9659766b";
+const GOLDEN_DIGEST = "7f0ba479";
+/* The pin before the paths' columns were added, over every other column */
+const DIGEST_BEFORE_PATHS = "9659766b";

@@ -4,7 +4,7 @@
 // assistant) gives the same brief as the same rows without them, and no
 // string of the brief is anything but a code of the engine or a date.
 import { describe, expect, it } from "vitest";
-import { AML_REASON_CODES as GRID_AML, GROUNDS, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
+import { AML_REASON_CODES as GRID_AML, AS_OF, GROUNDS, Path, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
 import {
   ALL_CODES,
   AML_REASON_CODES,
@@ -16,7 +16,7 @@ import {
   generatePlan,
   type CaseBrief,
 } from "@ariadne/runner";
-import { amlReasons, od2506Signs, rubric } from "@ariadne/rules";
+import { amlReasons, clock, factRequestDue, od2506Signs, rubric } from "@ariadne/rules";
 import { POOLS } from "../data/query";
 import { caseBrief, factsDueOf } from "./brief";
 
@@ -76,11 +76,23 @@ describe("caseBrief", () => {
     }
   });
 
-  it("gives the facts their own term, never after the reply's last day still ahead", () => {
-    expect(factsDueOf("2026-10-30")).toBe("2026-10-08");
-    expect(factsDueOf("2026-10-07")).toBe("2026-10-07");
-    // Already overdue: the term counts from the day the data is taken.
-    expect(factsDueOf("2026-09-25")).toBe("2026-10-08");
+  it("gives the fact request ariadne-rules' last day: two working days, capped by the earliest term that binds the answering unit", () => {
+    const capped = new Map<string, number>();
+    for (const row of rows) {
+      const facts = caseFacts(store, row);
+      const due = factRequestDue(facts, AS_OF);
+      expect(caseBrief(store, row).factsDue, `row ${row}`).toBe(due.due);
+      // The policy's two working days from the day the data is taken.
+      expect(due.policyDue).toBe("2026-10-08");
+      if (due.cappedBy) {
+        capped.set(due.cappedBy, (capped.get(due.cappedBy) ?? 0) + 1);
+        expect(clock(facts).deadlines.find((d) => d.kind === due.cappedBy)?.due, `row ${row}`).toBe(due.due);
+      } else expect(due.due).toBe(due.policyDue);
+    }
+    // A reply due before the policy's day caps it, the reply due today
+    // included; so does the bank's answer to the commission's request.
+    expect(capped.get("reply")).toBeGreaterThan(0);
+    expect(capped.get("commission_request_answer")).toBeGreaterThan(0);
   });
 
   it("names the stream's law, the reason, the options and the deadlines the rules ask for", () => {
@@ -98,13 +110,16 @@ describe("caseBrief", () => {
     }
   });
 
-  it("a block rests on 161-FZ art. 8 part 3.4 whatever the operation: part 3.10 is the second action, not the first", () => {
+  it("a block rests on 161-FZ art. 8 part 3.4 whatever the operation; part 3.10 follows only for the second action, after a confirmation or a repeat", () => {
     const blocks = rows.filter((i) => store.stream[i] === Stream.Antifraud);
     expect(new Set(blocks.map((i) => store.operation[i])).size).toBeGreaterThan(2);
+    const second = blocks.filter((i) => store.path[i] === Path.SecondStep);
+    expect(second.length).toBeGreaterThan(0);
     for (const row of blocks) {
       const grounds = caseBrief(store, row).grounds;
       expect(grounds[0], `row ${row}`).toBe("payment_8_3_4");
-      expect(grounds, `row ${row}`).not.toContain("payment_8_3_10");
+      if (second.includes(row)) expect(grounds[1], `row ${row}`).toBe("payment_8_3_10");
+      else expect(grounds, `row ${row}`).not.toContain("payment_8_3_10");
     }
   });
 

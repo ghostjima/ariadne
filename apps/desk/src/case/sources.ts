@@ -22,10 +22,12 @@ const NAMES: Record<string, Record<Lang, string>> = {
   payment_law_8: { ru: "161-ФЗ", en: "161-FZ" },
   payment_law_9: { ru: "161-ФЗ", en: "161-FZ" },
   letter_010_31_7975: { ru: "Письмо Банка России № 010-31/7975", en: "Bank of Russia letter No. 010-31/7975" },
+  directive_6748_u: { ru: "Указание Банка России № 6748-У", en: "Bank of Russia Directive No. 6748-U" },
   cbr_exclusion_page: { ru: "Банк России, исключение из базы данных", en: "Bank of Russia, exclusion from its database" },
   aml_law_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_8: { ru: "115-ФЗ", en: "115-FZ" },
+  regulation_842_p: { ru: "Положение Банка России № 842-П", en: "Bank of Russia Regulation No. 842-P" },
   order_od_2506: { ru: "Приказ Банка России № ОД-2506", en: "Bank of Russia Order No. OD-2506" },
   letter_in_01_59_98: { ru: "Письмо Банка России № ИН-01-59/98", en: "Bank of Russia letter No. IN-01-59/98" },
   cbr_reply_page: { ru: "Банк России, рассмотрение обращений", en: "Bank of Russia, replies to complaints" },
@@ -39,24 +41,38 @@ export function sourceName(source: string, lang: Lang): string {
   return NAMES[source]?.[lang] ?? source;
 }
 
-/** Acts whose articles are divided into items rather than parts. */
-const ITEMS = new Set(["insurance_law_6_2", "securities_law_15_11", "aml_law_7", "aml_law_7_7", "aml_law_7_8"]);
+/** Acts whose articles are divided into items rather than parts, and the
+ * Bank of Russia's directives and regulations, which have no articles and
+ * are cited by item. */
+const ITEMS = new Set(["insurance_law_6_2", "securities_law_15_11", "aml_law_7", "aml_law_7_7", "aml_law_7_8", "directive_6748_u", "regulation_842_p"]);
 
 const RU_WORDS: [RegExp, string][] = [
   [/\bsubitem\b/g, "подп."],
+  [/\bitems\b/g, "пп."],
   [/\bitem\b/g, "п."],
   [/\bparagraph\b/g, "абз."],
+  [/\bsentence\b/g, "предл."],
+  [/\bparts\b/g, "ч."],
   [/\bpart\b/g, "ч."],
+  [/ to /g, "\u2013"],
 ];
 
+/** A part that lists several numbers ("2.1, 2.3, 2.4"), which takes the
+ * plural ("items 2.1, 2.3, 2.4"; "пп. 2.1, 2.3, 2.4"). */
+const LIST = /^\d+(\.\d+)*(, \d+(\.\d+)*)+$/;
+
 /** The act, article and part of a basis, briefly: "Закон о банках № 395-1,
- * ст. 30.1, ч. 7"; "Banking Law No. 395-1, art. 30.1, part 7". */
+ * ст. 30.1, ч. 7"; "Banking Law No. 395-1, art. 30.1, part 7"; a
+ * directive by item: "Указание Банка России № 6748-У, п. 1.5". */
 export function basisName(basis: Basis, lang: Lang): string {
   const act = NAMES[basis.source]?.[lang] ?? basis.act;
-  const unitEn = ITEMS.has(basis.source) ? "item" : "part";
+  const items = ITEMS.has(basis.source);
+  const many = LIST.test(basis.part);
   if (lang === "ru") {
     const part = RU_WORDS.reduce((text, [word, ru]) => text.replace(word, ru), basis.part);
-    return [act, basis.article && `ст. ${basis.article}`, part && `${ITEMS.has(basis.source) ? "п." : "ч."} ${part}`].filter(Boolean).join(", ");
+    const unit = items ? (many ? "пп." : "п.") : "ч.";
+    return [act, basis.article && `ст. ${basis.article}`, part && `${unit} ${part}`].filter(Boolean).join(", ");
   }
+  const unitEn = `${items ? "item" : "part"}${many ? "s" : ""}`;
   return [act, basis.article && `art. ${basis.article}`, basis.part && `${unitEn} ${basis.part}`].filter(Boolean).join(", ");
 }

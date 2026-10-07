@@ -79,6 +79,98 @@ test("a 161-FZ transfer: the OD-2506 sign with the order's own wording, the susp
   await expect(card.locator("blockquote")).toContainText("suspended for two days");
 });
 
+// The register's paths beyond the first step, each on an open case: a
+// refused repeat after the database answered (C-001182), a confirmed
+// transfer suspended again (C-001142), an application to remove the
+// client's data through the bank (C-001115), and the commission's request
+// without a term (C-001088) and with one (C-001035).
+test("a second step under 161-FZ: the first action and the second with their grounds, and what follows from part 3.11", async ({ page }) => {
+  await openCase(page, "C-001182");
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The operation refused");
+  await expect(flags).toContainText("Ground: 161-FZ, art. 8, part 3.4, sentence 2");
+  await expect(flags).toContainText("The repeated operation refused: the Bank of Russia's database answered after the repeat");
+  await expect(flags).toContainText("Ground: 161-FZ, art. 8, part 3.10, sentence 1");
+  await expect(flags).toContainText("The two days after the refused repeat end");
+  await expect(flags).toContainText("From this day the client's next repeat goes through");
+  await expect(flags).toContainText("Ground: 161-FZ, art. 8, part 3.11 (conservative reading)");
+  const duties = page.getByRole("region", { name: "Duties and storage" });
+  await expect(duties).toContainText("Tell the client of the second step: its reason, its term, and that a later repeat is possible");
+  await expect(duties).toContainText("at once; 161-FZ, art. 8, part 3.10, sentence 2");
+  await expect(duties).toContainText("Kept until Oct 5, 2029: three years from registration (Banking Law No. 395-1, art. 30.1, part 11).");
+
+  await openCase(page, "C-001142", "lang=ru");
+  const ru = page.getByRole("region", { name: "Признаки и решения" });
+  await expect(ru).toContainText("Приём распоряжения к исполнению приостановлен на два дня");
+  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 8, ч. 3.4, предл. 1");
+  await expect(ru).toContainText("Подтверждённое распоряжение снова приостановлено на два дня");
+  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 8, ч. 3.10, предл. 1");
+  await expect(ru).toContainText("Подтверждённое распоряжение исполняется");
+});
+
+test("an application to remove the client's data through the bank: the card suspended under 161-FZ art. 9, and the terms of Directive No. 6748-U by item", async ({ page }) => {
+  await openCase(page, "C-001115");
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The client's card or online banking suspended: the client's own data are in the Bank of Russia's database");
+  await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.6");
+  await expect(flags).toContainText("The client is told of the suspension and its reason");
+  await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 9.2");
+  await expect(flags).toContainText("The application goes to the Bank of Russia, with the bank's view");
+  await expect(flags).toContainText("Ground: Bank of Russia Directive No. 6748-U, item 1.5");
+  await expect(flags).toContainText("The Bank of Russia decides on the application");
+  await expect(flags).toContainText("Ground: Bank of Russia Directive No. 6748-U, items 2.1, 2.3, 2.4");
+  await expect(page.getByRole("region", { name: "Duties and storage" })).toContainText(
+    "Tell the client of the suspension and of the right to apply to the Bank of Russia, through the bank too, to remove the data",
+  );
+  await openCase(page, "C-001115", "lang=ru");
+  const ru = page.getByRole("region", { name: "Признаки и решения" });
+  await expect(ru).toContainText("Основание: Указание Банка России № 6748-У, п. 1.5");
+  await expect(ru).toContainText("Основание: Указание Банка России № 6748-У, пп. 2.1, 2.3, 2.4");
+  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 9, ч. 11.6");
+});
+
+test("the commission's request: the bank's answer by its term under Regulation No. 842-P, or 3 working days when it gives none, with the rules' note", async ({ page }) => {
+  await openCase(page, "C-001088");
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The bank's justification is due to the commission");
+  await expect(flags).toContainText("Ground: 115-FZ, art. 7, item 13.6, paragraph 1 (conservative reading)");
+  await expect(flags).toContainText("The commission decides");
+  await expect(flags).toContainText("Ground: 115-FZ, art. 7, item 13.5, paragraph 3");
+  const notes = page.getByRole("region", { name: "Duties and storage" });
+  await expect(notes).toContainText("What the rules note");
+  await expect(notes).toContainText("The commission's request gives no term: the least the law allows, 3 working days, is taken.");
+  await openCase(page, "C-001035", "lang=ru");
+  await expect(page.getByRole("region", { name: "Признаки и решения" })).toContainText("Основание: Положение Банка России № 842-П, п. 2.8");
+});
+
+for (const lang of ["ru", "en"])
+  for (const theme of ["light", "dark"])
+    test(`axe: the cases on the paths beyond the first step (${lang}, ${theme})`, async ({ page }) => {
+      for (const [id, state] of [
+        ["C-001182", "case with a second antifraud step"],
+        ["C-001115", "case with an application to remove the client's data"],
+        ["C-001088", "case with the commission's request"],
+      ] as const) {
+        await openCase(page, id, `lang=${lang}&theme=${theme}`);
+        await expect(page.getByRole("table").last()).toBeVisible();
+        await expectNoSeriousViolations(page, state, { lang, theme });
+      }
+    });
+
+test("on a phone the cases on the paths fit without sideways scroll, in Russian and English", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  for (const lang of ["ru", "en"])
+    for (const id of ["C-001182", "C-001115", "C-001088"]) {
+      await openCase(page, id, `lang=${lang}`);
+      await expect(page.getByRole("table").last()).toBeVisible();
+      const sideways = await page.evaluate(() => {
+        const region = document.querySelector(".stoa-page-shell__scroll")!;
+        return [document.documentElement.scrollWidth - document.documentElement.clientWidth, region.scrollWidth - region.clientWidth];
+      });
+      expect(sideways, `${lang} ${id}`).toEqual([0, 0]);
+    }
+});
+
 test("the deadline is worked out step by step, each step with its source and revision", async ({ page }) => {
   await openCase(page, "C-001196");
   const table = page.getByRole("table", { name: "How the reply's last day was worked out" });

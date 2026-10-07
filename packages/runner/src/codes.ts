@@ -166,11 +166,14 @@ export const CLIENT_DEADLINE_KINDS = [
   "antifraud_confirmation",
   "antifraud_repeat_suspension_ends",
   "antifraud_after_repeat_suspension",
+  "antifraud_repeat_refusal_ends",
+  "antifraud_after_repeat_refusal",
   "exclusion_decision",
   "antifraud_refund",
   "aml_documents_answer",
   "aml_commission_decision",
   "high_risk_commission_application",
+  "high_risk_rating_review",
 ] as const;
 export type ClientDeadlineKind = (typeof CLIENT_DEADLINE_KINDS)[number];
 

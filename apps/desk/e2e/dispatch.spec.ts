@@ -146,7 +146,7 @@ test("the supervisor's extension: refused for a money claim under 123-FZ, in wor
   const body = await readFile((await textFile.path())!, "utf8");
   for (const part of [`Case ${TRANSFER}: export for an inspection`, "Organisation: Bank", "How the reply's last day was worked out", "Deadline extended by 10 working days"]) expect(body).toContain(part);
   // Dates are written as the desk writes them, with no-break spaces.
-  expect(body).toMatch(/Retention: Kept until Oct\s6,\s2029: three years from registration \(Banking Law, art\. 30\.1, part 11\)\./);
+  expect(body).toMatch(/Retention: Kept until Oct\s6,\s2029: three years from registration \(Banking Law No\. 395-1, art\. 30\.1, part 11\)\./);
   const csv = page.waitForEvent("download");
   await panel(page).getByRole("button", { name: d.exportCsv }).click();
   const csvBody = await readFile((await (await csv).path())!, "utf8");

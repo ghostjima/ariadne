@@ -15,7 +15,6 @@ import {
   copiesSent,
   copiesDueOn,
   replyCopies,
-  retentionOf,
   rowId,
   type ColumnStore,
   type CopyKind,
@@ -29,6 +28,7 @@ import type { CaseFiles } from "./caseFile";
 import { workflowStrings } from "./i18n";
 import { inspectionCsv, inspectionText } from "./inspection";
 import { inspectionOf } from "./inspectionOf";
+import { retentionText as retentionWords, storageOf } from "../case/retention";
 
 const DAY_MS = 86_400_000;
 
@@ -64,20 +64,6 @@ function save(text: string, name: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** The legal words of a retention basis, in the reader's language. */
-function basisWords(lang: Lang, basis: { act: string; article: string; part: string }): string {
-  const acts: Record<string, Record<Lang, string>> = {
-    banking_law: { ru: "Закон о банках", en: "Banking Law" },
-    microfinance_law: { ru: "151-ФЗ", en: "151-FZ" },
-    insurance_law: { ru: "закон № 4015-1", en: "Law No. 4015-1" },
-    securities_law: { ru: "39-ФЗ", en: "39-FZ" },
-  };
-  const items = basis.act === "insurance_law" || basis.act === "securities_law";
-  const act = acts[basis.act]?.[lang] ?? basis.act;
-  return lang === "ru"
-    ? `${act}, ст. ${basis.article}, ${items ? "п." : "ч."} ${basis.part}`
-    : `${act}, art. ${basis.article}, ${items ? "item" : "part"} ${basis.part}`;
-}
 
 export function DispatchPanel(props: DispatchPanelProps) {
   const { store, row, role, lang, t, version, files, pending } = props;
@@ -122,7 +108,6 @@ export function DispatchPanel(props: DispatchPanelProps) {
     return () => cancelAnimationFrame(frame);
   }, [asking, pending]);
 
-  const retention = retentionOf(store, row);
   const owed = copiesOwed(store, row);
   const sent = copiesSent(store, row);
   const nonBank = (store.sector[row] ?? Sector.Bank) !== Sector.Bank;
@@ -150,7 +135,9 @@ export function DispatchPanel(props: DispatchPanelProps) {
                 ? t.editErrors.roleCannotEdit(labels.columns.extension ?? "")
                 : t.editErrors.valueUnknown;
 
-  const retentionText = retention.basis ? d.retention(day(retention.until), basisWords(lang, retention.basis)) : d.retentionNone(day(retention.until));
+  // The storage term is the rules': three years from registration under
+  // the sector's article, or the desk's own three years where it sets none.
+  const retentionText = retentionWords(store, row, { storage: storageOf(store, row) }, lang, day);
   const exportAs = (kind: "text" | "csv") => {
     const inspection = inspectionOf(store, row, lang, t, files, fmt, stoa, retentionText);
     if (kind === "text") save(inspectionText(inspection), d.file(id, "txt"), "text/plain;charset=utf-8");

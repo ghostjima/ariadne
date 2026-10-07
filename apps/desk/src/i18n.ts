@@ -188,7 +188,7 @@ export type Strings = {
   notYet: string;
 };
 
-export type CountUnit = "working_days" | "calendar_days" | "calendar_days_to_working_day" | "next_working_day" | "same_day" | "months";
+export type CountUnit = "working_days" | "calendar_days" | "calendar_days_to_working_day" | "next_working_day" | "same_day" | "months" | "years";
 
 export type CaseStrings = {
   open: string;
@@ -231,7 +231,21 @@ export type CaseStrings = {
   signWording: string;
   signSummary: string;
   amlDecision: (category: string, basis: string) => string;
+  /** Every dated term ariadne-rules gives beyond the reply's own, by code */
   flagDeadline: Record<string, string>;
+  /** The measures taken, by code */
+  measure: Record<string, string>;
+  /** The provision a measure or a term rests on, under it */
+  basisLine: (basis: string) => string;
+  /** The duties tied to an event, the storage term and the rules' notes */
+  duties: string;
+  noDuties: string;
+  duty: Record<string, string>;
+  dutyWhen: Record<string, string>;
+  dutyLine: (when: string, basis: string) => string;
+  keptUntil: string;
+  warnings: string;
+  warning: Record<string, string>;
   timeline: string;
   event: {
     received: (channel: string) => string;
@@ -464,6 +478,69 @@ const en: Strings = {
       aml_documents_answer: "The answer to the client's documents is due",
       high_risk_notice: "The notice of the measures is due",
       high_risk_commission_application: "Last day for the client to apply to the commission",
+      no_substance_notice: "The notice of no reply on the substance is due",
+      stop_correspondence_notice: "The notice of stopping the correspondence is due",
+      antifraud_repeat_suspension_ends: "The second suspension ends",
+      antifraud_after_repeat_suspension: "The confirmed order is carried out",
+      antifraud_repeat_refusal_ends: "The two days after the refused repeat end",
+      antifraud_after_repeat_refusal: "From this day the client's next repeat goes through",
+      instrument_suspension_notice: "The client is told of the suspension and its reason",
+      exclusion_forwarding: "The application goes to the Bank of Russia, with the bank's view",
+      exclusion_refusal_notice: "The refusal to forward the application is due to the client",
+      exclusion_decision: "The Bank of Russia decides on the application",
+      exclusion_decision_relay: "The Bank of Russia's decision goes on to the client",
+      bank_of_russia_query_answer: "The answer to the Bank of Russia's request is due",
+      antifraud_refund: "The refund to the client is due",
+      aml_commission_decision: "The commission decides",
+      commission_request_answer: "The bank's justification is due to the commission",
+      commission_decision_notice: "The commission's decision is due to the client and the bank",
+      high_risk_rating_review: "The Bank of Russia answers on the risk rating",
+    },
+    measure: {
+      suspend_order: "The transfer order suspended for two days",
+      refuse_operation: "The operation refused",
+      suspend_confirmed_order: "The confirmed order suspended again for two days: the Bank of Russia's database answered after the confirmation",
+      refuse_repeat: "The repeated operation refused: the Bank of Russia's database answered after the repeat",
+      order_not_accepted: "The order counts as not accepted: it was confirmed after its window",
+      suspend_instrument: "The client's card or online banking suspended: the client's own data are in the Bank of Russia's database",
+    },
+    basisLine: (basis) => `Ground: ${basis}`,
+    duties: "Duties and storage",
+    noDuties: "No duty tied to an event.",
+    duty: {
+      copy_to_bank_of_russia: "A copy of the reply and of each notice to the Bank of Russia",
+      copy_to_sro: "A copy of the complaint and of the reply to the self-regulatory organisation",
+      notify_client_of_block: "Tell the client of the block, advise against a repeat of the fraud, and say how to confirm or repeat",
+      notify_client_of_repeat_block: "Tell the client of the second step: its reason, its term, and that a later repeat is possible",
+      notify_client_of_right_to_apply: "Tell the client of the suspension and of the right to apply to the Bank of Russia, through the bank too, to remove the data",
+      restore_instrument: "Restore the card or online banking and tell the client",
+    },
+    dutyWhen: {
+      immediately: "at once",
+      same_day_as_each_dispatch: "the day each goes to the applicant",
+      same_day_as_reply: "the day the reply goes out",
+    },
+    dutyLine: (when, basis) => `${when}; ${basis}`,
+    keptUntil: "Kept",
+    warnings: "What the rules note",
+    warning: {
+      registration_date_assumed: "No registration day was given: the earliest possible one is assumed, which gives the earliest reply day.",
+      registered_late: "Registered after the working day following receipt.",
+      money_claim_outside_ombudsman: "A money claim with no amount or over 500,000 roubles: the complaint article's terms apply.",
+      money_claim_from_legal_entity: "A money claim from a company: 123-FZ covers consumers only.",
+      ombudsman_participation_unknown: "A securities market professional takes part in the ombudsman's procedure only by choice: the earlier reply day applies, with no extension.",
+      breach_date_unknown: "A claim on the standard form with no day of the breach: the earlier reply day applies.",
+      confirmation_late: "The client confirmed after the day following the suspension: the order counts as not accepted, and a later database answer suspends nothing.",
+      confirmation_date_missing: "The database answered after a confirmation whose day is not given: no second step is counted.",
+      refund_for_individuals_only: "The 30-day refund of 161-FZ art. 8 part 3.13 is owed to individuals only.",
+      high_risk_for_legal_entities_only: "The high-risk group of 115-FZ art. 7.7 is for companies and sole traders only.",
+      documents_answer_beyond_text: "115-FZ gives the 7-day answer on documents against a refused operation or contract; it is given for a terminated contract too, beyond the text.",
+      sro_copy_not_applicable: "A bank has no self-regulatory organisation to copy a standard breach to.",
+      ombudsman_term_may_have_passed:
+        "More than three years passed between the breach and the claim: the ombudsman counts them from the day the consumer learned of the breach, and may restore the term (123-FZ art. 15 parts 1 and 4). The reply term is unchanged.",
+      storage_term_not_set: "190-FZ art. 6.2 sets no term for a credit cooperative to keep complaints, replies and notices.",
+      commission_term_below_minimum: "The commission's request gives less than the 3 working days 115-FZ art. 7 item 13.6 guarantees: its own, earlier day is kept.",
+      commission_term_assumed: "The commission's request gives no term: the least the law allows, 3 working days, is taken.",
     },
     timeline: "Channel timeline",
     event: {
@@ -501,6 +578,7 @@ const en: Strings = {
         next_working_day: `the working day after ${from}`,
         same_day: from,
         months: `${from} + ${value} ${n === 1 ? "month" : "months"}`,
+        years: `${from} + ${value} ${n === 1 ? "year" : "years"}`,
       })[unit] ?? `${from} + ${value}`,
     daysOffFormula: (calendar, working) => `${calendar} − ${working}`,
     daysOffValue: (total, n, weekend, holidays) => `${total} ${n === 1 ? "day" : "days"} off: weekend days ${weekend}${holidays ? `; ${holidays}` : ""}`,
@@ -733,6 +811,69 @@ const ruStrings: Strings = {
       aml_documents_answer: "Срок ответа на документы клиента",
       high_risk_notice: "Срок уведомить о мерах",
       high_risk_commission_application: "Последний день, чтобы клиент обратился в комиссию",
+      no_substance_notice: "Срок уведомить об оставлении без ответа по существу",
+      stop_correspondence_notice: "Срок уведомить о прекращении переписки",
+      antifraud_repeat_suspension_ends: "Окончание повторного приостановления",
+      antifraud_after_repeat_suspension: "Подтверждённое распоряжение исполняется",
+      antifraud_repeat_refusal_ends: "Окончание двух дней после отказа в повторной операции",
+      antifraud_after_repeat_refusal: "С этого дня следующая повторная операция клиента проходит",
+      instrument_suspension_notice: "Срок сообщить клиенту о приостановлении и его причине",
+      exclusion_forwarding: "Срок передать заявление в Банк России с позицией банка",
+      exclusion_refusal_notice: "Срок сообщить клиенту об отказе передать заявление",
+      exclusion_decision: "Банк России решает по заявлению",
+      exclusion_decision_relay: "Срок передать клиенту решение Банка России",
+      bank_of_russia_query_answer: "Срок ответить на запрос Банка России",
+      antifraud_refund: "Срок вернуть средства клиенту",
+      aml_commission_decision: "Комиссия принимает решение",
+      commission_request_answer: "Срок направить комиссии обоснование банка",
+      commission_decision_notice: "Срок сообщить клиенту и банку решение комиссии",
+      high_risk_rating_review: "Банк России отвечает об уровне риска",
+    },
+    measure: {
+      suspend_order: "Приём распоряжения к исполнению приостановлен на два дня",
+      refuse_operation: "В операции отказано",
+      suspend_confirmed_order: "Подтверждённое распоряжение снова приостановлено на два дня: база Банка России ответила после подтверждения",
+      refuse_repeat: "В повторной операции отказано: база Банка России ответила после повтора",
+      order_not_accepted: "Распоряжение считается не принятым к исполнению: подтверждено после срока",
+      suspend_instrument: "Карта или онлайн-банк клиента приостановлены: данные самого клиента есть в базе Банка России",
+    },
+    basisLine: (basis) => `Основание: ${basis}`,
+    duties: "Обязанности и хранение",
+    noDuties: "Обязанностей, привязанных к событию, нет.",
+    duty: {
+      copy_to_bank_of_russia: "Копия ответа и каждого уведомления в Банк России",
+      copy_to_sro: "Копия обращения и ответа в саморегулируемую организацию",
+      notify_client_of_block: "Сообщить клиенту об ограничении, дать рекомендации против повторного мошенничества и сказать, как подтвердить или повторить операцию",
+      notify_client_of_repeat_block: "Сообщить клиенту о повторном ограничении: причину, срок и возможность последующей повторной операции",
+      notify_client_of_right_to_apply: "Сообщить клиенту о приостановлении и о праве подать в Банк России, в том числе через банк, заявление об исключении сведений",
+      restore_instrument: "Восстановить карту или онлайн-банк и сообщить клиенту",
+    },
+    dutyWhen: {
+      immediately: "незамедлительно",
+      same_day_as_each_dispatch: "в день отправки каждого заявителю",
+      same_day_as_reply: "в день отправки ответа",
+    },
+    dutyLine: (when, basis) => `${when}; ${basis}`,
+    keptUntil: "Хранение",
+    warnings: "Что отмечают правила",
+    warning: {
+      registration_date_assumed: "День регистрации не указан: взят самый ранний возможный, он даёт самый ранний срок ответа.",
+      registered_late: "Зарегистрировано позже рабочего дня, следующего за днём поступления.",
+      money_claim_outside_ombudsman: "Денежное требование без суммы или больше 500 000 рублей: применяются сроки статьи об обращениях.",
+      money_claim_from_legal_entity: "Денежное требование организации: 123-ФЗ распространяется только на потребителей.",
+      ombudsman_participation_unknown: "Профессиональный участник рынка ценных бумаг участвует в процедуре финансового уполномоченного только добровольно: применяется более ранний срок ответа, без продления.",
+      breach_date_unknown: "Требование по стандартной форме без дня нарушения: применяется более ранний срок ответа.",
+      confirmation_late: "Клиент подтвердил позже дня, следующего за днём приостановления: распоряжение считается не принятым, и последующий ответ базы ничего не приостанавливает.",
+      confirmation_date_missing: "База ответила после подтверждения, но день подтверждения не указан: повторное ограничение не считается.",
+      refund_for_individuals_only: "Возврат в течение 30 дней по 161-ФЗ, ст. 8, ч. 3.13, положен только физическим лицам.",
+      high_risk_for_legal_entities_only: "Группа высокого риска по 115-ФЗ, ст. 7.7, только для организаций и ИП.",
+      documents_answer_beyond_text: "115-ФЗ даёт 7 рабочих дней на ответ по документам при отказе в операции или договоре; срок дан и для расторгнутого договора, шире текста.",
+      sro_copy_not_applicable: "У банка нет саморегулируемой организации, куда направлять копию о нарушении стандарта.",
+      ombudsman_term_may_have_passed:
+        "С нарушения до требования прошло больше трёх лет: финансовый уполномоченный считает их со дня, когда потребитель узнал о нарушении, и может восстановить срок (123-ФЗ, ст. 15, ч. 1 и 4). Срок ответа не меняется.",
+      storage_term_not_set: "190-ФЗ, ст. 6.2, не устанавливает кредитному кооперативу срок хранения обращений, ответов и уведомлений.",
+      commission_term_below_minimum: "Запрос комиссии даёт меньше трёх рабочих дней, гарантированных 115-ФЗ, ст. 7, п. 13.6: сохранён его собственный, более ранний срок.",
+      commission_term_assumed: "В запросе комиссии нет срока: взят наименьший по закону, три рабочих дня.",
     },
     timeline: "Каналы и события",
     event: {
@@ -770,6 +911,7 @@ const ruStrings: Strings = {
         next_working_day: `рабочий день после ${from}`,
         same_day: from,
         months: `${from} + ${value} ${ru(n, "месяц", "месяца", "месяцев")}`,
+        years: `${from} + ${value} ${ru(n, "год", "года", "лет")}`,
       })[unit] ?? `${from} + ${value}`,
     daysOffFormula: (calendar, working) => `${calendar} − ${working}`,
     daysOffValue: (total, n, weekend, holidays) => `${total} ${ru(n, "нерабочий день", "нерабочих дня", "нерабочих дней")}: выходных ${weekend}${holidays ? `; ${holidays}` : ""}`,

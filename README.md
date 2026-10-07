@@ -29,7 +29,9 @@ the browser, in Russian (the default) and English:
   supervisor closes) and its journal of who did what, when and why; the
   complaint, the applicant, the
   operation, the flags around it (the OD-2506 sign in the order's own
-  words, or the 115-FZ category), the timeline of its channels, linked
+  words, or the 115-FZ category, the measures taken with their grounds
+  and the terms they bring), the duties tied to them and how long the
+  case is kept, the timeline of its channels, linked
   cases, and how the reply's last day was worked out, each step with its
   source.
 - **The assistant** beside the case: a run a person can stop. For the
@@ -80,7 +82,7 @@ The workflows the desk is built around, and what exists of each today:
 |---|---|
 | Intake and registration, with the stream of each complaint recognised | not built |
 | Queue with the time left, views and roles | built: the register's deadlines from the rules engine, time left in working days, the working views, operator, legal reviewer, signatory and supervisor roles |
-| Case card: client, operation, flags, linked cases, fact requests | built: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the channel timeline, linked cases, and the derivation of the reply's last day; the structured fact request is the assistant's step, with its own deadline |
+| Case card: client, operation, flags, linked cases, fact requests | built: the complaint, the applicant, the operation, the OD-2506 sign or 115-FZ category, the measures with their grounds and every term they bring, the duties and the storage term, the channel timeline, linked cases, and the derivation of the reply's last day; the structured fact request is the assistant's step, with its own deadline from the rules engine |
 | Draft: the assistant proposes a plan and a reply | built as the agent run for the open case: classify, request facts, draft the reply from templates over the case's facts with the act and article from the rules engine, check it with the rubric, hand it to legal review; the consent rule, confirmations with the draft, stop and undo windows |
 | Extension of the deadline, with a reason and an approver | built: an extension of ten working days to request documents by the supervisor, with its reason, refused by the rules engine for a money claim under 123-FZ (in words) and after the last day for its notice; a forwarded complaint's notice owes the Bank of Russia a copy that day |
 | Review and signature, dispatch and copies | in part: the stages as explicit states with the transitions of each role; the review of the letter (what the rubric finds, the changes against the assistant's draft, the reviewer's edit), approval or a return for rework with a reason; the signature with its decision record, the signed letter frozen; the dispatch a person confirms, with a cancellable send delay, and the same-day copies to the Bank of Russia and to a self-regulatory organisation, with their own view |

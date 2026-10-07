@@ -48,6 +48,7 @@ import { DUE_SOON } from "../desk/columns";
 import type { CountUnit, Lang, Strings } from "../i18n";
 import { caseDetails, type CaseDetails, type Flag, type Relation, type TimelineEvent } from "./details";
 import { basisName } from "./sources";
+import { retentionText } from "./retention";
 
 const DAY_MS = 86_400_000;
 /** The register keeps Moscow time: a day is the day in Moscow. */
@@ -146,6 +147,10 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
         <Flags details={details} t={t} lang={lang} />
       </Panel>
 
+      <Panel title={c.duties} level={3}>
+        <Duties store={store} row={row} details={details} t={t} lang={lang} day={day} />
+      </Panel>
+
       <Panel title={c.timeline} level={3}>
         <ChannelTimeline events={details.timeline} t={t} lang={lang} day={day} time={(ms) => fmt.time(ms)} />
       </Panel>
@@ -195,12 +200,47 @@ function Flags({ details, t, lang }: { details: CaseDetails; t: Strings; lang: L
           ),
         };
       }
+      case "measure":
+        return { kind: c.measure[flag.measure.kind] ?? flag.measure.kind, text: <p className="muted">{c.basisLine(groundName(flag.measure.basis, t, lang))}</p> };
       case "deadline":
-        return { kind: c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind };
+        return { kind: c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind, text: <p className="muted">{c.basisLine(groundName(flag.deadline.basis, t, lang))}</p> };
     }
   };
   const entries: TimelineEntry[] = details.flags.map((flag, k) => ({ id: `${flag.kind}-${k}`, at: dayAt(flag.day), ...entry(flag) }));
   return <Timeline label={c.flags} entries={entries} timeZone={MOSCOW} dayLevel={4} />;
+}
+
+/** A basis briefly, with the reading it takes when that is the
+ * conservative one. */
+function groundName(b: Basis, t: Strings, lang: Lang): string {
+  return b.reading === "conservative" ? `${basisName(b, lang)} (${t.case.conservative})` : basisName(b, lang);
+}
+
+/** The duties tied to an event, each with when and its basis; how long the
+ * case is kept; and what the rules note about the case's data. */
+function Duties({ store, row, details, t, lang, day }: { store: ColumnStore; row: number; details: CaseDetails; t: Strings; lang: Lang; day: (d: number) => string }) {
+  const c = t.case;
+  const items = details.duties.map((duty, k) => ({
+    id: `${duty.kind}-${k}`,
+    term: c.duty[duty.kind] ?? duty.kind,
+    description: c.dutyLine(c.dutyWhen[duty.when] ?? duty.when, groundName(duty.basis, t, lang)),
+  }));
+  const notes = details.warnings.map((code) => c.warning[code] ?? code);
+  return (
+    <>
+      {items.length === 0 ? <p className="muted">{c.noDuties}</p> : <DescriptionList layout="stacked" items={items} />}
+      <DescriptionList items={[{ id: "storage", term: c.keptUntil, description: retentionText(store, row, details, lang, day) }]} />
+      {notes.length > 0 && (
+        <Callout tone="warning" role="none" title={c.warnings}>
+          <ul className="case-card__notes">
+            {notes.map((note, k) => (
+              <li key={k}>{note}</li>
+            ))}
+          </ul>
+        </Callout>
+      )}
+    </>
+  );
 }
 
 function ChannelTimeline({ events, t, lang, day, time }: { events: TimelineEvent[]; t: Strings; lang: Lang; day: (d: number) => string; time: (ms: number) => string }) {
