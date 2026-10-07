@@ -22,6 +22,7 @@ export type OperationCode = wasm.OperationCode;
 export type AmlDecisionCode = wasm.AmlDecisionCode;
 export type ExtensionGroundCode = wasm.ExtensionGroundCode;
 export type ActCode = wasm.ActCode;
+export type NoSubstanceCode = wasm.NoSubstanceCode;
 
 export class RulesError extends Error {
   constructor(readonly code: string) {
@@ -125,20 +126,40 @@ export type CaseFacts = {
   breachOn?: Day;
   extension?: { ground: ExtensionGroundCode; workingDays: number };
   standardBreachFound?: boolean;
+  /* Left without a reply on substance, on this ground */
+  noSubstance?: NoSubstanceCode;
+  /* The correspondence stopped on a repeated complaint */
+  stopCorrespondence?: boolean;
   blocked?: {
     operation: OperationCode;
     on: Day;
     confirmedOn?: Day;
     databaseMatchAfterConfirmation?: boolean;
-    exclusionRequestRegisteredOn?: Day;
     refundClaimReceivedOn?: Day;
+  };
+  /* The client's own data in the Bank of Russia's database (161-FZ
+     art. 9, Directive No. 6748-U) */
+  database?: {
+    instrumentSuspendedOn?: Day;
+    policeInformation?: boolean;
+    dataRemovedOn?: Day;
+    exclusionReceivedByOperatorOn?: Day;
+    exclusionDataMissing?: boolean;
+    exclusionReceivedByBankOfRussiaOn?: Day;
+    exclusionDecisionReceivedOn?: Day;
+    bankOfRussiaQueryReceivedOn?: Day;
   };
   aml?: {
     decision?: { kind: AmlDecisionCode; on: Day };
     documentsSubmittedOn?: Day;
     commissionAppliedOn?: Day;
+    /* The commission's request to the organisation, and the working days
+       it gives (at least 3) */
+    commissionRequest?: { receivedOn: Day; workingDays?: number };
+    commissionDecidedOn?: Day;
     highRiskMeasuresOn?: Day;
     highRiskNoticeReceivedOn?: Day;
+    ratingReviewReceivedOn?: Day;
   };
 };
 
@@ -165,10 +186,15 @@ export type Deadline = {
 
 export type Duty = { kind: string; when: string; basis: Basis };
 
+/* A measure taken (`suspend_order`, `refuse_operation`, ...), the day it
+   takes effect, and its ground */
+export type Measure = { kind: string; on: Day; basis: Basis };
+
 export type Clock = {
   regime: "complaint" | "ombudsman_claim";
   deadlines: Deadline[];
   duties: Duty[];
+  measures: Measure[];
   warnings: string[];
   refusals: string[];
   /* The reply's last day, extended when an extension was allowed */
@@ -190,14 +216,26 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     i.extensionWorkingDays = f.extension.workingDays;
   }
   if (f.standardBreachFound !== undefined) i.standardBreachFound = f.standardBreachFound;
+  if (f.noSubstance !== undefined) i.noSubstance = f.noSubstance;
+  if (f.stopCorrespondence !== undefined) i.stopCorrespondence = f.stopCorrespondence;
   if (f.blocked !== undefined) {
     const b = f.blocked;
     i.blockedOperation = b.operation;
     i.blockedOn = b.on;
     if (b.confirmedOn !== undefined) i.confirmedOn = b.confirmedOn;
     if (b.databaseMatchAfterConfirmation !== undefined) i.databaseMatchAfterConfirmation = b.databaseMatchAfterConfirmation;
-    if (b.exclusionRequestRegisteredOn !== undefined) i.exclusionRequestRegisteredOn = b.exclusionRequestRegisteredOn;
     if (b.refundClaimReceivedOn !== undefined) i.refundClaimReceivedOn = b.refundClaimReceivedOn;
+  }
+  if (f.database !== undefined) {
+    const db = f.database;
+    if (db.instrumentSuspendedOn !== undefined) i.instrumentSuspendedOn = db.instrumentSuspendedOn;
+    if (db.policeInformation !== undefined) i.policeInformation = db.policeInformation;
+    if (db.dataRemovedOn !== undefined) i.dataRemovedOn = db.dataRemovedOn;
+    if (db.exclusionReceivedByOperatorOn !== undefined) i.exclusionReceivedByOperatorOn = db.exclusionReceivedByOperatorOn;
+    if (db.exclusionDataMissing !== undefined) i.exclusionDataMissing = db.exclusionDataMissing;
+    if (db.exclusionReceivedByBankOfRussiaOn !== undefined) i.exclusionReceivedByBankOfRussiaOn = db.exclusionReceivedByBankOfRussiaOn;
+    if (db.exclusionDecisionReceivedOn !== undefined) i.exclusionDecisionReceivedOn = db.exclusionDecisionReceivedOn;
+    if (db.bankOfRussiaQueryReceivedOn !== undefined) i.bankOfRussiaQueryReceivedOn = db.bankOfRussiaQueryReceivedOn;
   }
   if (f.aml !== undefined) {
     const a = f.aml;
@@ -207,6 +245,12 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     }
     if (a.documentsSubmittedOn !== undefined) i.documentsSubmittedOn = a.documentsSubmittedOn;
     if (a.commissionAppliedOn !== undefined) i.commissionAppliedOn = a.commissionAppliedOn;
+    if (a.commissionRequest !== undefined) {
+      i.commissionRequestReceivedOn = a.commissionRequest.receivedOn;
+      if (a.commissionRequest.workingDays !== undefined) i.commissionRequestWorkingDays = a.commissionRequest.workingDays;
+    }
+    if (a.commissionDecidedOn !== undefined) i.commissionDecidedOn = a.commissionDecidedOn;
+    if (a.ratingReviewReceivedOn !== undefined) i.ratingReviewReceivedOn = a.ratingReviewReceivedOn;
     if (a.highRiskMeasuresOn !== undefined) i.highRiskMeasuresOn = a.highRiskMeasuresOn;
     if (a.highRiskNoticeReceivedOn !== undefined) i.highRiskNoticeReceivedOn = a.highRiskNoticeReceivedOn;
   }
@@ -254,11 +298,36 @@ export function clock(facts: CaseFacts): Clock {
           d.free();
           return duty;
         }),
+        measures: c.measures.map((m) => {
+          const measure: Measure = { kind: m.kind, on: m.on, basis: basis(m.basis) };
+          m.free();
+          return measure;
+        }),
         warnings: c.warnings,
         refusals: c.refusals,
         replyDue: c.replyDue ?? null,
       };
       c.free();
+      return out;
+    } finally {
+      input.free();
+    }
+  });
+}
+
+/* The last day of a request for facts to another unit: two working days,
+   an internal policy and not a term of any law, capped by the earliest
+   external term that binds the answering unit (`cappedBy`, a deadline
+   code, or null when the policy's day stands). */
+export type FactRequestDue = { due: Day; policyDue: Day; cappedBy: string | null };
+
+export function factRequestDue(facts: CaseFacts, sentOn: Day): FactRequestDue {
+  return call(() => {
+    const input = caseInput(facts);
+    try {
+      const f = wasm.factRequestDue(input, sentOn);
+      const out: FactRequestDue = { due: f.due, policyDue: f.policyDue, cappedBy: f.cappedBy ?? null };
+      f.free();
       return out;
     } finally {
       input.free();
