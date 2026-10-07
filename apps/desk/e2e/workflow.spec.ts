@@ -55,15 +55,17 @@ test("the reviewer returns a reply for rework: a reason is asked for, the journa
   await expect(box).toBeHidden();
   // The Return button went with the stage: the focus is on the work's heading.
   await expect(heading(page)).toBeFocused();
-  await expect(page.locator(".case__status")).toContainText("Drafting");
-  await expect(page.locator(".case__status")).toContainText(w.returned);
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Drafting");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText(w.returned);
   const last = journal(page).getByRole("listitem").last();
   await expect(last).toContainText("Returned for rework");
   await expect(last).toContainText("Legal review → Drafting");
   await expect(last).toContainText("Reviewer K. Saburova");
   await expect(last).toContainText("Reason: The legal ground is wrong");
   await expect(last).toContainText("Comment: The block rests on part 3.4, not 3.10.");
-  await expect(last).toContainText("Oct 6, 2026");
+  // The entry's time, under its day's heading.
+  await expect(last.locator("time")).toHaveText(/\d{1,2}:\d{2}/);
+  await expect(journal(page).locator(".stoa-timeline__day").last().getByRole("heading")).toHaveText("October 6, 2026");
   await expect(page.getByRole("status").filter({ hasText: `${REVIEW_CASE} is now at “Drafting”.` }).first()).toBeAttached();
   // At drafting the reviewer has nothing to do.
   await expect(work(page)).toContainText(w.nothingToDo("Drafting"));
@@ -75,7 +77,7 @@ test("the reviewer approves a decided reply for signature, by keyboard; the sign
   await approve.focus();
   await page.keyboard.press("Enter");
   await expect(heading(page)).toBeFocused();
-  await expect(page.locator(".case__status")).toContainText("Awaiting signature");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Awaiting signature");
   await expect(journal(page).getByRole("listitem").last()).toContainText("Approved for signature");
   await expect(journal(page).getByRole("listitem").last()).toContainText("Legal review → Awaiting signature");
   // The queue holds the change: the case is in the awaiting-signature view.
@@ -102,11 +104,11 @@ test("the assistant's handover goes on the case once a person confirms it: legal
   await alert.getByRole("button", { name: en.confirm.confirm.reply }).click();
   await expectPlanState(page, "finished");
   // The run handed over in its own log; the case is not moved yet.
-  await expect(page.locator(".case__status")).toContainText("Registered");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Registered");
   const step = runSteps(page).nth(4);
   await expect(step).toContainText(w.handover.confirmTitle);
   await step.getByRole("button", { name: w.handover.confirm }).click();
-  await expect(page.locator(".case__status")).toContainText("Legal review");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Legal review");
   await expect(step).toContainText("On the case: “Legal review”, The assistant, confirmed by V. Lanskaya");
   await expect(step).toContainText(w.handover.draftKept);
   await expect(step.getByRole("button", { name: /Undo/ })).toHaveCount(0);
@@ -138,7 +140,7 @@ test("a handover the person confirmed in the run goes on the case at once", asyn
     await expect(alert).toBeHidden();
   }
   await expectPlanState(page, "finished");
-  await expect(page.locator(".case__status")).toContainText("Legal review");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Legal review");
   await expect(runSteps(page).nth(4)).toContainText("On the case: “Legal review”");
   await expect(runSteps(page).nth(4).getByRole("button", { name: w.handover.confirm })).toHaveCount(0);
 });
@@ -151,7 +153,7 @@ test("the handover is the operator's: another role sees why it is not on the cas
   await (await dialog(page)).getByRole("button", { name: en.confirm.confirm.reply }).click();
   await expectPlanState(page, "finished");
   await expect(runSteps(page).nth(4)).toContainText(w.handover.notOperator);
-  await expect(page.locator(".case__status")).toContainText("Registered");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Registered");
 });
 
 for (const lang of ["ru", "en"] as const)

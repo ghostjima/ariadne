@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { Callout, EmptyState, LogView, Panel, StatBar, type LogLine, type StatBarItem } from "@ghostjima/stoa-react";
 import { stepStatusOf, type LogEntry } from "@ariadne/runner";
 import { logLine, stepTitle, type Text } from "../text";
-import type { StepView } from "./hooks";
+import { neverReached, type StepView } from "./hooks";
 
 export function LogPanel({ x, log, steps }: { x: Text; log: LogEntry[]; steps: StepView[] }) {
   const { t, f } = x;
@@ -46,13 +46,15 @@ export type SummaryProps = {
 
 export function SummaryPanel({ x, steps, log, stopped, stoppedAfter, startedAt, finishedAt, asked, events }: SummaryProps) {
   const { t, f } = x;
-  const count = (status: string) => steps.filter((s) => stepStatusOf(s.snapshot.value) === status).length;
+  const count = (status: string) => steps.filter((s) => stepStatusOf(s.snapshot.value) === status && !neverReached(s.snapshot)).length;
+  const notRun = steps.filter((s) => neverReached(s.snapshot)).length;
   const errors = log.filter((e) => e.kind === "event" && e.event.type === "step.error").length;
   const seconds = startedAt !== null && finishedAt !== null ? Math.max(0, finishedAt - startedAt) / 1000 : 0;
   const after = stoppedAfter ? steps.findIndex((s) => s.id === stoppedAfter) : -1;
   const items: StatBarItem[] = [
     { kind: "metric", label: t.summary.done, value: count("done") },
     { kind: "metric", label: t.summary.skipped, value: count("skipped") },
+    { kind: "metric", label: t.summary.notRun, value: notRun },
     { kind: "metric", label: t.summary.undone, value: count("undone") },
     { kind: "metric", label: t.summary.asked, value: asked },
     { kind: "metric", label: t.summary.errors, value: errors },

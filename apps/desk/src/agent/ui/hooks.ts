@@ -10,6 +10,13 @@ export function useSession(session: RunSession): SessionSnapshot {
 export type StepSnapshot = ReturnType<StepActorRef["getSnapshot"]>;
 export type StepView = { id: string; snapshot: StepSnapshot };
 
+/** A step the run never reached: skipped because the run was stopped
+ * before it started (Stoa's StepList calls it "not run"). A step stopped
+ * while it asked or after it failed was reached, and stays skipped. */
+export function neverReached(snapshot: StepSnapshot): boolean {
+  return snapshot.matches("skipped") && snapshot.context.skipReason === "stopped_by_user" && snapshot.context.startedAt === null;
+}
+
 const EMPTY: StepView[] = [];
 
 /** The snapshots of every step actor of the run, in the run's order. The

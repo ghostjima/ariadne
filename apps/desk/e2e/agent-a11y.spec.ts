@@ -38,7 +38,7 @@ for (const lang of LANGS)
       await expectNoSeriousViolations(page, "failed step", { lang, theme });
       await page.getByRole("button", { name: t.step.retry, exact: true }).click();
       // The reply's confirmation, with the letter, over the undo countdown
-      // (its toast steps aside while the dialog is open).
+      // (its toast waits behind the dialog, its region inert).
       await expect(confirmation(page).locator(".reply-draft")).toBeVisible();
       await expectNoSeriousViolations(page, "confirmation with the reply draft", { lang, theme });
       await page.keyboard.press("p"); // no effect while waiting; the dialog stays
@@ -225,7 +225,7 @@ test("Run, or the reason there is none, and the run service's state are on the f
     }
     const id = (await idCell(row).textContent())!.trim();
     await page.keyboard.press("o");
-    await expect(page.locator(".case__heading")).toContainText(`${id}, `);
+    await expect(page.locator("#case-heading")).toContainText(`${id}, `);
     await expect(planBar).toBeVisible();
     const top = (await planBar.boundingBox())!.y;
     if (top > tallest.top) tallest = { id, top };

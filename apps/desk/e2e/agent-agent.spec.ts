@@ -116,13 +116,19 @@ test("a run by keyboard: R runs, the agent's request and the draft focus the saf
   await expectPlanState(page, "stopped");
   await expect(confirmation(page)).toHaveCount(0);
   await expect(page.locator(".summary")).toContainText("The run was stopped after step 2.");
+  // The step stopped while it asked was reached: skipped.
+  await expect(runSteps(page).nth(2)).toContainText("Skipped");
   await expect(runSteps(page).nth(2)).toContainText("the run was stopped");
-  // The steps the run never reached say so; none is left waiting.
+  // The steps the run never reached say so in Stoa's words; none is left
+  // waiting, and the summary counts them apart from the skipped one.
   for (let i = 3; i < 5; i += 1) {
-    await expect(runSteps(page).nth(i)).toContainText("Skipped");
+    await expect(runSteps(page).nth(i)).toContainText("Not run");
+    await expect(runSteps(page).nth(i)).not.toContainText("Skipped");
     await expect(runSteps(page).nth(i)).toContainText("the run was stopped");
     await expect(runSteps(page).nth(i)).not.toContainText(en.step.willAsk);
   }
+  await expect(page.locator(".summary").getByRole("definition").nth(1)).toHaveText("1");
+  await expect(page.locator(".summary").getByRole("definition").nth(2)).toHaveText("2");
   await expect(page.locator('.agent [role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText(en.announce.stopped);
   const log = await logLines(page);
   expect(log.filter((l) => l.includes("You kept step 2 as planned."))).toHaveLength(1);
@@ -216,12 +222,19 @@ test("the undo window: a toast with Undo and a countdown; Undo recalls the reque
   await retryButton(page).click();
 
   // Sent to another team. The draft's confirmation opens next: the toast
-  // steps aside while it is open (on a phone it would cover its buttons).
-  const toast = page.locator(".stoa-toast").filter({ hasText: "Facts requested from operations, due Oct 8, 2026." });
+  // waits behind it, its region inert (no pointer, Tab or F6 reaches it,
+  // and on a phone it covers none of the dialog's buttons).
+  const region = page.locator(".stoa-toast-region");
+  const toast = region.locator(".stoa-toast").filter({ hasText: "Facts requested from operations, due Oct 8, 2026." });
   await dialog(page);
-  await expect(toast).toHaveCount(0);
+  await expect(toast).toHaveCount(1);
+  await expect(region).toHaveAttribute("inert", "");
+  await page.keyboard.press("F6");
+  expect(await page.evaluate(() => !!document.activeElement?.closest(".stoa-toast-region"))).toBe(false);
   await (await dialog(page)).getByRole("button", { name: en.confirm.skip }).click();
-  // Back once the dialog has closed, with Undo; the step shows the time left.
+  // Usable once the dialog has closed, with Undo; the step shows the time
+  // left.
+  await expect(region).not.toHaveAttribute("inert");
   await expect(toast).toBeVisible();
   await expect(toast).toContainText("Undo is possible until");
   const countdown = runSteps(page).nth(1).getByRole("progressbar", { name: "Undo window of step 2" });
@@ -309,7 +322,7 @@ test("a whole run: the draft under its step, the rubric's check, a summary", asy
   await expect(runSteps(page).nth(4)).toContainText("Case C-001191 handed to legal review; the reply is due by Oct 27, 2026.");
   const summary = page.locator(".summary");
   await expect(summary).toContainText(en.summary.finished);
-  await expect(summary.getByRole("term")).toHaveText([en.summary.done, en.summary.skipped, en.summary.undone, en.summary.asked, en.summary.errors, en.summary.duration, en.summary.events]);
+  await expect(summary.getByRole("term")).toHaveText([en.summary.done, en.summary.skipped, en.summary.notRun, en.summary.undone, en.summary.asked, en.summary.errors, en.summary.duration, en.summary.events]);
   await expect(summary.getByRole("definition").first()).toHaveText("5");
   await expect(page.locator('.agent [role="status"][aria-live="polite"][aria-atomic="true"]').last()).toHaveText("Run finished: 5 of 5 steps done.");
   // New plan: the fact request's undo window is still open, so it asks

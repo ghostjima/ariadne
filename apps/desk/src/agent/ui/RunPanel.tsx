@@ -5,7 +5,7 @@ import { Button, ButtonGroup, Callout, Panel, ProgressBar, StatusBadge, StepList
 import { requiresConfirmation, stepStatusOf, type Autonomy } from "@ariadne/runner";
 import type { SessionSnapshot, StreamStatus } from "../session";
 import { errorText, stepTitle, summaryText, undoText, type Text } from "../text";
-import { useNow, type StepView } from "./hooks";
+import { neverReached, useNow, type StepView } from "./hooks";
 import { StepFacts } from "./PlanPanel";
 
 const STATUS_TONE: Record<StreamStatus, StatusTone> = {
@@ -106,7 +106,7 @@ export function RunPanel(props: RunPanelProps) {
 
   const items: Step[] = steps.map(({ id, snapshot }, index) => {
     const ctx = snapshot.context;
-    const status = stepStatusOf(snapshot.value);
+    const status: Step["status"] = neverReached(snapshot) ? "notRun" : stepStatusOf(snapshot.value);
     const position = f.int(index + 1);
     const title = stepTitle(x, ctx.step);
     let explanation: ReactNode = null;
@@ -184,6 +184,7 @@ export function RunPanel(props: RunPanelProps) {
         break;
       }
       case "skipped":
+      case "notRun":
         explanation = ctx.skipReason ? t.skipReason[ctx.skipReason] : null;
         break;
       case "undone":

@@ -3,6 +3,7 @@
 // letter signed in the page counted from its own texts, and the register's
 // signed letters worked out the same way every time.
 import { describe, expect, it } from "vitest";
+import { diffStats, diffWords, type DiffPart as StoaPart } from "@ghostjima/stoa-react";
 import { Source, Stage, caseJournal, effectiveDue, generateAll, isAnswered, workingDaysLeft } from "@ariadne/grid";
 import { strings as agentStrings } from "../agent/i18n";
 import { makeFmt } from "../agent/format";
@@ -10,7 +11,7 @@ import type { Text } from "../agent/text";
 import { POOLS } from "../data/query";
 import { signLetter, type CaseFiles } from "../workflow/caseFile";
 import { cameToSignature, currentLetter } from "../workflow/letter";
-import { changeStats, diffText } from "../workflow/textDiff";
+import { changeStats, diffText, type DiffPart } from "../workflow/textDiff";
 import { supervisionStrings } from "./i18n";
 import { LIGHT_SHARE, measure, signedLetterOf } from "./measure";
 
@@ -64,6 +65,21 @@ describe("the supervisor's measures", () => {
     expect(m.all.overrides).toBeGreaterThan(0);
     for (const l of letters.slice(0, 50)) if (l.decision === "approve") expect(l.signed).toBe(l.draft);
     expect(measure(x, w, store, files)).toEqual(m);
+  });
+
+  it("the share of light edits is the desk's own count, which Stoa's diff does not give: compared on every signed letter of the register", () => {
+    const letters = rows.flatMap((i) => signedLetterOf(x, w, store, i, files) ?? []);
+    const desk = letters.map((l) => changeStats(diffText(l.draft, l.signed)));
+    expect(m.all.light).toBe(desk.filter((s) => s.share <= LIGHT_SHARE).length);
+    // Stoa's share, deleted plus inserted over both texts, is another
+    // measure: it puts other letters under 20%.
+    const stoaShare = letters.map((l) => diffStats(diffWords(l.draft, l.signed)).changed);
+    expect(stoaShare.filter((s) => s <= LIGHT_SHARE).length).not.toBe(m.all.light);
+    // This count taken over Stoa's word diff is not the same either: its
+    // tokens and passages differ, so some letters get other counts.
+    const kind = { equal: "same", deleted: "removed", inserted: "added" } as const;
+    const overStoa = letters.map((l) => changeStats(diffWords(l.draft, l.signed).map((p: StoaPart): DiffPart => ({ kind: kind[p.kind], text: p.text }))));
+    expect(overStoa.filter((s, k) => s.changed !== desk[k]!.changed || s.base !== desk[k]!.base).length).toBeGreaterThan(0);
   });
 
   it("is quick enough to compute when the view opens", () => {

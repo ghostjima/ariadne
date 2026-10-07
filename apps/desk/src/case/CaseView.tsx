@@ -1,12 +1,28 @@
 // One case, in one window: the work on it (its stage, what the role may do
 // now, its journal) and its card, and the assistant beside them. The
-// header says which case, where it stands and how long is left; Back to
-// the queue (Q) returns to the row it was opened from. On a wide screen the
+// header (Stoa's DetailHeader) says which case, where it stands and how
+// long is left, and takes the focus when the case opens; Back to the queue
+// (Q) puts the focus on the row it was opened from (focusWhenReady), once
+// the queue is drawn again. On a wide screen the
 // card and the assistant sit side by side; on a narrower one they are two
 // tabs, so the assistant's Run is never a long scroll away.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
-import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, useShortcuts, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
+import {
+  Button,
+  Countdown,
+  DetailHeader,
+  ProgressBar,
+  Tabs,
+  Tag,
+  VisuallyHidden,
+  focusWhenReady,
+  useBreakpoint,
+  useShortcuts,
+  type FocusTarget,
+  type Shortcut,
+  type ToastQueue,
+} from "@ghostjima/stoa-react";
 import { Stage, caseFacts, clientName, isAnswered, rowId, wasReturned, workingDaysLeft, type ColumnStore, type Role } from "@ariadne/grid";
 import type { ReplyDraft } from "@ariadne/runner";
 import { AgentPanel } from "../agent/AgentPanel";
@@ -50,6 +66,9 @@ export type CaseViewProps = {
   service: RunService;
   toasts: ToastQueue;
   onBack: () => void;
+  /** Where the focus lands after Back or Q: the queue's active cell, drawn
+   * again once the case is closed. */
+  backFocus: FocusTarget;
   onOpenCase: (row: number) => void;
   role: Role;
   /** What the desk keeps with each case: the draft handed over. */
@@ -73,13 +92,12 @@ export type CaseViewProps = {
 };
 
 export function CaseView(props: CaseViewProps) {
-  const { store, row, lang, t, version, service, toasts, onBack, onOpenCase, role, files, onTransition, onHandover } = props;
+  const { store, row, lang, t, version, service, toasts, onBack, backFocus, onOpenCase, role, files, onTransition, onHandover } = props;
   const ready = useRules();
   const breakpoint = useBreakpoint();
   const wide = breakpoint === "wide";
   const [tab, setTab] = useState<"card" | "assistant">(() => (new URLSearchParams(location.search).get("panel") === "assistant" ? "assistant" : "card"));
   const [helpOpen, setHelpOpen] = useState(false);
-  const heading = useRef<HTMLHeadingElement>(null);
   const { pools, labels } = POOLS[lang];
   const c = t.case;
   const id = rowId(row);
@@ -89,13 +107,13 @@ export function CaseView(props: CaseViewProps) {
   // text (brief.ts); the session is made once the rules have loaded.
   const session = ready ? sessionFor(row, caseBrief(store, row), service.transport) : null;
 
-  // The case's heading takes the focus when the case opens, so the next
-  // Tab starts in the case, never at the top of the page.
-  useEffect(() => {
-    heading.current?.focus({ preventScroll: false });
-  }, [row]);
-
-  const shortcuts: Shortcut[] = [{ key: "q", description: c.keys.back, group: c.keysGroup, onTrigger: onBack }];
+  // Q does what Back does: the focus goes to the queue's row once it is
+  // drawn, never to the page's body in between.
+  const back = () => {
+    focusWhenReady(backFocus);
+    onBack();
+  };
+  const shortcuts: Shortcut[] = [{ key: "q", description: c.keys.back, group: c.keysGroup, onTrigger: back }];
   // The assistant's panel lists Q with its own keys and listens for it;
   // until the panel is there (the rules module is still loading), the view
   // listens for Q itself, so Back to the queue works from the first moment.
@@ -200,30 +218,34 @@ export function CaseView(props: CaseViewProps) {
 
   return (
     <section className="case" aria-labelledby="case-heading">
-      <div className="case__bar">
-        <Button variant="ghost" onPress={onBack} shortcut={breakpoint === "narrow" ? undefined : { key: "q" }}>
-          {c.back}
-        </Button>
-        <h2 id="case-heading" ref={heading} tabIndex={-1} className="case__heading">
-          {c.region(id, name)}
-        </h2>
-        <div className="case__status">
-          <Tag size="small">{labels.stream[store.stream[row] ?? 0]}</Tag>
-          <StatusBadge tone={stageTone(stage) ?? "neutral"}>{labels.stage[stage]}</StatusBadge>
-          {ready && stage === Stage.Drafting && wasReturned(store, row) && (
-            <Tag size="small" tone="warning">
-              {workflowStrings[lang].returned}
-            </Tag>
-          )}
-          {!isAnswered(store, row) && <Countdown left={workingDaysLeft(store, row)} unit="workingDays" warnAt={DUE_SOON} />}
-        </div>
-        {breakpoint !== "narrow" && (
-          // A phone has no keys to list; "?" still opens the list.
-          <Button variant="ghost" onPress={() => setHelpOpen(true)} shortcut={{ key: "?" }}>
-            {c.shortcuts}
-          </Button>
-        )}
-      </div>
+      <DetailHeader
+        // A case opened from the card (a linked one) takes the focus too.
+        key={row}
+        title={c.region(id, name)}
+        titleId="case-heading"
+        focusOnOpen
+        back={{ onBack, focusAfter: backFocus, label: c.back, shortcut: breakpoint === "narrow" ? undefined : { key: "q" } }}
+        status={{ tone: stageTone(stage) ?? "neutral", label: labels.stage[stage] }}
+        meta={
+          <>
+            <Tag size="small">{labels.stream[store.stream[row] ?? 0]}</Tag>
+            {ready && stage === Stage.Drafting && wasReturned(store, row) && (
+              <Tag size="small" tone="warning">
+                {workflowStrings[lang].returned}
+              </Tag>
+            )}
+            {!isAnswered(store, row) && <Countdown left={workingDaysLeft(store, row)} unit="workingDays" warnAt={DUE_SOON} />}
+          </>
+        }
+        actions={
+          breakpoint !== "narrow" && (
+            // A phone has no keys to list; "?" still opens the list.
+            <Button variant="ghost" onPress={() => setHelpOpen(true)} shortcut={{ key: "?" }}>
+              {c.shortcuts}
+            </Button>
+          )
+        }
+      />
       {wide ? (
         <div className="case__body">
           {card}

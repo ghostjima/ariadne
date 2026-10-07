@@ -18,9 +18,9 @@ it that proposes and stops for a person at every risky step. In Russian
   `?rows=50000` opens the scale mode, the same generator over 50,000
   rows.
 - **The time left** in working days, counted from the day the data is
-  taken (6 October 2026) by ariadne-rules on its production calendar, in
-  the words and with the symbol of Stoa's DeadlineCell: an exclamation
-  mark within 3 working days, a cross once overdue. The stage carries a
+  taken (6 October 2026) by ariadne-rules on its production calendar,
+  drawn in the grid by Stoa's DeadlineCell: an exclamation mark within 3
+  working days, a cross once overdue. The stage carries a
   tone too: a tick once answered, an exclamation mark while a reply waits
   for its signature.
 - **Filters with counts** in Stoa's FilterBar: stage, deadline (overdue,
@@ -193,8 +193,9 @@ do (high risk always asks: no setting lowers that floor), a failed step
 waits for Retry, Skip or Stop, the assistant asks before it leaves the
 plan, Stop is one key away at every moment, and what was done can be
 undone: internal changes at any time, the fact request within a window
-that is counted down on screen (its toast steps aside while a
-confirmation is open). A summary closes the run. Each case keeps its own
+that is counted down on screen (while a confirmation is open, its toast
+waits behind it, out of reach, and its time stands still). A summary
+closes the run, and steps the run never reached show as not run. Each case keeps its own
 run while the page is open. What the run does stays in the run and its
 log, with one exception: the handover. Once a person confirms it (in the
 run, when the step asked, or with Confirm the handover under the
@@ -274,15 +275,18 @@ worker the same code runs on the main thread.
 
 The interface is React and TypeScript on the
 [Stoa](https://github.com/ghostjima/stoa) design system: DataGrid with
-its tones, DataGridColumnChooser, DataGridSelectionBar, FilterBar,
-Countdown, DeadlineCell's words, DerivationTable, Table, Tabs, and the
-preferences, formatter and breakpoint helpers. These pieces are the
-desk's own, thin and kept apart, and candidates for Stoa: the case
-timeline and the journal (a dated list of what happened, oldest first),
-the case view's header bar, the letter with its signatory line
-(`workflow/LetterView.tsx`), the rubric's findings (`ReplyCheck`), the
-text diff (`workflow/textDiff.ts`, drawn by `workflow/DiffView.tsx`) and
-a text field of several lines (`workflow/TextArea.tsx`).
+its tones and drawn cells (DeadlineCell for the time left),
+DataGridColumnChooser, DataGridSelectionBar, FilterBar, Countdown,
+DerivationTable, Table, Tabs, Timeline (the card's flags and channel
+timeline, and the case's journal), DetailHeader (the open case's header,
+with `focusWhenReady` for Back and Q), Letter (the assistant's draft, the
+letter under review and the signed letter), FindingsList (the rubric's
+findings), TextDiff (the review's changes), StepList, and the
+preferences, formatter and breakpoint helpers. The desk keeps its own
+count of changed characters for the measure of light edits
+(`workflow/textDiff.ts`: per changed passage, the longer side, over the
+draft), which is not TextDiff's share, and a text field of several lines
+(`workflow/TextArea.tsx`).
 
 ## Accessibility, as far as the tests go
 
