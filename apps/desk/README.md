@@ -342,7 +342,10 @@ runner); `lang` and the theme set before the application's script runs;
 no sideways page scroll at 1280 and 375 px in both languages, every grid
 column reachable and editable at 375 px, and Run on the first screen of
 the assistant at 1280x800 and 375x812 (for a case past drafting, the
-reason there is no Run, at 375x812 in Russian); the header staying put while the
+reason there is no Run, at 375x812 in Russian, for the open case whose
+Run or reason ends lowest, found by opening every open case); at 375 px
+the plan's bar inside its panel and every control in it inside its
+container, in both languages; the header staying put while the
 page scrolls under it, and the scrollbars drawn in Stoa's tokens. Status
 changes are announced politely and only at the run's turns. Under
 reduced motion the undo countdown still counts, without animating.

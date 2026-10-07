@@ -122,6 +122,41 @@ for (const width of [1280, 375])
       expect(await sideways()).toEqual([0, 0]);
     });
 
+// The plan's bar on a phone: the bar stays inside its panel, and every
+// control in it (its row of buttons, Run, Restore) inside its own
+// container, in both languages. Russian is the longer one: there the step
+// list's widest row once widened the panel's column past the panel, and
+// the bar, with Restore at its end, ran past the panel's right edge.
+for (const lang of LANGS)
+  test(`at 375 px no control in the plan's bar is wider than its container, in ${lang}`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(agentUrl(`lang=${lang}`));
+    await serviceReady(page, lang);
+    const misfits = await page.locator(".agent .plan").evaluate((panel) => {
+      const out: string[] = [];
+      const name = (el: Element) => `${el.tagName.toLowerCase()}${el.className ? `.${String(el.className).split(" ")[0]}` : ""} "${(el.textContent ?? "").trim().slice(0, 24)}"`;
+      // An element's box against its container's: the bar against its
+      // panel's border box (the bar reaches into the panel's padding on
+      // purpose), every control against its container's content box.
+      const within = (el: Element, container: Element, inner: boolean) => {
+        const box = el.getBoundingClientRect();
+        const c = container.getBoundingClientRect();
+        const style = getComputedStyle(container);
+        const start = inner ? parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart) : 0;
+        const end = inner ? parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd) : 0;
+        if (box.left < c.left + start - 0.5 || box.right > c.right - end + 0.5)
+          out.push(`${name(el)} ${Math.round(box.left)}..${Math.round(box.right)} in ${name(container)} ${Math.round(c.left + start)}..${Math.round(c.right - end)}`);
+        if (el.scrollWidth > el.clientWidth + 0.5) out.push(`${name(el)} clips its content`);
+      };
+      const bar = panel.querySelector(".plan-bar")!;
+      within(bar, panel, false);
+      for (const control of bar.querySelectorAll(".actions, button")) within(control, control.parentElement!, true);
+      return out;
+    });
+    expect(misfits).toEqual([]);
+    expect(await page.getByRole("button", { name: strings[lang].plan.restore }).isVisible()).toBe(true);
+  });
+
 /** Waits until the case's assistant is drawn and its run service is
  * ready: the plan's bar is there, and neither the service's start nor its
  * failure is shown under it. */
