@@ -150,7 +150,7 @@ pub const PAYMENT_LAW_8: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 8",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/cbc4acba397e1a1aebba6be746102a90208db5b4/",
     revision: "2026-08-04",
-    checked: "2026-10-06",
+    checked: "2026-10-07",
 };
 
 /// National Payment System Law, art. 9: the client's data in the Bank of
@@ -160,7 +160,7 @@ pub const PAYMENT_LAW_9: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 9",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/",
     revision: "2026-08-04",
-    checked: "2026-10-06",
+    checked: "2026-10-07",
 };
 
 /// The Bank of Russia's letter on counting the terms of art. 8 of the
@@ -170,11 +170,27 @@ pub const ANTIFRAUD_TERMS_LETTER: Source = Source {
     title: "Письмо Банка России от 02.09.2024 N 010-31/7975 «О применении положений статьи 8 Федерального закона N 161-ФЗ в части исчисления сроков антифрод-мероприятий»",
     url: "https://www.garant.ru/products/ipo/prime/doc/409525913/",
     revision: "2024-09-02",
-    checked: "2026-10-06",
+    checked: "2026-10-07",
+};
+
+/// The Bank of Russia's Directive No. 6748-U, as amended by Directive
+/// No. 7287-U of 19.01.2026: how a client applies to remove its data from
+/// the database, what the operator does with an application filed through
+/// it, and the Bank of Russia's 15 working days from receipt. The text was
+/// read in a full-text copy; the revision was confirmed on consultant.ru.
+pub const DIRECTIVE_6748_U: Source = Source {
+    id: "directive_6748_u",
+    title: "Указание Банка России от 13.06.2024 N 6748-У «О порядке подачи клиентом оператора по переводу денежных средств в Банк России заявления об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента, порядке принятия Банком России мотивированного решения об удовлетворении или об отказе в удовлетворении заявления клиента оператора по переводу денежных средств или мотивированного заявления оператора по переводу денежных средств об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента и порядке получения оператором по переводу денежных средств информации об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента»",
+    url: "https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/",
+    revision: "2026-01-19",
+    checked: "2026-10-07",
 };
 
 /// The Bank of Russia's page on requests to remove data from its
-/// database: the 15 working days run from the request's registration.
+/// database. It says the 15 working days run from the request's
+/// registration; Directive No. 6748-U, which binds, counts them from the
+/// day the Bank of Russia receives the request, and the engine follows
+/// the directive.
 pub const BANK_OF_RUSSIA_EXCLUSION_PAGE: Source = Source {
     id: "cbr_exclusion_page",
     title: "Банк России, «Заявление об исключении сведений из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента»",
@@ -262,6 +278,7 @@ pub const ALL: &[Source] = &[
     PAYMENT_LAW_8,
     PAYMENT_LAW_9,
     ANTIFRAUD_TERMS_LETTER,
+    DIRECTIVE_6748_U,
     BANK_OF_RUSSIA_EXCLUSION_PAGE,
     AML_LAW_7,
     AML_LAW_7_7,

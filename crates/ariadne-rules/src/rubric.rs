@@ -255,6 +255,8 @@ fn stated_to_client(kind: DeadlineKind) -> bool {
             | AntifraudConfirmation
             | AntifraudRepeatSuspensionEnds
             | AntifraudAfterRepeatSuspension
+            | AntifraudRepeatRefusalEnds
+            | AntifraudAfterRepeatRefusal
             | ExclusionDecision
             | AntifraudRefund
             | AmlDocumentsAnswer

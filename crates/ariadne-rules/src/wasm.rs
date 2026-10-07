@@ -173,10 +173,26 @@ pub struct CaseInput {
     pub confirmed_on: Option<String>,
     #[wasm_bindgen(js_name = databaseMatchAfterConfirmation)]
     pub database_match_after_confirmation: bool,
-    #[wasm_bindgen(js_name = exclusionRequestRegisteredOn)]
-    pub exclusion_request_registered_on: Option<String>,
     #[wasm_bindgen(js_name = refundClaimReceivedOn)]
     pub refund_claim_received_on: Option<String>,
+    /// The day the client's card or online banking was suspended for the
+    /// client's own data in the Bank of Russia's database.
+    #[wasm_bindgen(js_name = instrumentSuspendedOn)]
+    pub instrument_suspended_on: Option<String>,
+    #[wasm_bindgen(js_name = policeInformation)]
+    pub police_information: bool,
+    #[wasm_bindgen(js_name = dataRemovedOn)]
+    pub data_removed_on: Option<String>,
+    #[wasm_bindgen(js_name = exclusionReceivedByOperatorOn)]
+    pub exclusion_received_by_operator_on: Option<String>,
+    #[wasm_bindgen(js_name = exclusionDataMissing)]
+    pub exclusion_data_missing: bool,
+    #[wasm_bindgen(js_name = exclusionReceivedByBankOfRussiaOn)]
+    pub exclusion_received_by_bank_of_russia_on: Option<String>,
+    #[wasm_bindgen(js_name = exclusionDecisionReceivedOn)]
+    pub exclusion_decision_received_on: Option<String>,
+    #[wasm_bindgen(js_name = bankOfRussiaQueryReceivedOn)]
+    pub bank_of_russia_query_received_on: Option<String>,
     #[wasm_bindgen(js_name = amlDecision)]
     pub aml_decision: Option<AmlDecisionCode>,
     #[wasm_bindgen(js_name = amlDecisionOn)]
@@ -215,8 +231,15 @@ impl CaseInput {
             blocked_on: None,
             confirmed_on: None,
             database_match_after_confirmation: false,
-            exclusion_request_registered_on: None,
             refund_claim_received_on: None,
+            instrument_suspended_on: None,
+            police_information: false,
+            data_removed_on: None,
+            exclusion_received_by_operator_on: None,
+            exclusion_data_missing: false,
+            exclusion_received_by_bank_of_russia_on: None,
+            exclusion_decision_received_on: None,
+            bank_of_russia_query_received_on: None,
             aml_decision: None,
             aml_decision_on: None,
             documents_submitted_on: None,
@@ -304,11 +327,29 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
             stopped_on,
             confirmed_on: opt_date(&i.confirmed_on)?,
             database_match_after_confirmation: i.database_match_after_confirmation,
-            exclusion_request_registered_on: opt_date(&i.exclusion_request_registered_on)?,
             refund_claim_received_on: opt_date(&i.refund_claim_received_on)?,
         }),
         _ => return Err(Error::MissingDate),
     };
+    let database = clock::DatabaseFacts {
+        instrument_suspended_on: opt_date(&i.instrument_suspended_on)?,
+        police_information: i.police_information,
+        data_removed_on: opt_date(&i.data_removed_on)?,
+        exclusion_received_by_operator_on: opt_date(&i.exclusion_received_by_operator_on)?,
+        exclusion_data_missing: i.exclusion_data_missing,
+        exclusion_received_by_bank_of_russia_on: opt_date(
+            &i.exclusion_received_by_bank_of_russia_on,
+        )?,
+        exclusion_decision_received_on: opt_date(&i.exclusion_decision_received_on)?,
+        bank_of_russia_query_received_on: opt_date(&i.bank_of_russia_query_received_on)?,
+    };
+    let any_database = database.instrument_suspended_on.is_some()
+        || database.data_removed_on.is_some()
+        || database.exclusion_received_by_operator_on.is_some()
+        || database.exclusion_received_by_bank_of_russia_on.is_some()
+        || database.exclusion_decision_received_on.is_some()
+        || database.bank_of_russia_query_received_on.is_some();
+    case.database = any_database.then_some(database);
     let decision = match (i.aml_decision, opt_date(&i.aml_decision_on)?) {
         (None, None) => None,
         (Some(kind), Some(on)) => Some((
@@ -371,6 +412,16 @@ pub struct DutyOutput {
     pub basis: BasisOutput,
 }
 
+/// A measure taken, the day it takes effect, and its ground.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct MeasureOutput {
+    /// A measure code (`suspend_order`, `refuse_operation`, ...).
+    pub kind: String,
+    pub on: String,
+    pub basis: BasisOutput,
+}
+
 /// The legal basis of a deadline or a duty.
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone)]
@@ -396,6 +447,7 @@ pub struct ClockOutput {
     pub regime: String,
     pub deadlines: Vec<DeadlineOutput>,
     pub duties: Vec<DutyOutput>,
+    pub measures: Vec<MeasureOutput>,
     /// Warning codes.
     pub warnings: Vec<String>,
     /// Refusal codes (`extension_not_allowed`, ...).
@@ -447,6 +499,15 @@ fn to_output(c: &clock::Clock) -> ClockOutput {
                 kind: d.kind.code().to_string(),
                 when: d.when.code().to_string(),
                 basis: basis(d.basis),
+            })
+            .collect(),
+        measures: c
+            .measures
+            .iter()
+            .map(|m| MeasureOutput {
+                kind: m.kind.code().to_string(),
+                on: m.on.to_string(),
+                basis: basis(m.basis),
             })
             .collect(),
         warnings: c.warnings.iter().map(|w| w.code().to_string()).collect(),
@@ -773,6 +834,51 @@ mod tests {
             .deadlines
             .iter()
             .any(|d| d.kind == "antifraud_confirmation" && d.for_others));
+    }
+
+    #[test]
+    fn database_facts_and_measures_cross_whole() {
+        // A refused card operation on Friday 8 May 2026, and the client's
+        // card suspended on 9 May for the client's own data: the measures
+        // name their grounds, and the same-day notice and the Bank of
+        // Russia's decision (15 working days from its receipt on 12 May,
+        // 2 June) come out with them.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-08".into());
+        i.blocked_operation = Some(OperationCode::CardSbpOrEmoney);
+        i.blocked_on = Some("2026-05-08".into());
+        i.instrument_suspended_on = Some("2026-05-09".into());
+        i.exclusion_received_by_bank_of_russia_on = Some("2026-05-12".into());
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        let m: Vec<_> = out
+            .measures
+            .iter()
+            .map(|m| (m.kind.as_str(), m.on.as_str(), m.basis.part.as_str()))
+            .collect();
+        assert_eq!(
+            m,
+            [
+                ("refuse_operation", "2026-05-08", "3.4, sentence 2"),
+                ("suspend_instrument", "2026-05-09", "11.6")
+            ]
+        );
+        let due = |kind: &str| {
+            out.deadlines
+                .iter()
+                .find(|d| d.kind == kind)
+                .map(|d| d.due.clone())
+        };
+        assert_eq!(
+            due("instrument_suspension_notice").as_deref(),
+            Some("2026-05-09")
+        );
+        assert_eq!(due("exclusion_decision").as_deref(), Some("2026-06-02"));
+        // Without any database fact, the case has none.
+        let mut j = i.clone();
+        j.instrument_suspended_on = None;
+        j.exclusion_received_by_bank_of_russia_on = None;
+        assert_eq!(to_case(&j).unwrap().database, None);
+        j.data_removed_on = Some("2026-5-20".into());
+        assert_eq!(to_case(&j), Err(Error::InvalidDate));
     }
 
     #[test]

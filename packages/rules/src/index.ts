@@ -130,8 +130,19 @@ export type CaseFacts = {
     on: Day;
     confirmedOn?: Day;
     databaseMatchAfterConfirmation?: boolean;
-    exclusionRequestRegisteredOn?: Day;
     refundClaimReceivedOn?: Day;
+  };
+  /* The client's own data in the Bank of Russia's database (161-FZ
+     art. 9, Directive No. 6748-U) */
+  database?: {
+    instrumentSuspendedOn?: Day;
+    policeInformation?: boolean;
+    dataRemovedOn?: Day;
+    exclusionReceivedByOperatorOn?: Day;
+    exclusionDataMissing?: boolean;
+    exclusionReceivedByBankOfRussiaOn?: Day;
+    exclusionDecisionReceivedOn?: Day;
+    bankOfRussiaQueryReceivedOn?: Day;
   };
   aml?: {
     decision?: { kind: AmlDecisionCode; on: Day };
@@ -165,10 +176,15 @@ export type Deadline = {
 
 export type Duty = { kind: string; when: string; basis: Basis };
 
+/* A measure taken (`suspend_order`, `refuse_operation`, ...), the day it
+   takes effect, and its ground */
+export type Measure = { kind: string; on: Day; basis: Basis };
+
 export type Clock = {
   regime: "complaint" | "ombudsman_claim";
   deadlines: Deadline[];
   duties: Duty[];
+  measures: Measure[];
   warnings: string[];
   refusals: string[];
   /* The reply's last day, extended when an extension was allowed */
@@ -196,8 +212,18 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     i.blockedOn = b.on;
     if (b.confirmedOn !== undefined) i.confirmedOn = b.confirmedOn;
     if (b.databaseMatchAfterConfirmation !== undefined) i.databaseMatchAfterConfirmation = b.databaseMatchAfterConfirmation;
-    if (b.exclusionRequestRegisteredOn !== undefined) i.exclusionRequestRegisteredOn = b.exclusionRequestRegisteredOn;
     if (b.refundClaimReceivedOn !== undefined) i.refundClaimReceivedOn = b.refundClaimReceivedOn;
+  }
+  if (f.database !== undefined) {
+    const db = f.database;
+    if (db.instrumentSuspendedOn !== undefined) i.instrumentSuspendedOn = db.instrumentSuspendedOn;
+    if (db.policeInformation !== undefined) i.policeInformation = db.policeInformation;
+    if (db.dataRemovedOn !== undefined) i.dataRemovedOn = db.dataRemovedOn;
+    if (db.exclusionReceivedByOperatorOn !== undefined) i.exclusionReceivedByOperatorOn = db.exclusionReceivedByOperatorOn;
+    if (db.exclusionDataMissing !== undefined) i.exclusionDataMissing = db.exclusionDataMissing;
+    if (db.exclusionReceivedByBankOfRussiaOn !== undefined) i.exclusionReceivedByBankOfRussiaOn = db.exclusionReceivedByBankOfRussiaOn;
+    if (db.exclusionDecisionReceivedOn !== undefined) i.exclusionDecisionReceivedOn = db.exclusionDecisionReceivedOn;
+    if (db.bankOfRussiaQueryReceivedOn !== undefined) i.bankOfRussiaQueryReceivedOn = db.bankOfRussiaQueryReceivedOn;
   }
   if (f.aml !== undefined) {
     const a = f.aml;
@@ -253,6 +279,11 @@ export function clock(facts: CaseFacts): Clock {
           const duty: Duty = { kind: d.kind, when: d.when, basis: basis(d.basis) };
           d.free();
           return duty;
+        }),
+        measures: c.measures.map((m) => {
+          const measure: Measure = { kind: m.kind, on: m.on, basis: basis(m.basis) };
+          m.free();
+          return measure;
         }),
         warnings: c.warnings,
         refusals: c.refusals,
