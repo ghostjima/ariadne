@@ -3,9 +3,10 @@
 
 use ariadne_rules::calendar;
 use ariadne_rules::clock::{
-    clock, AmlDecisionKind, AmlFacts, AntifraudFacts, Applicant, Case, Clock, Count,
-    DeadlineKind as K, DutyKind, Extension, ExtensionGround, MoneyClaim, Operation, Origin,
-    Reading, Refusal, Regime, Sector, Stream, Warning, When, OMBUDSMAN_LIMIT_KOPECKS,
+    clock, fact_request_due, AmlDecisionKind, AmlFacts, AntifraudFacts, Applicant, Case, Clock,
+    Count, DatabaseFacts, DeadlineKind as K, DutyKind, Extension, ExtensionGround,
+    MeasureKind as M, MoneyClaim, NoSubstanceGround, Operation, Origin, Reading, Refusal, Regime,
+    Sector, Stream, Warning, When, FACT_REQUEST_WORKING_DAYS, OMBUDSMAN_LIMIT_KOPECKS,
 };
 use ariadne_rules::{sources, Date, Error};
 
@@ -33,8 +34,12 @@ fn no_aml() -> AmlFacts {
         decision: None,
         documents_submitted_on: None,
         commission_applied_on: None,
+        commission_request_received_on: None,
+        commission_request_working_days: None,
+        commission_decided_on: None,
         high_risk_measures_on: None,
         high_risk_notice_received_on: None,
+        rating_review_received_on: None,
     }
 }
 
@@ -44,9 +49,29 @@ fn block(operation: Operation, stopped: &str) -> AntifraudFacts {
         stopped_on: d(stopped),
         confirmed_on: None,
         database_match_after_confirmation: false,
-        exclusion_request_registered_on: None,
         refund_claim_received_on: None,
     }
+}
+
+fn no_database() -> DatabaseFacts {
+    DatabaseFacts {
+        instrument_suspended_on: None,
+        police_information: false,
+        data_removed_on: None,
+        exclusion_received_by_operator_on: None,
+        exclusion_data_missing: false,
+        exclusion_received_by_bank_of_russia_on: None,
+        exclusion_decision_received_on: None,
+        bank_of_russia_query_received_on: None,
+    }
+}
+
+/// The measures of a clock, as (code, day, part).
+fn measures(c: &Clock) -> Vec<(&'static str, String, &'static str)> {
+    c.measures
+        .iter()
+        .map(|m| (m.kind.code(), m.on.to_string(), m.basis.part))
+        .collect()
 }
 
 #[test]
@@ -379,20 +404,45 @@ fn antifraud_transfer_suspended_confirmed_and_suspended_again() {
         ]
     );
     assert!(c.duties.iter().all(|x| x.when == When::Immediately));
+    let parts: Vec<_> = c.duties.iter().map(|x| x.basis.part).collect();
+    assert_eq!(parts, ["3.6, items 1 to 3", "3.10, sentence 2"]);
+    // The first action rests on part 3.4, sentence 1; the second, after
+    // the confirmation, on part 3.10.
+    assert_eq!(
+        measures(&c),
+        [
+            ("suspend_order", "2026-05-08".into(), "3.4, sentence 1"),
+            (
+                "suspend_confirmed_order",
+                "2026-05-09".into(),
+                "3.10, sentence 1"
+            ),
+        ]
+    );
     assert_eq!(
         c.deadline(K::AntifraudSuspensionEnds).unwrap().basis.source,
         sources::ANTIFRAUD_TERMS_LETTER
     );
+    assert!(c.deadline(K::AntifraudRepeatRefusalEnds).is_none());
     assert!(c.warnings.is_empty() || c.warnings == [Warning::RegistrationDateAssumed]);
 
     // Confirmed on Sunday 10 May: too late, the order counts as not
-    // accepted.
+    // accepted from 10 May, the first day after the window (part 3.9), and
+    // the database match suspends nothing: there is no confirmed order.
     f.confirmed_on = Some(d("2026-05-10"));
     case.antifraud = Some(f);
-    assert!(clock(&case)
-        .unwrap()
-        .warnings
-        .contains(&Warning::ConfirmationLate));
+    let c = clock(&case).unwrap();
+    assert!(c.warnings.contains(&Warning::ConfirmationLate));
+    assert_eq!(
+        measures(&c),
+        [
+            ("suspend_order", "2026-05-08".into(), "3.4, sentence 1"),
+            ("order_not_accepted", "2026-05-10".into(), "3.9"),
+        ]
+    );
+    assert!(c.deadline(K::AntifraudRepeatSuspensionEnds).is_none());
+    assert!(c.deadline(K::AntifraudAfterRepeatSuspension).is_none());
+    assert_eq!(c.duties.len(), 1);
     // Confirmed before the block: an error.
     f.confirmed_on = Some(d("2026-05-07"));
     case.antifraud = Some(f);
@@ -401,10 +451,13 @@ fn antifraud_transfer_suspended_confirmed_and_suspended_again() {
 
 #[test]
 fn antifraud_card_payment_is_refused_not_suspended() {
-    // A card or Faster Payments operation is refused, with no two-day
-    // suspension and no confirmation term; the client may repeat it. A
-    // repeat on Friday 8 May 2026 that meets a database match is refused
-    // for two days, 8 and 9 May; the next repeat goes through from 10 May.
+    // A card, e-money or Faster Payments operation refused on Friday 8 May
+    // 2026: the first refusal rests on part 3.4, sentence 2, not on part
+    // 3.10. No two-day suspension and no confirmation term; the client may
+    // repeat it. A repeat the same day that meets a database match is
+    // refused (part 3.10, sentence 1); the two days of part 3.11 are 8 and
+    // 9 May, and from 10 May the operator must carry out the next repeat.
+    // It is a refusal, so the suspension's codes do not appear.
     let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
     let mut f = block(Operation::CardSbpOrEmoney, "2026-05-08");
     f.confirmed_on = Some(d("2026-05-08"));
@@ -413,8 +466,29 @@ fn antifraud_card_payment_is_refused_not_suspended() {
     let c = clock(&case).unwrap();
     assert!(c.deadline(K::AntifraudSuspensionEnds).is_none());
     assert!(c.deadline(K::AntifraudConfirmation).is_none());
-    assert_eq!(due(&c, K::AntifraudRepeatSuspensionEnds), "2026-05-09");
-    assert_eq!(due(&c, K::AntifraudAfterRepeatSuspension), "2026-05-10");
+    assert!(c.deadline(K::AntifraudRepeatSuspensionEnds).is_none());
+    assert!(c.deadline(K::AntifraudAfterRepeatSuspension).is_none());
+    assert_eq!(due(&c, K::AntifraudRepeatRefusalEnds), "2026-05-09");
+    assert_eq!(due(&c, K::AntifraudAfterRepeatRefusal), "2026-05-10");
+    let after = c.deadline(K::AntifraudAfterRepeatRefusal).unwrap();
+    assert_eq!((after.basis.article, after.basis.part), ("8", "3.11"));
+    // The letter speaks of the confirmation's day; the repeat's is read
+    // the same way, conservatively.
+    assert_eq!(after.basis.reading, Reading::Conservative);
+    assert_eq!(
+        measures(&c),
+        [
+            ("refuse_operation", "2026-05-08".into(), "3.4, sentence 2"),
+            ("refuse_repeat", "2026-05-08".into(), "3.10, sentence 1"),
+        ]
+    );
+    // A repeat on Sunday 10 May, any day later than the next one, is not
+    // late: the text sets no term for a repeat.
+    f.confirmed_on = Some(d("2026-05-10"));
+    case.antifraud = Some(f);
+    let c = clock(&case).unwrap();
+    assert!(!c.warnings.contains(&Warning::ConfirmationLate));
+    assert_eq!(due(&c, K::AntifraudAfterRepeatRefusal), "2026-05-12");
     // A match with no confirmation day is flagged, not guessed.
     f.confirmed_on = None;
     case.antifraud = Some(f);
@@ -424,19 +498,43 @@ fn antifraud_card_payment_is_refused_not_suspended() {
 }
 
 #[test]
-fn antifraud_exclusion_request_and_refund() {
-    // A request to remove data, registered by the Bank of Russia on Friday
-    // 26 December 2025: 29, 30 December (2), 12 to 16 January (7), 19 to
-    // 23 (12), 26 to 28 January (15): 28 January 2026.
+fn every_kind_of_operation_gets_part_3_4_as_its_first_ground() {
+    // Transfers suspend (sentence 1); card, e-money and Faster Payments
+    // operations, one kind in the engine, are refused (sentence 2). The
+    // client is told at once under part 3.6 items 1 to 3 in either case.
+    for (operation, kind, part) in [
+        (Operation::Transfer, M::SuspendOrder, "3.4, sentence 1"),
+        (
+            Operation::CardSbpOrEmoney,
+            M::RefuseOperation,
+            "3.4, sentence 2",
+        ),
+    ] {
+        let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+        case.antifraud = Some(block(operation, "2026-05-08"));
+        let c = clock(&case).unwrap();
+        assert_eq!(c.measures.len(), 1, "{operation:?}");
+        let m = c.measures[0];
+        assert_eq!((m.kind, m.on), (kind, d("2026-05-08")));
+        assert_eq!(m.basis.source, sources::PAYMENT_LAW_8);
+        assert_eq!((m.basis.article, m.basis.part), ("8", part));
+        assert_eq!(m.basis.reading, Reading::Text);
+        let notice = c.duties[0];
+        assert_eq!(notice.kind, DutyKind::NotifyClientOfBlock);
+        assert_eq!(notice.when, When::Immediately);
+        assert_eq!(notice.basis.part, "3.6, items 1 to 3");
+    }
+}
+
+#[test]
+fn antifraud_refund() {
     // A refund claim received on 31 January 2026: 30 calendar days later is
     // 2 March (28 days of February, then 2).
     let mut case = Case::new(Stream::Antifraud, d("2026-02-02"));
     let mut f = block(Operation::Transfer, "2025-12-20");
-    f.exclusion_request_registered_on = Some(d("2025-12-26"));
     f.refund_claim_received_on = Some(d("2026-01-31"));
     case.antifraud = Some(f);
     let c = clock(&case).unwrap();
-    assert_eq!(due(&c, K::ExclusionDecision), "2026-01-28");
     assert_eq!(due(&c, K::AntifraudRefund), "2026-03-02");
     assert_eq!(
         c.deadline(K::AntifraudRefund).unwrap().count,
@@ -446,7 +544,6 @@ fn antifraud_exclusion_request_and_refund() {
         c.deadline(K::AntifraudRefund).unwrap().basis.reading,
         Reading::Conservative
     );
-    assert!(K::ExclusionDecision.is_for_others());
     // The refund is owed to individuals only.
     case.applicant = Applicant::LegalEntity;
     let c = clock(&case).unwrap();
@@ -538,6 +635,438 @@ fn high_risk_notice_and_the_clients_six_months() {
         .contains(&Warning::HighRiskForLegalEntitiesOnly));
 }
 
+#[test]
+fn a_suspended_card_is_notified_the_same_day_and_restored_at_once() {
+    // The client's card is suspended on Saturday 9 May 2026 for the
+    // client's own data in the Bank of Russia's database, with the Ministry
+    // of Internal Affairs' information: a duty under part 11.7. The notice
+    // with the reason is due the same day, 9 May, a holiday or not (art. 9
+    // part 9.2); the notice of the right to apply for removal goes at once
+    // (part 11.8). Once the data leave the database, on 20 May, the card is
+    // restored at once (part 11.11).
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+    let mut f = no_database();
+    f.instrument_suspended_on = Some(d("2026-05-09"));
+    f.police_information = true;
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::InstrumentSuspensionNotice), "2026-05-09");
+    let notice = c.deadline(K::InstrumentSuspensionNotice).unwrap();
+    assert_eq!(notice.count, Count::SameDay);
+    assert_eq!(notice.basis.source, sources::PAYMENT_LAW_9);
+    assert_eq!((notice.basis.article, notice.basis.part), ("9", "9.2"));
+    assert_eq!(
+        measures(&c),
+        [("suspend_instrument", "2026-05-09".into(), "11.7")]
+    );
+    let duties: Vec<_> = c.duties.iter().map(|x| (x.kind, x.basis.part)).collect();
+    assert_eq!(duties, [(DutyKind::NotifyClientOfRightToApply, "11.8")]);
+    assert!(c.duties.iter().all(|x| x.when == When::Immediately));
+    // Without that information the suspension is the operator's option.
+    f.police_information = false;
+    f.data_removed_on = Some(d("2026-05-20"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(c.measures[0].basis.part, "11.6");
+    let duties: Vec<_> = c.duties.iter().map(|x| (x.kind, x.basis.part)).collect();
+    assert_eq!(
+        duties,
+        [
+            (DutyKind::NotifyClientOfRightToApply, "11.8"),
+            (DutyKind::RestoreInstrument, "11.11")
+        ]
+    );
+    // Removed before the suspension: an error.
+    f.data_removed_on = Some(d("2026-05-08"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+}
+
+#[test]
+fn the_bank_of_russia_counts_15_working_days_from_receipt() {
+    // An application to remove the data, received by the Bank of Russia on
+    // Friday 26 December 2025 (Directive No. 6748-U, items 2.1, 2.3 and
+    // 2.4: "со дня поступления заявления клиента в Банк России", not from
+    // its registration): 29, 30 December (2), 12 to 16 January (7), 19 to
+    // 23 (12), 26 to 28 January (15): 28 January 2026.
+    let mut case = Case::new(Stream::Antifraud, d("2026-02-02"));
+    let mut f = no_database();
+    f.exclusion_received_by_bank_of_russia_on = Some(d("2025-12-26"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    let decision = c.deadline(K::ExclusionDecision).unwrap();
+    assert_eq!(decision.due, d("2026-01-28"));
+    assert_eq!(decision.from, d("2025-12-26"));
+    assert_eq!(decision.basis.source, sources::DIRECTIVE_6748_U);
+    assert_eq!(
+        (decision.basis.article, decision.basis.part),
+        ("", "2.1, 2.3, 2.4")
+    );
+    assert!(K::ExclusionDecision.is_for_others());
+    // Nothing the operator owes when the client applied to the Bank of
+    // Russia directly: the complaint's registration, reply and storage,
+    // and the decision.
+    assert_eq!(c.deadlines.len(), 4, "{c:?}");
+}
+
+#[test]
+fn the_operator_forwards_an_application_or_refuses_it_with_a_notice() {
+    // The client applies through the bank on Friday 8 May 2026 (item 1.2).
+    // With every mandatory datum, the bank forwards it with its own view of
+    // the inclusion by the next working day, Tuesday 12 May (item 1.5).
+    // The Bank of Russia receives it on 12 May: its decision is due in 15
+    // working days, 13 to 15 May (3), 18 to 22 (8), 25 to 29 (13), 1 and
+    // 2 June (15). Its request reaches the bank on 14 May: the answer is
+    // due in 3 working days, 15, 18, 19 May. The bank receives the
+    // decision on Friday 29 May and passes it on by Monday 1 June.
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-08"));
+    let mut f = no_database();
+    f.exclusion_received_by_operator_on = Some(d("2026-05-08"));
+    f.exclusion_received_by_bank_of_russia_on = Some(d("2026-05-12"));
+    f.bank_of_russia_query_received_on = Some(d("2026-05-14"));
+    f.exclusion_decision_received_on = Some(d("2026-05-29"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::ExclusionForwarding), "2026-05-12");
+    assert_eq!(due(&c, K::ExclusionDecision), "2026-06-02");
+    assert_eq!(due(&c, K::BankOfRussiaQueryAnswer), "2026-05-19");
+    assert_eq!(due(&c, K::ExclusionDecisionRelay), "2026-06-01");
+    for (kind, part) in [
+        (K::ExclusionForwarding, "1.5"),
+        (K::BankOfRussiaQueryAnswer, "2.9"),
+        (K::ExclusionDecisionRelay, "2.1, 2.3, 2.4"),
+    ] {
+        let b = c.deadline(kind).unwrap().basis;
+        assert_eq!((b.source, b.part), (sources::DIRECTIVE_6748_U, part));
+        assert!(!kind.is_for_others());
+    }
+    assert!(c.deadline(K::ExclusionRefusalNotice).is_none());
+    // Mandatory data missing: no forwarding, but a notice of the refusal
+    // with its ground within 5 working days of receipt (items 1.3, 1.4):
+    // 12 to 15 May (4), 18 May (5).
+    f.exclusion_data_missing = true;
+    f.exclusion_received_by_bank_of_russia_on = None;
+    f.bank_of_russia_query_received_on = None;
+    f.exclusion_decision_received_on = None;
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::ExclusionRefusalNotice), "2026-05-18");
+    assert_eq!(
+        c.deadline(K::ExclusionRefusalNotice).unwrap().basis.part,
+        "1.4"
+    );
+    assert!(c.deadline(K::ExclusionForwarding).is_none());
+    // The Bank of Russia cannot receive it before the bank did.
+    f.exclusion_data_missing = false;
+    f.exclusion_received_by_bank_of_russia_on = Some(d("2026-05-07"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+}
+
+#[test]
+fn a_notice_when_a_complaint_gets_no_reply_on_substance() {
+    // A bank leaves a complaint registered on Tuesday 12 May 2026 without
+    // a reply on substance because it cannot be read (Banking Law
+    // art. 30.1 part 12, ground 4): the notice with the reasons within 5
+    // working days of registration (part 13), 13 to 15 May (3), 18 and
+    // 19 May (5).
+    let mut case = Case::new(Stream::General, d("2026-05-12"));
+    case.registered_on = Some(d("2026-05-12"));
+    case.no_substance = Some(NoSubstanceGround::Illegible);
+    let c = clock(&case).unwrap();
+    let notice = c.deadline(K::NoSubstanceNotice).unwrap();
+    assert_eq!(notice.due, d("2026-05-19"));
+    assert_eq!(notice.count, Count::WorkingDays(5));
+    assert_eq!((notice.basis.article, notice.basis.part), ("30.1", "13"));
+    assert_eq!(notice.basis.reading, Reading::Text);
+    // Grounds 2 to 5 call for the notice; ground 1, no address, does not.
+    for ground in [
+        NoSubstanceGround::NoName,
+        NoSubstanceGround::Offensive,
+        NoSubstanceGround::Illegible,
+        NoSubstanceGround::SubstanceUnclear,
+    ] {
+        case.no_substance = Some(ground);
+        assert!(clock(&case)
+            .unwrap()
+            .deadline(K::NoSubstanceNotice)
+            .is_some());
+    }
+    case.no_substance = Some(NoSubstanceGround::NoAddress);
+    assert!(clock(&case)
+        .unwrap()
+        .deadline(K::NoSubstanceNotice)
+        .is_none());
+    // Each sector's own part.
+    case.no_substance = Some(NoSubstanceGround::NoName);
+    for (sector, article, part) in [
+        (Sector::Microfinance, "9.1", "14"),
+        (Sector::Insurer, "6.2", "10"),
+        (Sector::SecuritiesProfessional, "15.11", "7"),
+        (Sector::CreditCooperative, "6.2", "12"),
+    ] {
+        case.sector = sector;
+        let c = clock(&case).unwrap();
+        let b = c.deadline(K::NoSubstanceNotice).unwrap().basis;
+        assert_eq!((b.article, b.part), (article, part), "{sector:?}");
+    }
+}
+
+#[test]
+fn stopping_the_correspondence_is_notified_as_the_no_reply_notice() {
+    // A repeated complaint without new arguments, registered on Tuesday
+    // 12 May 2026: the bank stops the correspondence (part 14) and
+    // notifies the applicant "в порядке, предусмотренном частью
+    // тринадцатой", read as the same 5 working days: 19 May, flagged
+    // conservative. Forwarded by the Bank of Russia, the notice is copied
+    // to it the same day, like every notice.
+    let mut case = Case::new(Stream::General, d("2026-05-12"));
+    case.registered_on = Some(d("2026-05-12"));
+    case.origin = Origin::ForwardedByBankOfRussia;
+    case.stop_correspondence = true;
+    let c = clock(&case).unwrap();
+    let notice = c.deadline(K::StopCorrespondenceNotice).unwrap();
+    assert_eq!(notice.due, d("2026-05-19"));
+    assert_eq!((notice.basis.article, notice.basis.part), ("30.1", "14"));
+    assert_eq!(notice.basis.reading, Reading::Conservative);
+    assert!(c.deadline(K::NoSubstanceNotice).is_none());
+    assert_eq!(c.duties[0].kind, DutyKind::CopyToBankOfRussia);
+    assert_eq!(c.duties[0].when, When::SameDayAsEachDispatch);
+    for (sector, part) in [
+        (Sector::Microfinance, "15"),
+        (Sector::Insurer, "11"),
+        (Sector::SecuritiesProfessional, "8"),
+        (Sector::CreditCooperative, "13"),
+    ] {
+        case.sector = sector;
+        let c = clock(&case).unwrap();
+        let b = c.deadline(K::StopCorrespondenceNotice).unwrap().basis;
+        assert_eq!(b.part, part, "{sector:?}");
+    }
+}
+
+#[test]
+fn complaints_replies_and_notices_are_kept_three_years() {
+    // Registered on Tuesday 12 May 2026: kept to 12 May 2029, a Saturday,
+    // not moved (Banking Law art. 30.1 part 11; Civil Code arts. 191, 192).
+    let mut case = Case::new(Stream::General, d("2026-05-08"));
+    case.registered_on = Some(d("2026-05-12"));
+    let c = clock(&case).unwrap();
+    let kept = c.deadline(K::StorageUntil).unwrap();
+    assert_eq!(kept.due, d("2029-05-12"));
+    assert_eq!(kept.from, d("2026-05-12"));
+    assert_eq!(kept.count, Count::Years(3));
+    assert_eq!((kept.basis.article, kept.basis.part), ("30.1", "11"));
+    for (sector, article, part) in [
+        (Sector::Microfinance, "9.1", "11"),
+        (Sector::Insurer, "6.2", "14"),
+        (Sector::SecuritiesProfessional, "15.11", "9"),
+    ] {
+        case.sector = sector;
+        let c = clock(&case).unwrap();
+        let b = c.deadline(K::StorageUntil).unwrap().basis;
+        assert_eq!((b.article, b.part), (article, part), "{sector:?}");
+    }
+    // A credit cooperative: 190-FZ art. 6.2 sets no storage term, so none
+    // is given, and the case says so.
+    case.sector = Sector::CreditCooperative;
+    let c = clock(&case).unwrap();
+    assert!(c.deadline(K::StorageUntil).is_none());
+    assert!(c.warnings.contains(&Warning::StorageTermNotSet));
+    // Under 123-FZ the sector's storage term is kept, conservatively.
+    let mut case = Case::new(Stream::MoneyClaim, d("2026-04-27"));
+    case.money_claim = Some(claim(1_000, false, None));
+    let c = clock(&case).unwrap();
+    let kept = c.deadline(K::StorageUntil).unwrap();
+    assert_eq!(kept.due, d("2029-04-27"));
+    assert_eq!(kept.basis.reading, Reading::Conservative);
+}
+
+#[test]
+fn the_ombudsmans_three_years_are_a_warning_not_a_refusal() {
+    // A claim received on Monday 27 April 2026 for a breach on 10 April
+    // 2023: more than three years. The consumer may have learned of it
+    // later, and the ombudsman may restore the term (123-FZ art. 15
+    // part 4): a warning, and the 30 calendar days of art. 16 part 2 stand,
+    // 27 May.
+    let mut case = Case::new(Stream::MoneyClaim, d("2026-04-27"));
+    case.money_claim = Some(claim(10_000, false, Some("2023-04-10")));
+    let c = clock(&case).unwrap();
+    assert_eq!(c.regime, Regime::OmbudsmanClaim);
+    assert!(c.warnings.contains(&Warning::OmbudsmanTermMayHavePassed));
+    assert!(c.refusals.is_empty());
+    assert_eq!(due(&c, K::Reply), "2026-05-27");
+    // A breach on 27 April 2023 is exactly three years earlier: in time.
+    case.money_claim = Some(claim(10_000, false, Some("2023-04-27")));
+    assert!(!clock(&case)
+        .unwrap()
+        .warnings
+        .contains(&Warning::OmbudsmanTermMayHavePassed));
+}
+
+#[test]
+fn the_commissions_request_and_the_notice_of_its_decision() {
+    // The client applied to the interagency commission on Monday 1 June
+    // 2026. Its request reaches the bank on Thursday 4 June with 5 working
+    // days (Regulation No. 842-P item 2.8): 5 June (1), 8 to 11 June (5).
+    // It decides on Friday 26 June and notifies within 3 working days
+    // (item 4.1): 29, 30 June, 1 July. The 20 working days of 115-FZ
+    // art. 7 item 13.5 still bound the review: 30 June.
+    let mut case = Case::new(Stream::AmlRefusal, d("2026-05-12"));
+    let mut f = no_aml();
+    f.commission_applied_on = Some(d("2026-06-01"));
+    f.commission_request_received_on = Some(d("2026-06-04"));
+    f.commission_request_working_days = Some(5);
+    f.commission_decided_on = Some(d("2026-06-26"));
+    case.aml = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::AmlCommissionDecision), "2026-06-30");
+    let answer = c.deadline(K::CommissionRequestAnswer).unwrap();
+    assert_eq!(answer.due, d("2026-06-11"));
+    assert_eq!(answer.basis.source, sources::REGULATION_842_P);
+    assert_eq!((answer.basis.article, answer.basis.part), ("", "2.8"));
+    assert!(!K::CommissionRequestAnswer.is_for_others());
+    let notice = c.deadline(K::CommissionDecisionNotice).unwrap();
+    assert_eq!(notice.due, d("2026-07-01"));
+    assert_eq!(notice.basis.part, "4.1");
+    assert!(K::CommissionDecisionNotice.is_for_others());
+    assert!(c.warnings.iter().all(|w| !matches!(
+        w,
+        Warning::CommissionTermAssumed | Warning::CommissionTermBelowMinimum
+    )));
+    // No term known: the least the law allows, 3 working days (115-FZ
+    // art. 7 item 13.6), 5, 8 and 9 June, conservatively.
+    f.commission_request_working_days = None;
+    case.aml = Some(f);
+    let c = clock(&case).unwrap();
+    let answer = c.deadline(K::CommissionRequestAnswer).unwrap();
+    assert_eq!(answer.due, d("2026-06-09"));
+    assert_eq!(
+        (answer.basis.source, answer.basis.part, answer.basis.reading),
+        (
+            sources::AML_LAW_7,
+            "13.6, paragraph 1",
+            Reading::Conservative
+        )
+    );
+    assert!(c.warnings.contains(&Warning::CommissionTermAssumed));
+    // A term under 3 working days is kept, earlier, and flagged.
+    f.commission_request_working_days = Some(2);
+    case.aml = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::CommissionRequestAnswer), "2026-06-08");
+    assert!(c.warnings.contains(&Warning::CommissionTermBelowMinimum));
+    // A decision before the application: an error.
+    f.commission_decided_on = Some(d("2026-05-29"));
+    case.aml = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+}
+
+#[test]
+fn the_bank_of_russia_reviews_a_rating_in_15_working_days() {
+    // A legal entity rated high risk by the Bank of Russia, with no
+    // measures applied by its bank, asks the Bank of Russia to revise the
+    // rating; it receives the application on Monday 1 June 2026. 115-FZ
+    // art. 7.8 item 1.1: 15 working days from receipt, 2 to 5 June (4), 8
+    // to 11 June (8; 12 June is a holiday), 15 to 19 (13), 22 and 23 June
+    // (15). This is the Bank of Russia's term, not the commission's 20.
+    let mut case = Case::new(Stream::AmlRefusal, d("2026-05-12"));
+    case.applicant = Applicant::LegalEntity;
+    let mut f = no_aml();
+    f.rating_review_received_on = Some(d("2026-06-01"));
+    case.aml = Some(f);
+    let c = clock(&case).unwrap();
+    let review = c.deadline(K::HighRiskRatingReview).unwrap();
+    assert_eq!(review.due, d("2026-06-23"));
+    assert_eq!(review.basis.source, sources::AML_LAW_7_8);
+    assert_eq!((review.basis.article, review.basis.part), ("7.8", "1.1"));
+    assert!(K::HighRiskRatingReview.is_for_others());
+    assert!(c.deadline(K::AmlCommissionDecision).is_none());
+    case.applicant = Applicant::Individual;
+    assert!(clock(&case)
+        .unwrap()
+        .warnings
+        .contains(&Warning::HighRiskForLegalEntitiesOnly));
+}
+
+#[test]
+fn a_fact_request_has_two_working_days_capped_by_the_answering_units_terms() {
+    // An internal policy, not the law's: 2 working days. Sent on Friday
+    // 8 May 2026: 12 and 13 May (9 to 11 May are off).
+    assert_eq!(FACT_REQUEST_WORKING_DAYS, 2);
+    let mut case = Case::new(Stream::AmlRefusal, d("2026-05-08"));
+    let c = clock(&case).unwrap();
+    let f = fact_request_due(&c, d("2026-05-08")).unwrap();
+    assert_eq!(
+        (f.due, f.policy_due, f.capped_by),
+        (d("2026-05-13"), d("2026-05-13"), None)
+    );
+
+    // Documents against a refused operation, submitted on Friday 8 May:
+    // the AML unit owes the client its answer by 20 May (115-FZ art. 7
+    // item 13.4). A fact request on 19 May would be due on 21 May; the
+    // answer caps it at 20 May.
+    let mut aml = no_aml();
+    aml.decision = Some((AmlDecisionKind::RefuseOperation, d("2026-04-30")));
+    aml.documents_submitted_on = Some(d("2026-05-08"));
+    case.aml = Some(aml);
+    let c = clock(&case).unwrap();
+    let f = fact_request_due(&c, d("2026-05-19")).unwrap();
+    assert_eq!(f.policy_due, d("2026-05-21"));
+    assert_eq!(
+        (f.due, f.capped_by),
+        (d("2026-05-20"), Some(K::AmlDocumentsAnswer))
+    );
+    // A term that ended before the request does not cap it.
+    let f = fact_request_due(&c, d("2026-05-21")).unwrap();
+    assert_eq!((f.due, f.capped_by), (d("2026-05-25"), None));
+
+    // The commission's request with 3 working days, received on Thursday
+    // 4 June: answered by 9 June. A fact request on 8 June would run to
+    // 10 June; it is due on 9 June.
+    let mut aml = no_aml();
+    aml.commission_request_received_on = Some(d("2026-06-04"));
+    aml.commission_request_working_days = Some(3);
+    case.aml = Some(aml);
+    let c = clock(&case).unwrap();
+    let f = fact_request_due(&c, d("2026-06-08")).unwrap();
+    assert_eq!(
+        (f.due, f.capped_by),
+        (d("2026-06-09"), Some(K::CommissionRequestAnswer))
+    );
+
+    // A Bank of Russia request on an application to remove data, received
+    // on Thursday 7 May: 3 working days (Directive No. 6748-U item 2.9),
+    // 8, 12 and 13 May. A fact request on 12 May would run to 14 May.
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-08"));
+    let mut db = no_database();
+    db.bank_of_russia_query_received_on = Some(d("2026-05-07"));
+    case.database = Some(db);
+    let c = clock(&case).unwrap();
+    let f = fact_request_due(&c, d("2026-05-12")).unwrap();
+    assert_eq!(
+        (f.due, f.capped_by),
+        (d("2026-05-13"), Some(K::BankOfRussiaQueryAnswer))
+    );
+
+    // The reply itself: registration assumed on 8 May, the reply due on
+    // 1 June. A fact request on Friday 29 May would run to 2 June; it is
+    // due on 1 June. With an extension of 5 working days the reply is due
+    // on 8 June, and the policy's 2 June stands.
+    let mut case = Case::new(Stream::General, d("2026-05-08"));
+    let c = clock(&case).unwrap();
+    let f = fact_request_due(&c, d("2026-05-29")).unwrap();
+    assert_eq!((f.due, f.capped_by), (d("2026-06-01"), Some(K::Reply)));
+    case.extension = Some(Extension {
+        ground: ExtensionGround::RequestDocuments,
+        working_days: 5,
+    });
+    let c = clock(&case).unwrap();
+    assert_eq!(c.reply_due(), Some(d("2026-06-08")));
+    let f = fact_request_due(&c, d("2026-05-29")).unwrap();
+    assert_eq!((f.due, f.capped_by), (d("2026-06-02"), None));
+}
+
 fn days(from: &str, to: &str) -> impl Iterator<Item = Date> {
     let (a, b) = (d(from), d(to));
     (0..=b.days_since(a)).map(move |i| a.add_days(i))
@@ -622,24 +1151,48 @@ fn property_every_basis_is_a_listed_source() {
     let mut f = block(Operation::Transfer, "2026-05-01");
     f.confirmed_on = Some(d("2026-05-02"));
     f.database_match_after_confirmation = true;
-    f.exclusion_request_registered_on = Some(d("2026-05-04"));
     f.refund_claim_received_on = Some(d("2026-05-05"));
     case.antifraud = Some(f);
+    case.database = Some(DatabaseFacts {
+        instrument_suspended_on: Some(d("2026-05-01")),
+        police_information: true,
+        data_removed_on: Some(d("2026-05-29")),
+        exclusion_received_by_operator_on: Some(d("2026-05-04")),
+        exclusion_data_missing: false,
+        exclusion_received_by_bank_of_russia_on: Some(d("2026-05-05")),
+        exclusion_decision_received_on: Some(d("2026-05-28")),
+        bank_of_russia_query_received_on: Some(d("2026-05-06")),
+    });
+    case.no_substance = Some(NoSubstanceGround::Offensive);
+    case.stop_correspondence = true;
     case.aml = Some(AmlFacts {
         decision: Some((AmlDecisionKind::RefuseAccount, d("2026-05-04"))),
         documents_submitted_on: Some(d("2026-05-06")),
         commission_applied_on: Some(d("2026-05-20")),
+        commission_request_received_on: Some(d("2026-05-21")),
+        commission_request_working_days: Some(3),
+        commission_decided_on: Some(d("2026-06-10")),
         high_risk_measures_on: Some(d("2026-05-04")),
         high_risk_notice_received_on: Some(d("2026-05-06")),
+        rating_review_received_on: Some(d("2026-05-07")),
     });
     let c = clock(&case).unwrap();
-    assert_eq!(c.deadlines.len(), 16);
+    assert_eq!(c.deadlines.len(), 26);
+    // Only an act numbered in items alone has no article.
+    let itemised = [sources::DIRECTIVE_6748_U, sources::REGULATION_842_P];
+    let article_ok =
+        |b: &ariadne_rules::clock::Basis| !b.article.is_empty() || itemised.contains(&b.source);
     for x in &c.deadlines {
         assert!(sources::ALL.contains(&x.basis.source), "{x:?}");
         assert!(x.due >= x.from, "{x:?}");
-        assert!(!x.basis.article.is_empty() && !x.basis.part.is_empty());
+        assert!(article_ok(&x.basis) && !x.basis.part.is_empty(), "{x:?}");
     }
     for x in &c.duties {
         assert!(sources::ALL.contains(&x.basis.source), "{x:?}");
+        assert!(article_ok(&x.basis) && !x.basis.part.is_empty(), "{x:?}");
+    }
+    for x in &c.measures {
+        assert!(sources::ALL.contains(&x.basis.source), "{x:?}");
+        assert!(article_ok(&x.basis) && !x.basis.part.is_empty(), "{x:?}");
     }
 }
