@@ -1,7 +1,9 @@
 // The task the agent is given: which task, which scenario, and how much it
 // may do without asking. Editable before the run, a plain record during it.
+// On a phone the scenario number, a demo's control, folds under its value,
+// so Run stays on the first screen under however long a case's header.
 import { useId } from "react";
-import { ChoiceGroup, NumberField, Panel } from "@ghostjima/stoa-react";
+import { ChoiceGroup, Disclosure, NumberField, Panel, useBreakpoint } from "@ghostjima/stoa-react";
 import { AUTONOMIES, taskOf, type Autonomy, type CaseBrief } from "@ariadne/runner";
 import { caseId, type Text } from "../text";
 
@@ -18,6 +20,7 @@ export type TaskPanelProps = {
 export function TaskPanel({ x, brief, seed, autonomy, editable, onSeed, onAutonomy }: TaskPanelProps) {
   const { t, f } = x;
   const helpId = useId();
+  const narrow = useBreakpoint() === "narrow";
   const task = taskOf(brief);
   const name = t.taskName[task.code](caseId(task.caseNo));
   if (!editable) {
@@ -40,16 +43,25 @@ export function TaskPanel({ x, brief, seed, autonomy, editable, onSeed, onAutono
       </Panel>
     );
   }
+  const scenario = (
+    <div className="task__fields">
+      <NumberField label={t.task.scenario} value={seed} minValue={1} maxValue={9999} step={1} onChange={onSeed} aria-describedby={helpId} />
+      <p id={helpId} className="muted task__help">
+        {t.task.scenarioHelp}
+      </p>
+    </div>
+  );
   return (
     <Panel title={t.task.panel} className="task" level={4}>
       {/* The task is the case's; there is one, so it is said, not chosen. */}
       <p>{name}</p>
-      <div className="task__fields">
-        <NumberField label={t.task.scenario} value={seed} minValue={1} maxValue={9999} step={1} onChange={onSeed} aria-describedby={helpId} />
-        <p id={helpId} className="muted task__help">
-          {t.task.scenarioHelp}
-        </p>
-      </div>
+      {narrow ? (
+        <Disclosure summary={`${t.task.scenario}: ${f.id(seed)}`}>
+          {scenario}
+        </Disclosure>
+      ) : (
+        scenario
+      )}
       <div className="task__autonomy">
         <ChoiceGroup<Autonomy>
           label={t.task.autonomy}
