@@ -350,6 +350,37 @@ test("a reply drafted for a case of the register states the deadlines still runn
   await expectPlanState(page, "stopped");
 });
 
+test("a reply after a refused repeat names part 3.10 after part 3.4, and states the two days of part 3.11 still running", async ({ page }) => {
+  // C-001182: a Faster Payments transfer refused, repeated the same day,
+  // and the repeat refused after the Bank of Russia's database answered;
+  // the two days after the repeat end on the day the data is taken.
+  await page.goto(agentUrl("scale=0.05&seed=8", "C-001182"));
+  await ready(page);
+  await page.getByRole("button", { name: en.plan.run }).click();
+  const alert = await dialog(page);
+  await expect(alert.getByRole("heading")).toHaveText("Step 3: Draft the reply");
+  const letter = alert.locator(".reply-draft");
+  await expect(letter).toContainText("161-FZ, art. 8, part 3.4");
+  await expect(letter).toContainText("161-FZ, art. 8, part 3.10");
+  await expect(letter).toContainText("The repeated operation was refused; the two days after it end on Oct 6, 2026.");
+  await expect(letter).toContainText("From Oct 7, 2026, the bank carries out your next repeat of the operation.");
+  await page.keyboard.press("s");
+  await expectPlanState(page, "stopped");
+});
+
+test("the fact request's last day is the rules': capped by the bank's answer to the commission's request", async ({ page }) => {
+  // C-001088: the commission's request gave no term, so the bank answers
+  // in 3 working days, by the day the data is taken; the facts are asked
+  // for by that day, not two working days on.
+  await page.goto(agentUrl("scale=0.05&seed=8", "C-001088"));
+  await ready(page);
+  await page.getByRole("button", { name: en.plan.run }).click();
+  await dialog(page);
+  await expect(runSteps(page).nth(1)).toContainText("Facts requested from the AML compliance team, due Oct 6, 2026.");
+  await page.keyboard.press("s");
+  await expectPlanState(page, "stopped");
+});
+
 test("a case past drafting: the plan is shown, there is no Run, and the panel says why", async ({ page }) => {
   await page.goto(agentUrl("", PAST_DRAFTING_CASE));
   await expect(page.locator(".plan")).toContainText('This case is at "Awaiting signature": its reply is past drafting');

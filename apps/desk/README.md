@@ -138,10 +138,24 @@ assistant's).
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
   order's own Russian wording from ariadne-rules, or the 115-FZ category
-  with its article and item, and the deadlines they bring), the timeline
-  of its channels (receipt, registration and its notice, an extension,
-  the reply and the copy to the Bank of Russia), the cases linked to it
-  or from the same applicant, and the deadline.
+  with its article and item; the measures taken, each with its ground:
+  161-FZ art. 8 part 3.4 for the first action on any operation, part
+  3.10 for the second after a confirmation or a repeat, part 3.9 for an
+  order not accepted, art. 9 part 11.6 for the client's card suspended;
+  and every dated term the rules give beyond the reply's own, such as
+  part 3.11's two days, the bank-side terms of Directive No. 6748-U on
+  an application to remove the client's data, the commission's request
+  under Regulation No. 842-P, the notices of no reply on the substance
+  and of stopping the correspondence), the duties tied to an event (the
+  notices of 161-FZ art. 9 parts 9.2 and 11.8, restoring the card under
+  part 11.11, the copies), how long the case is kept, and what the
+  rules note about the case's data (a commission's request without a
+  term, a money claim more than three years after the breach), the
+  timeline of its channels (receipt, registration and its notice, an
+  extension, the reply and the copy to the Bank of Russia), the cases
+  linked to it or from the same applicant, and the deadline. A Bank of
+  Russia directive or regulation is cited by item, as it has no
+  articles.
 - **The deadline, worked out**: Stoa's DerivationTable, step by step,
   each with its formula and source: receipt, registration (the next
   working day), the reply term (15 working days, or 123-FZ's), the days
@@ -161,8 +175,11 @@ decisions. The panel says so. For the open case it proposes five steps:
    the 115-FZ category), as the register and the rules hold them.
 2. **Request the facts** from the team that holds them (antifraud, AML
    compliance or operations), with the questions for that team and a
-   deadline of its own: two working days, never after the reply's last
-   day while that is ahead. The request leaves the complaints team, so it
+   deadline of its own from the rules engine (`factRequestDue`): two
+   working days, the desk's policy and not a term of any law, capped by
+   the earliest term that binds the answering team (the reply, the answer
+   to the client's documents, to the commission's request or to a Bank of
+   Russia request). The request leaves the complaints team, so it
    can be recalled within a window. When a linked case already holds the
    facts, the agent asks to take them from there instead.
 3. **Draft the reply** from templates over the case's facts: the

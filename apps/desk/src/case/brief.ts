@@ -11,6 +11,7 @@ import {
   AS_OF,
   GROUNDS,
   Ground,
+  Path,
   Source,
   Stream,
   caseFacts,
@@ -31,12 +32,7 @@ import {
   type GroundCode,
   type ReasonCode,
 } from "@ariadne/runner";
-import { addWorkingDays, clock, od2506Signs, rubric } from "@ariadne/rules";
-
-/** The fact request's own term: two working days from the day the data is
- * taken, and never after the reply's last day while that is still ahead. An
- * internal term of this desk, not the law's: a decision for the owner. */
-export const FACTS_WORKING_DAYS = 2;
+import { clock, factRequestDue, od2506Signs, rubric, type CaseFacts } from "@ariadne/rules";
 
 const isCode = <T extends string>(list: readonly T[], value: string): value is T => (list as readonly string[]).includes(value);
 
@@ -52,13 +48,14 @@ export function reasonOf(store: ColumnStore, row: number): ReasonCode | null {
 /** The grounds the reply names: the law of an antifraud or 115-FZ case
  * first (161-FZ art. 8 part 3.4 for the first action on any operation that
  * matched a sign: a transfer by bank details suspended, a card, e-money or
- * Faster Payments operation refused; part 3.10 is the second action after a
- * confirmation or a repeat, which the register does not hold; the
- * category's own article and item under 115-FZ), then the ground the
- * register holds, if it is another one its stream may name. A general
- * complaint or a money claim rests on the contract unless the register
- * says otherwise. */
+ * Faster Payments operation refused; then part 3.10 for a case whose
+ * client confirmed or repeated before the Bank of Russia's database
+ * answered, the second action; the category's own article and item under
+ * 115-FZ), then the ground the register holds, if it is another one its
+ * stream may name. A general complaint or a money claim rests on the
+ * contract unless the register says otherwise. */
 const FIRST_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
+const SECOND_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
 
 export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
   const stream = store.stream[row] ?? 0;
@@ -68,6 +65,7 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
     if (spec && spec.streams.includes(stream) && !out.includes(spec.id as GroundCode)) out.push(spec.id as GroundCode);
   };
   if (stream === Stream.Antifraud) add(FIRST_ACTION);
+  if (stream === Stream.Antifraud && store.path[row] === Path.SecondStep) add(SECOND_ACTION);
   if (stream === Stream.Aml && (store.reason[row] ?? 0) > 0) add(AML_GROUND_OFFSET + (store.reason[row] ?? 1) - 1);
   const held = store.ground[row] ?? Ground.None;
   if (held !== Ground.None) add(held);
@@ -94,10 +92,13 @@ export function clientDuties(store: ColumnStore, row: number): { options: Client
   return { options, deadlines };
 }
 
-/** The fact request's last day (FACTS_WORKING_DAYS). */
-export function factsDueOf(replyDue: string): string {
-  const due = addWorkingDays(AS_OF, FACTS_WORKING_DAYS);
-  return replyDue > AS_OF && due > replyDue ? replyDue : due;
+/** The fact request's last day, sent on the day the data is taken:
+ * ariadne-rules' `factRequestDue`, its two working days (a policy of this
+ * desk, not a term of any law) capped by the earliest term that binds the
+ * answering unit: the reply, the answer to the client's documents, to the
+ * commission's request or to a Bank of Russia request. */
+export function factsDueOf(facts: CaseFacts): string {
+  return factRequestDue(facts, AS_OF).due;
 }
 
 /** The case as the engine takes it. */
@@ -124,7 +125,7 @@ export function caseBrief(store: ColumnStore, row: number): CaseBrief {
     receivedOn: isoDay(store.received[row] ?? 0),
     asOf: AS_OF,
     replyDue,
-    factsDue: factsDueOf(replyDue),
+    factsDue: factsDueOf(facts),
     linkedCase: linked >= 0 ? linked + 1 : null,
     grounds: groundsOf(store, row),
     clientOptions: options,

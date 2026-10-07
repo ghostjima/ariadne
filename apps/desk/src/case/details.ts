@@ -1,7 +1,8 @@
 // What the case card shows, worked out from the register and asked of
 // ariadne-rules: the whole clock of the case, the days off its reply term
-// skips, the flags around its operation, the timeline of its channels and
-// the cases linked to it. Codes, days and numbers only; CaseCard writes the
+// skips, the flags around its operation (the sign or the category, the
+// measures with their grounds and every dated term), the duties, storage
+// and warnings, the timeline of its channels and the cases linked to it. Codes, days and numbers only; CaseCard writes the
 // words. The rules module must be loaded (loadRules).
 import {
   Applicant,
@@ -20,7 +21,7 @@ import {
   isoDay,
   type ColumnStore,
 } from "@ariadne/grid";
-import { amlReasons, clock, dayKind, od2506Signs, type AmlReason, type Clock, type DayKind, type Deadline, type Sign } from "@ariadne/rules";
+import { amlReasons, clock, dayKind, od2506Signs, type AmlReason, type Clock, type DayKind, type Deadline, type Duty, type Measure, type Sign } from "@ariadne/rules";
 
 /** The days of a term after its first day up to its last, by kind. */
 export type TermDays = {
@@ -37,6 +38,7 @@ export type TermDays = {
 export type Flag =
   | { kind: "sign"; day: number; sign: Sign; operation: number; suspended: boolean }
   | { kind: "aml"; day: number; reason: AmlReason; category: number }
+  | { kind: "measure"; day: number; measure: Measure }
   | { kind: "deadline"; day: number; deadline: Deadline };
 
 export type TimelineEvent =
@@ -64,7 +66,17 @@ export type CaseDetails = {
     | { status: "refused"; refusals: string[] };
   /** The days the reply term covers, as it stands (extended or not) */
   term: TermDays;
+  /** The sign or the category, the measures taken with their grounds, and
+   * every dated term of the case beyond the reply's own (which the
+   * derivation shows) and its storage */
   flags: Flag[];
+  /** The duties tied to an event, each with when and its basis */
+  duties: Duty[];
+  /** How long the complaint, the reply and every notice are kept; null
+   * when the sector's article sets no term (a warning says so) */
+  storage: Deadline | null;
+  /** What the rules note about the case's data, as codes */
+  warnings: string[];
   timeline: TimelineEvent[];
   related: { row: number; relation: Relation }[];
 };
@@ -97,6 +109,9 @@ export function termDays(from: number, to: number): TermDays {
 }
 
 const find = (c: Clock, kind: string) => c.deadlines.find((d) => d.kind === kind) ?? null;
+/** The reply's own terms, which the derivation of its last day shows, and
+ * the storage term, shown with the duties: not among the flags. */
+export const REPLY_TERMS: ReadonlySet<string> = new Set(["registration", "registration_notice", "reply", "extension_notice", "reply_extended", "storage_until"]);
 const RELATED_MAX = 8;
 
 export function caseDetails(store: ColumnStore, row: number): CaseDetails {
@@ -127,18 +142,10 @@ export function caseDetails(store: ColumnStore, row: number): CaseDetails {
     const r = amlReasons()[reason - 1];
     if (r) flags.push({ kind: "aml", day: opOn, reason: r, category: reason - 1 });
   }
-  /* The deadlines around the flag, which bind the bank or the client */
-  for (const kind of [
-    "antifraud_suspension_ends",
-    "antifraud_confirmation",
-    "aml_reasons_notice",
-    "aml_documents_answer",
-    "high_risk_notice",
-    "high_risk_commission_application",
-  ]) {
-    const d = find(c, kind);
-    if (d) flags.push({ kind: "deadline", day: dayNumber(d.due), deadline: d });
-  }
+  /* The measures taken, with their grounds, and every dated term around
+     them, which binds the bank, the client or another body */
+  for (const measure of c.measures) flags.push({ kind: "measure", day: dayNumber(measure.on), measure });
+  for (const d of c.deadlines) if (!REPLY_TERMS.has(d.kind)) flags.push({ kind: "deadline", day: dayNumber(d.due), deadline: d });
 
   const channel = store.channel[row] ?? 0;
   const forwarded = store.source[row] === Source.BankOfRussia;
@@ -176,6 +183,9 @@ export function caseDetails(store: ColumnStore, row: number): CaseDetails {
     extension,
     term: termDays(registered, due),
     flags,
+    duties: c.duties,
+    storage: find(c, "storage_until"),
+    warnings: c.warnings,
     timeline: timeline.sort((a, b) => a.day - b.day),
     related,
   };
