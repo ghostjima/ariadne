@@ -120,8 +120,9 @@ export const GROUNDS: readonly (GroundSpec | null)[] = [
   { id: "payment_8_3_4", act: "payment_system", article: "8", part: "3.4", streams: [Stream.Antifraud] },
   /* Part 3.10: only the second action, when the Bank of Russia's database
      answered after the client confirmed the order or repeated the
-     operation. The register holds no such second step, so the generator
-     never draws it; a person may still name it. */
+     operation (Path.SecondStep). The generator never draws it as the
+     register's ground; the assistant names it after part 3.4 for a case
+     with that second step, and a person may name it. */
   { id: "payment_8_3_10", act: "payment_system", article: "8", part: "3.10", streams: [Stream.Antifraud] },
   { id: "aml_operation_refused", act: "anti_money_laundering", article: "7", part: "11", streams: [Stream.Aml] },
   { id: "aml_account_refused", act: "anti_money_laundering", article: "7", part: "5.2, paragraph 2", streams: [Stream.Aml] },
@@ -174,6 +175,32 @@ export const Operation = {
   AccountService: 6,
 } as const;
 export const OPERATION_COUNT = 7;
+
+/* What happened after the first action or decision, where the legal
+   clocks go on beyond it: a code of the `path` column, with its days in
+   `pathOn` and `pathThen`. The register draws these for open cases only,
+   from a stream of their own (generator.ts). */
+export const Path = {
+  None: 0,
+  /* 161-FZ art. 8: the client confirmed the suspended transfer, or
+     repeated the refused card, Faster Payments or e-money operation, on
+     `pathOn`, and the Bank of Russia's database answered after it: the
+     second step of part 3.10, and part 3.11 two days on */
+  SecondStep: 1,
+  /* 161-FZ art. 9: the client's own card or online banking suspended for
+     their data in the Bank of Russia's database (part 11.6) on the day of
+     the operation, and their application to remove the data received by
+     the bank on `pathOn` (Directive No. 6748-U item 1.2); received by the
+     Bank of Russia on `pathThen` once forwarded, -1 before */
+  DatabaseRemoval: 2,
+  /* 115-FZ art. 7: after the refusal, the client applied to the
+     interagency commission on `pathOn`, and the commission's request for
+     the bank's justification came on `pathThen`, giving `pathTerm` working
+     days (0: the request gave none) (item 13.6; Regulation No. 842-P item
+     2.8) */
+  CommissionRequest: 3,
+} as const;
+export const PATH_COUNT = 4;
 
 /* The 115-FZ categories, in ariadne-rules' order */
 export const AML_REASON_CODES = [

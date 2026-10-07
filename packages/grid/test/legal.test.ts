@@ -14,12 +14,13 @@ import {
   GROUNDS,
   Ground,
   Outcome,
+  Path,
   SIGN_COUNT,
   Source,
   Stage,
   Stream,
 } from "../src/schema.js";
-import { RulesFlag, effectiveDue, hasFlag, type ColumnStore } from "../src/store.js";
+import { RulesFlag, effectiveDue, hasFlag, isAnswered, type ColumnStore } from "../src/store.js";
 import { labels as en } from "../src/pools/en.js";
 import { labels as ru } from "../src/pools/ru.js";
 
@@ -200,8 +201,9 @@ describe("a case's whole clock", () => {
     expect([GROUNDS[first]?.part, GROUNDS[second]?.part]).toEqual(["3.4", "3.10"]);
     const blocked = rows((i) => store.stream[i] === Stream.Antifraud && store.ground[i] !== Ground.None);
     expect(blocked.some((i) => store.operation[i] !== 3)).toBe(true);
-    /* The register holds no second action (a database answer after a
-       confirmation or a repeat), so none of its rows names part 3.10 */
+    /* The register's ground is never part 3.10: a second action (a
+       database answer after a confirmation or a repeat, Path.SecondStep)
+       is named after part 3.4 by the reply, not stored as the ground */
     for (const i of blocked) expect([first, Ground.Contract], `row ${i}`).toContain(store.ground[i]);
   });
 
@@ -214,5 +216,74 @@ describe("a case's whole clock", () => {
       const application = clock(caseFacts(store, i)).deadlines.find((d) => d.kind === "high_risk_commission_application");
       expect(application?.from, `row ${i}`).toBe(on);
     }
+  });
+});
+
+describe("the paths beyond the first action or decision", () => {
+  const withPath = (path: number) => rows((i) => store.path[i] === path);
+  const kinds = (i: number) => clock(caseFacts(store, i)).deadlines.map((d) => d.kind);
+  const measures = (i: number) => clock(caseFacts(store, i)).measures.map((m) => m.kind);
+
+  it("are drawn for open cases only, on days no later than the day the data is taken", () => {
+    const drawn = rows((i) => store.path[i] !== Path.None);
+    expect(drawn.every((i) => !isAnswered(store, i))).toBe(true);
+    for (const i of drawn) {
+      expect(store.pathOn[i], `row ${i}`).toBeLessThanOrEqual(asOf);
+      expect(store.pathThen[i], `row ${i}`).toBeLessThanOrEqual(asOf);
+    }
+    const none = rows((i) => store.path[i] === Path.None);
+    expect(none.every((i) => store.pathOn[i] === -1 && store.pathThen[i] === -1 && store.pathTerm[i] === 0)).toBe(true);
+    for (const path of [Path.SecondStep, Path.DatabaseRemoval, Path.CommissionRequest]) expect(withPath(path).length, `path ${path}`).toBeGreaterThan(2);
+  });
+
+  it("a second step: confirmed or repeated within the window, then the database answered: part 3.10, and part 3.11 two days on", () => {
+    const second = withPath(Path.SecondStep);
+    for (const i of second) {
+      expect(store.stream[i]).toBe(Stream.Antifraud);
+      expect(store.pathOn[i]! - store.opOn[i]!, `row ${i}`).toBeGreaterThanOrEqual(0);
+      expect(store.pathOn[i]! - store.opOn[i]!, `row ${i}`).toBeLessThanOrEqual(1);
+      expect(caseFacts(store, i).blocked).toMatchObject({ confirmedOn: isoDay(store.pathOn[i]!), databaseMatchAfterConfirmation: true });
+      const transfer = store.operation[i] === 3;
+      expect(measures(i)).toEqual(transfer ? ["suspend_order", "suspend_confirmed_order"] : ["refuse_operation", "refuse_repeat"]);
+      expect(kinds(i)).toEqual(
+        expect.arrayContaining(transfer ? ["antifraud_repeat_suspension_ends", "antifraud_after_repeat_suspension"] : ["antifraud_repeat_refusal_ends", "antifraud_after_repeat_refusal"]),
+      );
+    }
+    expect(second.some((i) => store.operation[i] === 3) && second.some((i) => store.operation[i] !== 3)).toBe(true);
+    /* Some still run on the day the data is taken: the reply states them */
+    expect(second.some((i) => clock(caseFacts(store, i)).deadlines.some((d) => d.kind === "antifraud_repeat_refusal_ends" && d.due >= AS_OF))).toBe(true);
+  });
+
+  it("an application to remove the client's data, through the bank: the card suspended under 161-FZ art. 9, forwarded by the next working day, decided in 15 working days from the Bank of Russia's receipt", () => {
+    const removal = withPath(Path.DatabaseRemoval);
+    for (const i of removal) {
+      expect([store.stream[i], store.reason[i]]).toEqual([Stream.Antifraud, 1]);
+      expect(store.pathOn[i]).toBeGreaterThanOrEqual(store.received[i]!);
+      const c = clock(caseFacts(store, i));
+      expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6" });
+      const forwarding = c.deadlines.find((d) => d.kind === "exclusion_forwarding");
+      expect(forwarding?.basis).toMatchObject({ source: "directive_6748_u", part: "1.5" });
+      expect(c.duties.map((d) => d.kind)).toContain("notify_client_of_right_to_apply");
+      if (store.pathThen[i]! >= 0) {
+        expect(store.pathThen[i]).toBe(dayNumber(nextWorkingDay(isoDay(store.pathOn[i]!))));
+        expect(c.deadlines.find((d) => d.kind === "exclusion_decision")?.from).toBe(isoDay(store.pathThen[i]!));
+      } else expect(kinds(i)).not.toContain("exclusion_decision");
+    }
+  });
+
+  it("the commission's request: the bank's answer in the term it gives, at least 3 working days, 3 when it gives none", () => {
+    const requests = withPath(Path.CommissionRequest);
+    for (const i of requests) {
+      expect(store.stream[i]).toBe(Stream.Aml);
+      expect([1, 2]).toContain(store.reason[i]);
+      expect(store.pathOn[i]).toBeLessThan(store.pathThen[i]!);
+      const c = clock(caseFacts(store, i));
+      const answer = c.deadlines.find((d) => d.kind === "commission_request_answer");
+      const term = store.pathTerm[i]!;
+      expect(answer?.countValue, `row ${i}`).toBe(term === 0 ? 3 : term);
+      expect(c.warnings.includes("commission_term_assumed"), `row ${i}`).toBe(term === 0);
+      expect(c.deadlines.find((d) => d.kind === "aml_commission_decision")?.from).toBe(isoDay(store.pathOn[i]!));
+    }
+    expect(requests.some((i) => store.pathTerm[i] === 0) && requests.some((i) => store.pathTerm[i]! > 0)).toBe(true);
   });
 });

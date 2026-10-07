@@ -20,6 +20,7 @@ import {
   NOTE_COUNT,
   Operation,
   Outcome,
+  Path,
   SIGNATORY_COUNT,
   SIGN_COUNT,
   Sector,
@@ -152,6 +153,25 @@ const BREACH_SHARE = 0.15;
 /* Of the copies of replies sent on the day the data is taken, the share
    still to send */
 const TODAY_UNSENT_SHARE = 0.6;
+
+/* The paths beyond the first action or decision are drawn from a stream of
+   their own, for open cases only, so every other column, and every
+   answered case, is what it was before they were drawn. The shares are
+   this generator's own: of the open blocks with a sign other than 1.1, a
+   second step after the client confirmed or repeated; of the open blocks
+   with sign 1.1 (the client's own data in the database, the complaint
+   that asks how to have it removed), an application to remove it through
+   the bank; of the open refusals of an operation or an account, a
+   commission's request, where the time since the decision leaves room for
+   it. */
+const PATH_SALT = 0x9a7b51;
+const SECOND_STEP_SHARE = 0.3;
+const DATABASE_REMOVAL_SHARE = 0.6;
+const COMMISSION_REQUEST_SHARE = 0.5;
+/* The 115-FZ decisions a client takes to the commission after the bank's
+   answer on the documents (115-FZ art. 7 items 13.4, 13.5): an operation
+   or an account refused, by category code */
+const COMMISSION_CATEGORIES: readonly number[] = [1, 2];
 
 /* Share of complaints with an adversarial insertion */
 const INJECTION_SHARE = 0.03;
@@ -459,6 +479,48 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.injection[i] = rng() < INJECTION_SHARE ? 1 + pick(INJECTION_COUNT) : 0;
     c.note[i] = noteSlot < 4 ? 0 : noteSlot - 3;
     c.updatedAt[i] = Math.min(updatedDay, AS_OF_DAY) * 86_400_000;
+
+    /* What happened after the first action or decision, for an open case:
+       days only, none later than the day the data is taken. */
+    const way = makeRng(mixSeed(seed ^ PATH_SALT, r));
+    const wr = way();
+    let path: number = Path.None;
+    let pathOn = -1;
+    let pathThen = -1;
+    let pathTerm = 0;
+    if (!answered && stream === Stream.Antifraud && operation !== Operation.None) {
+      if (reason === 1) {
+        if (wr < DATABASE_REMOVAL_SHARE) {
+          /* The application comes with the complaint or after it */
+          path = Path.DatabaseRemoval;
+          pathOn = received + Math.floor(way() * (AS_OF_DAY - received + 1));
+          const forwarded = nextWorking(pathOn);
+          pathThen = forwarded <= AS_OF_DAY ? forwarded : -1;
+        }
+      } else if (wr < SECOND_STEP_SHARE) {
+        /* Confirmed or repeated on the day of the block or the next, by
+           the day of the complaint: a transfer within its window */
+        path = Path.SecondStep;
+        pathOn = Math.min(received, AS_OF_DAY, opOn + (way() < 0.5 ? 0 : 1));
+      }
+    } else if (!answered && stream === Stream.Aml && COMMISSION_CATEGORIES.includes(reason) && wr < COMMISSION_REQUEST_SHARE) {
+      /* The documents, the bank's answer within 7 working days, then the
+         application; the commission asks the bank a few working days on */
+      const applied = plusWorkingDays(opOn, 8 + Math.floor(way() * 6));
+      const asked = plusWorkingDays(applied, 1 + Math.floor(way() * 3));
+      const given = way() < 0.7;
+      const term = 3 + Math.floor(way() * 3);
+      if (asked <= AS_OF_DAY) {
+        path = Path.CommissionRequest;
+        pathOn = applied;
+        pathThen = asked;
+        pathTerm = given ? term : 0;
+      }
+    }
+    c.path[i] = path;
+    c.pathOn[i] = pathOn;
+    c.pathThen[i] = pathThen;
+    c.pathTerm[i] = pathTerm;
   }
   return c;
 }

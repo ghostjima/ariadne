@@ -97,6 +97,13 @@ export type Columns = {
   note: Uint8Array;
   /* epoch milliseconds of the last change */
   updatedAt: Float64Array;
+  /* Path code: what happened after the first action or decision; its day,
+     and its later day or -1; the working days a commission's request
+     gives (0 when it gave none) */
+  path: Uint8Array;
+  pathOn: Int32Array;
+  pathThen: Int32Array;
+  pathTerm: Uint8Array;
 };
 
 export type ColumnStore = Columns & {
@@ -169,6 +176,10 @@ export function allocColumns(size: number): Columns {
     injection: new Uint8Array(size),
     note: new Uint8Array(size),
     updatedAt: new Float64Array(size),
+    path: new Uint8Array(size),
+    pathOn: new Int32Array(size),
+    pathThen: new Int32Array(size),
+    pathTerm: new Uint8Array(size),
   };
 }
 

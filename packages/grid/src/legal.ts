@@ -14,6 +14,7 @@ import {
   ELECTRONIC_CHANNELS,
   EXTENSION_WORKING_DAYS,
   Operation,
+  Path,
   SECTOR_RULES,
   STREAM_RULES,
   Source,
@@ -185,20 +186,48 @@ const AML_DECISION: Partial<Record<(typeof AML_REASON_CODES)[number], "refuse_op
 /* Everything a stored row knows, as ariadne-rules takes it: the reply's
    facts, the extension as it stands, the operation an antifraud block
    stopped (refused for a card, Faster Payments or e-money, suspended for a
-   transfer by bank details), and the 115-FZ decision or measures. The
-   case card asks the module for its whole clock with these. */
+   transfer by bank details), and the 115-FZ decision or measures; and the
+   row's path beyond them (Path): the second step after a confirmation or
+   a repeat, the client's application to remove their data from the
+   database, the commission's request. The case card asks the module for
+   its whole clock with these. */
 export function caseFacts(store: ColumnStore, i: number): CaseFacts {
   const facts = replyFacts(rowReplyFacts(store, i), isExtended(store, i));
   const stream = store.stream[i] ?? 0;
   const on = isoDay(store.opOn[i] ?? 0);
   const operation = store.operation[i] ?? 0;
+  const path = store.path[i] ?? Path.None;
+  const pathOn = store.pathOn[i] ?? -1;
+  const pathThen = store.pathThen[i] ?? -1;
   if (stream === Stream.Antifraud && operation !== Operation.None) {
     facts.blocked = { operation: operation === Operation.BankTransfer ? "transfer" : "card_sbp_or_emoney", on };
+    /* The second step: confirmed or repeated, then the database answered */
+    if (path === Path.SecondStep && pathOn >= 0) {
+      facts.blocked.confirmedOn = isoDay(pathOn);
+      facts.blocked.databaseMatchAfterConfirmation = true;
+    }
+    /* The client's own data in the database: the card or online banking
+       suspended on the day of the operation, the application to remove
+       the data through the bank, and its receipt by the Bank of Russia
+       once forwarded */
+    if (path === Path.DatabaseRemoval && pathOn >= 0) {
+      facts.database = { instrumentSuspendedOn: on, exclusionReceivedByOperatorOn: isoDay(pathOn) };
+      if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);
+    }
   }
   if (stream === Stream.Aml) {
     const category = AML_REASON_CODES[(store.reason[i] ?? 1) - 1];
     const kind = category ? AML_DECISION[category] : undefined;
-    if (kind) facts.aml = { decision: { kind, on } };
+    if (kind) {
+      facts.aml = { decision: { kind, on } };
+      /* The application to the commission, and its request to the bank
+         with the working days it gives, when it gave them */
+      if (path === Path.CommissionRequest && pathOn >= 0 && pathThen >= 0) {
+        facts.aml.commissionAppliedOn = isoDay(pathOn);
+        const term = store.pathTerm[i] ?? 0;
+        facts.aml.commissionRequest = term > 0 ? { receivedOn: isoDay(pathThen), workingDays: term } : { receivedOn: isoDay(pathThen) };
+      }
+    }
     /* The client's six months to apply to the commission run from the day
        the notice of the measures was received (115-FZ art. 7.8 item 1).
        The register does not know that day; the client complains about the
