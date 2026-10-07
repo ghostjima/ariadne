@@ -130,10 +130,14 @@ describe("the working views", () => {
 
   it("due within 3 working days, and overdue", () => {
     const soon = run("dueSoon");
-    expect(soon.length).toBeGreaterThan(0);
+    // Counts a desk can work with: a minority of the open cases due soon,
+    // a few overdue.
+    expect(soon.length).toBeGreaterThanOrEqual(15);
+    expect(soon.length).toBeLessThan(run("open").length / 5);
     for (const i of soon) expect(workingDaysLeft(store, i)).toBeLessThanOrEqual(3);
     const overdue = run("overdue");
-    expect(overdue.length).toBeGreaterThan(0);
+    expect(overdue.length).toBeGreaterThanOrEqual(2);
+    expect(overdue.length).toBeLessThanOrEqual(10);
     for (const i of overdue) expect([workingDaysLeft(store, i) < 0, store.stage[i]! < Stage.Sent]).toEqual([true, true]);
   });
 

@@ -49,4 +49,21 @@ describe("the drafted reply", () => {
     expect(replyLines(text("en"), draftOf(pending))).toContain("[The decision on the complaint: for the reviewer to state.]");
     expect(replyLines(text("ru"), draftOf(pending))).toContain("[Решение по жалобе: указывает проверяющий.]");
   });
+
+  it("states the deadlines still running on the day it is dated, for the open cases of the corpus that have them", () => {
+    // Not only a sample case: blocks complained about within days, and
+    // high-risk measures with the client's six months to the commission.
+    const running = open.filter((i) => draftOf(i).deadlines.length > 0);
+    expect(running.length).toBeGreaterThanOrEqual(5);
+    const kinds = new Set(running.flatMap((i) => draftOf(i).deadlines.map((d) => d.kind)));
+    expect([...kinds]).toEqual(expect.arrayContaining(["high_risk_commission_application", "antifraud_confirmation"]));
+    for (const row of running) {
+      const draft = draftOf(row);
+      const x = text("en");
+      for (const d of draft.deadlines) {
+        expect(d.due >= draft.repliedOn, `row ${row}`).toBe(true);
+        expect(replyLines(x, draft), `row ${row}`).toContain(x.t.reply.deadline[d.kind](x.f.date(d.due)));
+      }
+    }
+  });
 });

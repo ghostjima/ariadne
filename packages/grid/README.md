@@ -57,10 +57,27 @@ they are taken again with `pnpm measure`.
   an assistant ("ignore previous instructions", "approve and close this
   case"); they are marked in the data (`injection`, `isAdversarial`) so
   tests can find every one. A complaint's text is untrusted data.
+- **The open cases on the day the data is taken.** A case is open while
+  its reply term runs (the closer the last day, the likelier it has been
+  answered); a few are kept open by an extension, and a few are overdue
+  by a working day or a few. With the default seed: 215 open, of them
+  187 with more than three working days left, 24 due within three and 4
+  overdue. The shares are the generator's own, not measured from any
+  bank.
+- **Blocks and their deadlines.** A blocked transfer or payment is
+  complained about the same day or the next, a few later, so the newest
+  161-FZ cases still have the suspension and the client's day to confirm
+  running. For high-risk measures under 115-FZ the client's notice of the
+  measures is taken as received on the day they were applied: the
+  register does not know the day, and the earliest one gives the earliest
+  end of the client's six months to apply to the commission (art. 7.8
+  item 1), a conservative reading. Together these give the register open
+  cases whose reply has deadlines still running to state.
 - **Consistency.** Cases are registered by the next working day (a few
   late, and flagged), answered no earlier than registered, decided before
   legal review, and a refusal past drafting names a ground of its own
-  stream; linked cases share the client and the operation.
+  stream (for a 161-FZ block, art. 8 part 3.4, the first action);
+  linked cases share the client and the operation.
 
 ## Data model
 

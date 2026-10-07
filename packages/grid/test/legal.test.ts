@@ -204,4 +204,15 @@ describe("a case's whole clock", () => {
        confirmation or a repeat), so none of its rows names part 3.10 */
     for (const i of blocked) expect([first, Ground.Contract], `row ${i}`).toContain(store.ground[i]);
   });
+
+  it("high-risk measures: the notice is taken as received the day they were applied, the earliest end of the client's six months", () => {
+    const highRisk = rows((i) => store.stream[i] === Stream.Aml && AML_REASON_CODES[store.reason[i]! - 1] === "aml_high_risk_measures");
+    expect(highRisk.length).toBeGreaterThan(0);
+    for (const i of highRisk) {
+      const on = isoDay(store.opOn[i]!);
+      expect(caseFacts(store, i).aml).toEqual({ highRiskMeasuresOn: on, highRiskNoticeReceivedOn: on });
+      const application = clock(caseFacts(store, i)).deadlines.find((d) => d.kind === "high_risk_commission_application");
+      expect(application?.from, `row ${i}`).toBe(on);
+    }
+  });
 });

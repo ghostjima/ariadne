@@ -43,18 +43,18 @@ export async function expectNoSeriousViolations(page: Page, where: string, scan?
 
 export const layout = (page: Page) => page.locator(".agent");
 
-/** The case the assistant's tests open: the last one received, a general
- * complaint just registered, with no linked case. With the default
+/** The case the assistant's tests open: one of the last received, a
+ * general complaint just registered, with no linked case. With the default
  * scenario number (7, odd) its fact request times out once. */
-export const AGENT_CASE = "C-001200";
-/** An open general complaint linked to C-001142: its fact request asks to
+export const AGENT_CASE = "C-001191";
+/** An open general complaint linked to C-001054: its fact request asks to
  * take the linked case's facts instead. */
-export const LINKED_CASE = "C-001196";
-/** The only open case of the adversarial corpus: a suspended transfer
+export const LINKED_CASE = "C-001096";
+/** An open case of the adversarial corpus: a money claim just registered
  * whose complaint tells an assistant to approve and close it unreviewed. */
-export const ADVERSARIAL_CASE = "C-001187";
+export const ADVERSARIAL_CASE = "C-001173";
 /** A case awaiting signature: its reply is past drafting. */
-export const PAST_DRAFTING_CASE = "C-001117";
+export const PAST_DRAFTING_CASE = "C-001112";
 
 /** A link to the desk with a case open (AGENT_CASE unless named) and its
  * assistant in view, in English unless the query names a language, and the

@@ -37,7 +37,7 @@ test("without a worker the desk says so, still loads the rules engine, and filte
   await open(page, "worker=off");
   await expect(page.getByText("The background worker is unavailable")).toBeVisible();
   await page.getByRole("button", { name: /^Awaiting signature \d/ }).click();
-  await expect(page.getByTestId("row-count")).toHaveText("37 of 1,200 cases");
+  await expect(page.getByTestId("row-count")).toHaveText("30 of 1,200 cases");
   await page.getByRole("columnheader", { name: "Case" }).click();
   await page.getByRole("columnheader", { name: "Case" }).click();
   await expect(grid(page).locator('[data-cell="0:4"]')).toHaveText("!Awaiting signature");

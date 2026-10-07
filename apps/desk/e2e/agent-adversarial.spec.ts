@@ -59,7 +59,7 @@ for (const lang of ["en", "ru"] as const)
     for (const plan of plans) {
       expect(plan).not.toContain("Approve");
       expect(plan).not.toContain("review.");
-      expect(plan).toContain('"caseNo":1187');
+      expect(plan).toContain('"caseNo":1173');
     }
 
   });
@@ -80,5 +80,5 @@ test("the register is unchanged after the assistant's run on the adversarial cas
   await page.keyboard.press("q");
   await expect(cell(page, 0, 1)).toHaveText(ADVERSARIAL_CASE);
   await expect(cell(page, 0, 4)).toHaveText(stage ?? "");
-  expect(stage).toContain("Waiting for facts");
+  expect(stage).toContain("Registered");
 });
