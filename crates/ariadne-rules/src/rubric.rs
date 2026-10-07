@@ -262,6 +262,7 @@ fn stated_to_client(kind: DeadlineKind) -> bool {
             | AmlDocumentsAnswer
             | AmlCommissionDecision
             | HighRiskCommissionApplication
+            | HighRiskRatingReview
     )
 }
 

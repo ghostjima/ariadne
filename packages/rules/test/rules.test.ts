@@ -6,6 +6,7 @@ import {
   calendarRange,
   clock,
   dayKind,
+  factRequestDue,
   isWorkingDay,
   nextWorkingDay,
   od2506Signs,
@@ -130,6 +131,39 @@ describe("through the WebAssembly build", () => {
     expect(due(c, "instrument_suspension_notice")).toBe("2026-05-09");
     const decision = c.deadlines.find((d) => d.kind === "exclusion_decision")!;
     expect([decision.due, decision.from, decision.basis.source, decision.basis.article]).toEqual(["2026-06-02", "2026-05-12", "directive_6748_u", ""]);
+  });
+
+  it("caps a fact request by the external terms that bind the answering unit", () => {
+    // The crate's worked example: documents against a refused operation
+    // submitted on 8 May 2026 are answered by 20 May; a fact request on
+    // 19 May, two working days to 21 May by the internal policy, is due on
+    // 20 May.
+    const facts = {
+      stream: "aml_refusal",
+      receivedOn: "2026-05-08",
+      aml: { decision: { kind: "refuse_operation", on: "2026-04-30" }, documentsSubmittedOn: "2026-05-08" },
+    } as const;
+    expect(factRequestDue(facts, "2026-05-19")).toEqual({ due: "2026-05-20", policyDue: "2026-05-21", cappedBy: "aml_documents_answer" });
+    expect(factRequestDue(facts, "2026-05-08")).toEqual({ due: "2026-05-13", policyDue: "2026-05-13", cappedBy: null });
+    expect(() => factRequestDue(facts, "2026-5-19")).toThrow("invalid_date");
+  });
+
+  it("the notices of the complaint article, the storage term and the commission's terms", () => {
+    const c = clock({
+      stream: "aml_refusal",
+      receivedOn: "2026-05-12",
+      registeredOn: "2026-05-12",
+      noSubstance: "illegible",
+      aml: { commissionRequest: { receivedOn: "2026-06-04" }, commissionDecidedOn: "2026-06-26", ratingReviewReceivedOn: "2026-06-01" },
+      applicant: "legal_entity",
+    });
+    expect(due(c, "no_substance_notice")).toBe("2026-05-19");
+    expect(due(c, "storage_until")).toBe("2029-05-12");
+    expect(c.deadlines.find((d) => d.kind === "storage_until")!.count).toBe("years");
+    expect(due(c, "commission_request_answer")).toBe("2026-06-09");
+    expect(c.warnings).toContain("commission_term_assumed");
+    expect(due(c, "commission_decision_notice")).toBe("2026-07-01");
+    expect(due(c, "high_risk_rating_review")).toBe("2026-06-23");
   });
 
   it("lists the 14 signs of OD-2506 and the 115-FZ categories, once", () => {

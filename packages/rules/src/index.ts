@@ -22,6 +22,7 @@ export type OperationCode = wasm.OperationCode;
 export type AmlDecisionCode = wasm.AmlDecisionCode;
 export type ExtensionGroundCode = wasm.ExtensionGroundCode;
 export type ActCode = wasm.ActCode;
+export type NoSubstanceCode = wasm.NoSubstanceCode;
 
 export class RulesError extends Error {
   constructor(readonly code: string) {
@@ -125,6 +126,10 @@ export type CaseFacts = {
   breachOn?: Day;
   extension?: { ground: ExtensionGroundCode; workingDays: number };
   standardBreachFound?: boolean;
+  /* Left without a reply on substance, on this ground */
+  noSubstance?: NoSubstanceCode;
+  /* The correspondence stopped on a repeated complaint */
+  stopCorrespondence?: boolean;
   blocked?: {
     operation: OperationCode;
     on: Day;
@@ -148,8 +153,13 @@ export type CaseFacts = {
     decision?: { kind: AmlDecisionCode; on: Day };
     documentsSubmittedOn?: Day;
     commissionAppliedOn?: Day;
+    /* The commission's request to the organisation, and the working days
+       it gives (at least 3) */
+    commissionRequest?: { receivedOn: Day; workingDays?: number };
+    commissionDecidedOn?: Day;
     highRiskMeasuresOn?: Day;
     highRiskNoticeReceivedOn?: Day;
+    ratingReviewReceivedOn?: Day;
   };
 };
 
@@ -206,6 +216,8 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     i.extensionWorkingDays = f.extension.workingDays;
   }
   if (f.standardBreachFound !== undefined) i.standardBreachFound = f.standardBreachFound;
+  if (f.noSubstance !== undefined) i.noSubstance = f.noSubstance;
+  if (f.stopCorrespondence !== undefined) i.stopCorrespondence = f.stopCorrespondence;
   if (f.blocked !== undefined) {
     const b = f.blocked;
     i.blockedOperation = b.operation;
@@ -233,6 +245,12 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     }
     if (a.documentsSubmittedOn !== undefined) i.documentsSubmittedOn = a.documentsSubmittedOn;
     if (a.commissionAppliedOn !== undefined) i.commissionAppliedOn = a.commissionAppliedOn;
+    if (a.commissionRequest !== undefined) {
+      i.commissionRequestReceivedOn = a.commissionRequest.receivedOn;
+      if (a.commissionRequest.workingDays !== undefined) i.commissionRequestWorkingDays = a.commissionRequest.workingDays;
+    }
+    if (a.commissionDecidedOn !== undefined) i.commissionDecidedOn = a.commissionDecidedOn;
+    if (a.ratingReviewReceivedOn !== undefined) i.ratingReviewReceivedOn = a.ratingReviewReceivedOn;
     if (a.highRiskMeasuresOn !== undefined) i.highRiskMeasuresOn = a.highRiskMeasuresOn;
     if (a.highRiskNoticeReceivedOn !== undefined) i.highRiskNoticeReceivedOn = a.highRiskNoticeReceivedOn;
   }
@@ -290,6 +308,26 @@ export function clock(facts: CaseFacts): Clock {
         replyDue: c.replyDue ?? null,
       };
       c.free();
+      return out;
+    } finally {
+      input.free();
+    }
+  });
+}
+
+/* The last day of a request for facts to another unit: two working days,
+   an internal policy and not a term of any law, capped by the earliest
+   external term that binds the answering unit (`cappedBy`, a deadline
+   code, or null when the policy's day stands). */
+export type FactRequestDue = { due: Day; policyDue: Day; cappedBy: string | null };
+
+export function factRequestDue(facts: CaseFacts, sentOn: Day): FactRequestDue {
+  return call(() => {
+    const input = caseInput(facts);
+    try {
+      const f = wasm.factRequestDue(input, sentOn);
+      const out: FactRequestDue = { due: f.due, policyDue: f.policyDue, cappedBy: f.cappedBy ?? null };
+      f.free();
       return out;
     } finally {
       input.free();

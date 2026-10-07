@@ -206,7 +206,7 @@ pub const AML_LAW_7: Source = Source {
     title: "Федеральный закон от 07.08.2001 N 115-ФЗ «О противодействии легализации (отмыванию) доходов, полученных преступным путем, и финансированию терроризма», статья 7",
     url: "https://www.consultant.ru/document/cons_doc_LAW_32834/3e3e0d20d2919071b55ef95f26f849df6a4f11e8/",
     revision: "2026-08-04",
-    checked: "2026-10-06",
+    checked: "2026-10-07",
 };
 
 /// Anti-Money-Laundering Law, art. 7.7: measures against a client the
@@ -226,7 +226,20 @@ pub const AML_LAW_7_8: Source = Source {
     title: "Федеральный закон от 07.08.2001 N 115-ФЗ «О противодействии легализации (отмыванию) доходов, полученных преступным путем, и финансированию терроризма», статья 7.8",
     url: "https://www.consultant.ru/document/cons_doc_LAW_32834/b9e70868f2269695609ac83c8cabbc15dbc7b4e0/",
     revision: "2026-08-04",
-    checked: "2026-10-06",
+    checked: "2026-10-07",
+};
+
+/// The Bank of Russia's Regulation No. 842-P, as amended by Directive
+/// No. 7382-U of 25.06.2026: how the interagency commission reviews an
+/// application, its request to the organisation and the notice of its
+/// decision. The text was read in a full-text copy; the revision was
+/// confirmed on consultant.ru.
+pub const REGULATION_842_P: Source = Source {
+    id: "regulation_842_p",
+    title: "Положение Банка России от 23.09.2024 N 842-П «О требованиях к заявлениям, предусмотренным абзацем первым пункта 13.5 статьи 7 и пунктами 1 и 1.2 статьи 7.8 Федерального закона от 7 августа 2001 года N 115-ФЗ \"О противодействии легализации (отмыванию) доходов, полученных преступным путем, и финансированию терроризма\", порядке и сроках рассмотрения межведомственной комиссией таких заявлений и прилагаемых к ним документов и (или) сведений, порядке принятия решения по результатам такого рассмотрения, а также порядке сообщения межведомственной комиссией о принятом решении»",
+    url: "https://legalacts.ru/doc/polozhenie-banka-rossii-ot-23092024-n-842-p-o-trebovanijakh/",
+    revision: "2026-06-25",
+    checked: "2026-10-07",
 };
 
 /// The Bank of Russia's Order No. OD-2506: the signs of a transfer
@@ -283,6 +296,7 @@ pub const ALL: &[Source] = &[
     AML_LAW_7,
     AML_LAW_7_7,
     AML_LAW_7_8,
+    REGULATION_842_P,
     OD_2506,
     RESTRICTIONS_LETTER,
     BANK_OF_RUSSIA_REPLY_PAGE,
