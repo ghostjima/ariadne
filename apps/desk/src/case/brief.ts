@@ -11,7 +11,6 @@ import {
   AS_OF,
   GROUNDS,
   Ground,
-  Operation,
   Source,
   Stream,
   caseFacts,
@@ -51,11 +50,16 @@ export function reasonOf(store: ColumnStore, row: number): ReasonCode | null {
 }
 
 /** The grounds the reply names: the law of an antifraud or 115-FZ case
- * first (161-FZ art. 8 part 3.4 for a suspended transfer, part 3.10 for a
- * refused card, Faster Payments or e-money operation; the category's own
- * article and item under 115-FZ), then the ground the register holds, if it
- * is another one its stream may name. A general complaint or a money claim
- * rests on the contract unless the register says otherwise. */
+ * first (161-FZ art. 8 part 3.4 for the first action on any operation that
+ * matched a sign: a transfer by bank details suspended, a card, e-money or
+ * Faster Payments operation refused; part 3.10 is the second action after a
+ * confirmation or a repeat, which the register does not hold; the
+ * category's own article and item under 115-FZ), then the ground the
+ * register holds, if it is another one its stream may name. A general
+ * complaint or a money claim rests on the contract unless the register
+ * says otherwise. */
+const FIRST_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
+
 export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
   const stream = store.stream[row] ?? 0;
   const out: GroundCode[] = [];
@@ -63,7 +67,7 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
     const spec = GROUNDS[index];
     if (spec && spec.streams.includes(stream) && !out.includes(spec.id as GroundCode)) out.push(spec.id as GroundCode);
   };
-  if (stream === Stream.Antifraud) add(store.operation[row] === Operation.BankTransfer ? 1 : 2);
+  if (stream === Stream.Antifraud) add(FIRST_ACTION);
   if (stream === Stream.Aml && (store.reason[row] ?? 0) > 0) add(AML_GROUND_OFFSET + (store.reason[row] ?? 1) - 1);
   const held = store.ground[row] ?? Ground.None;
   if (held !== Ground.None) add(held);

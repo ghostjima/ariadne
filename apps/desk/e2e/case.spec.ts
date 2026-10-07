@@ -35,6 +35,26 @@ test("O opens the case of the active row; Q goes back with the focus on that row
   expect(new URL(page.url()).searchParams.get("case")).toBeNull();
 });
 
+test("Q goes back to the queue while the case is still loading the rules engine", async ({ page }) => {
+  await open(page, `view=${viewParam({ search: "C-000867" })}`, "1 of 1,200 cases");
+  await focusCell(page, 0, 1);
+  // The queue's worker has its rules module; the page loads its own when a
+  // case opens. Held back here, so the case is still loading when Q comes.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/*.wasm", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.keyboard.press("o");
+  await expect(caseHeading(page)).toBeFocused();
+  await expect(page.getByRole("button", { name: "Run plan" })).toHaveCount(0);
+  await page.keyboard.press("q");
+  await expect(cell(page, 0, 1)).toBeFocused();
+  expect(new URL(page.url()).searchParams.get("case")).toBeNull();
+  release();
+});
+
 test("a 161-FZ transfer: the OD-2506 sign with the order's own wording, the suspension, the copy to the Bank of Russia", async ({ page }) => {
   await openCase(page, "C-000867");
   const flags = page.getByRole("region", { name: "Flags" });

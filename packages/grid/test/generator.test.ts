@@ -125,7 +125,10 @@ describe("generator", () => {
   it("keeps the same rows for the default seed across versions", () => {
     /* A change here means existing seeds no longer reproduce earlier data.
        Re-pinned when the register became the complaints corpus: every
-       column changed, and the deadlines now come from ariadne-rules. */
+       column changed, and the deadlines now come from ariadne-rules.
+       Re-pinned when a refused card, e-money or Faster Payments operation
+       stopped naming 161-FZ art. 8 part 3.10 (the second action) instead
+       of part 3.4 (the first): the ground of those rows changed. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
@@ -148,4 +151,4 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "9f315c85";
+const GOLDEN_DIGEST = "3979a4ad";

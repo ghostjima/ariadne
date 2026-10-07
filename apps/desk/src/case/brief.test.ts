@@ -98,6 +98,16 @@ describe("caseBrief", () => {
     }
   });
 
+  it("a block rests on 161-FZ art. 8 part 3.4 whatever the operation: part 3.10 is the second action, not the first", () => {
+    const blocks = rows.filter((i) => store.stream[i] === Stream.Antifraud);
+    expect(new Set(blocks.map((i) => store.operation[i])).size).toBeGreaterThan(2);
+    for (const row of blocks) {
+      const grounds = caseBrief(store, row).grounds;
+      expect(grounds[0], `row ${row}`).toBe("payment_8_3_4");
+      expect(grounds, `row ${row}`).not.toContain("payment_8_3_10");
+    }
+  });
+
   it("a reply stating what the brief carries leaves the rules nothing to ask for", () => {
     for (const row of rows.filter((i) => store.stage[i]! < Stage.LegalReview)) {
       const b = caseBrief(store, row);
