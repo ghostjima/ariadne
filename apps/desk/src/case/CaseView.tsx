@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
 import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, useShortcuts, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
-import { Stage, caseFacts, clientName, isAnswered, rowId, wasReturned, workingDaysLeft, type ColumnStore, type Role, type TransitionError } from "@ariadne/grid";
+import { Stage, caseFacts, clientName, isAnswered, rowId, wasReturned, workingDaysLeft, type ColumnStore, type Role } from "@ariadne/grid";
 import type { ReplyDraft } from "@ariadne/runner";
 import { AgentPanel } from "../agent/AgentPanel";
 import { strings as agentStrings } from "../agent/i18n";
@@ -16,7 +16,9 @@ import { POOLS } from "../data/query";
 import { DUE_SOON, stageTone } from "../desk/columns";
 import type { Lang, Strings } from "../i18n";
 import { CaseCard } from "./CaseCard";
-import { CaseWork, actsOn, type TransitionRequest } from "../workflow/CaseWork";
+import { CaseWork, actsOn, type TransitionRequest, type WorkRefusal } from "../workflow/CaseWork";
+import { LetterPanel } from "../workflow/LetterPanel";
+import type { DecisionRecord, LetterError, SignDecision, SignError } from "../workflow/caseFile";
 import { Handover } from "../workflow/Handover";
 import type { CaseFiles } from "../workflow/caseFile";
 import { workflowStrings } from "../workflow/i18n";
@@ -50,12 +52,17 @@ export type CaseViewProps = {
   role: Role;
   /** What the desk keeps with each case: the draft handed over. */
   files: CaseFiles;
-  onTransition: (request: TransitionRequest) => TransitionError | null;
+  onTransition: (request: TransitionRequest) => WorkRefusal | null;
+  onEditLetter: (text: string, current: string) => LetterError | null;
+  onField: (field: "outcome" | "ground", value: number) => string | null;
+  onSign: (record: DecisionRecord & { decision: Exclude<SignDecision, "defer"> }) => SignError | null;
+  onDefer: (record: { concerns: string; wrong: string }) => SignError | null;
   /** Records the assistant's handover a person confirmed. */
   onHandover: (draft: ReplyDraft, run: number) => void;
 };
 
-export function CaseView({ store, row, lang, t, version, service, toasts, onBack, onOpenCase, role, files, onTransition, onHandover }: CaseViewProps) {
+export function CaseView(props: CaseViewProps) {
+  const { store, row, lang, t, version, service, toasts, onBack, onOpenCase, role, files, onTransition, onHandover } = props;
   const ready = useRules();
   const breakpoint = useBreakpoint();
   const wide = breakpoint === "wide";
@@ -85,7 +92,30 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
   const operator = role === "operator" && actsOn(store, row, role);
   const card = ready ? (
     <div className="case__main">
-      <CaseWork store={store} row={row} role={role} lang={lang} t={t} version={version} onTransition={onTransition} />
+      <CaseWork
+        store={store}
+        row={row}
+        role={role}
+        lang={lang}
+        t={t}
+        version={version}
+        onTransition={onTransition}
+        hidden={files.get(row)?.signature ? ["return"] : stage === Stage.AwaitingSignature ? ["send"] : []}
+      />
+      <LetterPanel
+        store={store}
+        row={row}
+        role={role}
+        lang={lang}
+        t={t}
+        version={version}
+        files={files}
+        facts={caseFacts(store, row)}
+        onEditLetter={props.onEditLetter}
+        onField={props.onField}
+        onSign={props.onSign}
+        onDefer={props.onDefer}
+      />
       <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
     </div>
   ) : (

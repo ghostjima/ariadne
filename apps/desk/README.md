@@ -86,6 +86,22 @@ assistant's).
   a list, and a comment for another reason; after a transition the focus
   goes to the panel's heading. The header marks a case returned for
   rework.
+- **The letter**, from legal review on: the letter as it stands (the
+  assistant's draft with the decision the register holds, or a person's
+  edit), with the signatory named under it; what the rubric finds in it;
+  and its changes against the assistant's draft, word by word, with the
+  characters changed as a share of the draft (for each changed passage,
+  the longer of what was removed and what was added). A case the
+  assistant did not hand over in this page has its draft worked out as
+  the assistant drafts it. The reviewer edits the letter and states the
+  decision and the ground; a letter that still leaves the decision open
+  is not approved. At signature the signatory records a decision
+  (approve, modify, override or defer) with their concerns and what
+  would make it wrong (always asked for; the concerns unless approved as
+  proposed); a modification or an override is their own edit first. The
+  signed letter is frozen and names the signatory, and only a signed
+  reply is sent, from the case or from the queue. Every edit, signature
+  and deferral is in the journal.
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -228,9 +244,13 @@ The interface is React and TypeScript on the
 [Stoa](https://github.com/ghostjima/stoa) design system: DataGrid with
 its tones, DataGridColumnChooser, DataGridSelectionBar, FilterBar,
 Countdown, DeadlineCell's words, DerivationTable, Table, Tabs, and the
-preferences, formatter and breakpoint helpers. Two pieces are the desk's
-own and candidates for Stoa: the case timeline (a dated list of what
-happened, oldest first) and the case view's header bar.
+preferences, formatter and breakpoint helpers. These pieces are the
+desk's own, thin and kept apart, and candidates for Stoa: the case
+timeline and the journal (a dated list of what happened, oldest first),
+the case view's header bar, the letter with its signatory line
+(`workflow/LetterView.tsx`), the rubric's findings (`ReplyCheck`), the
+text diff (`workflow/textDiff.ts`, drawn by `workflow/DiffView.tsx`) and
+a text field of several lines (`workflow/TextArea.tsx`).
 
 ## Accessibility, as far as the tests go
 
@@ -240,8 +260,9 @@ light and the dark theme, on: the loaded queue, a selection with its
 bar, an editor showing an error, the shortcuts, save-view and columns
 dialogs, no matches, loading, a partial load failure with the operator
 role, the open case with its card and assistant, the work on a case
-with its journal, the return for rework with its refusal, and, in the
-assistant,
+with its journal, the return for rework with its refusal, the review
+of a letter with its findings and changes, the signature with a refused
+decision record, and, in the assistant,
 the plan, the agent's request to change a step, a failed step, the
 reply's confirmation with its letter, a finished run with the draft, the
 rubric's check, its summary and toasts, New plan asking before it ends
@@ -256,7 +277,8 @@ plan, running, confirming and skipping, retrying a failed step, stopping
 from a confirmation, pausing and resuming) and editing with the mouse;
 where the focus goes after a bulk change, a Retry, the conflict dialog,
 deleting a view, opening and closing a case, a transition taken from
-the case and the return dialog, the confirmed handover, and after every
+the case and the return dialog, the confirmed handover, the letter's
+editor, a signature and a deferral, and after every
 decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI

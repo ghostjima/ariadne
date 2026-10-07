@@ -77,6 +77,7 @@ import {
   rowOfId,
   saveView,
   selfActor,
+  transitionsFor,
   viewToUrl,
   visibleColumns,
   type CellValue,
@@ -89,8 +90,21 @@ import {
 } from "@ariadne/grid";
 import { useRunService } from "../agent/service";
 import { CaseView } from "../case/CaseView";
-import type { TransitionRequest } from "../workflow/CaseWork";
-import { recordHandover, type CaseFiles } from "../workflow/caseFile";
+import type { TransitionRequest, WorkRefusal } from "../workflow/CaseWork";
+import {
+  deferSignature,
+  recordEdit,
+  recordHandover,
+  signLetter,
+  type CaseFiles,
+  type DecisionRecord,
+  type SignDecision,
+} from "../workflow/caseFile";
+import { cameToSignature, currentLetter, isUndecided } from "../workflow/letter";
+import { strings as agentStrings } from "../agent/i18n";
+import { makeFmt } from "../agent/format";
+import { LOCALES } from "../i18n";
+import type { Text } from "../agent/text";
 import { workflowStrings } from "../workflow/i18n";
 import type { ReplyDraft } from "@ariadne/runner";
 import { DeskEngine, type QueryResult } from "../data/engine";
@@ -229,8 +243,21 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   }, [snap.result]);
 
   const ids = useMemo(() => visibleColumns(view, role), [view.columns, role]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The letter's own refusals for a stage edit (a reply not signed is not
+  // sent), read through a ref so the columns are not built again.
+  const stageCheck = useRef<(row: number, value: number) => string | null>(() => null);
   const columns = useMemo(
-    () => buildColumns(ids, { store, lang, t, stoa, formats, role, pin: !narrow }),
+    () =>
+      buildColumns(ids, {
+        store,
+        lang,
+        t,
+        stoa,
+        formats,
+        role,
+        pin: !narrow,
+        check: (row, field, value) => (field === "stage" ? stageCheck.current(row, value) : null),
+      }),
     [ids, store, lang, t, stoa, formats, role, narrow],
   );
 
@@ -341,6 +368,13 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   /** Saves an edit through the history; returns the refusal, if any. */
   const applyEdit = (row: number, col: EditColumn, value: string): string | null => {
     const now = deskNow(Date.now());
+    // A stage edit is a transition: the letter's own rules first.
+    const letterRefused = col === "stage" ? letterRefusal(row, Number(value)) : null;
+    if (letterRefused) {
+      const reason = workflowStrings[lang].letterRefusal[letterRefused.code as keyof (typeof workflowStrings)["en"]["letterRefusal"]];
+      announce(t.editRefused(rowId(row), reason));
+      return reason;
+    }
     const res =
       col === "note"
         ? history.current.setNote(store, row, { kind: "text", text: normalizeDraft(col, value) }, role, now)
@@ -420,7 +454,33 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     announce(text);
     toasts.add({ tone: "positive", text, timeout: 6000 });
   };
-  const transition = (row: number, request: TransitionRequest) => {
+  // The letter of a case as it stands, in the page's language.
+  const letterText = (row: number) => {
+    const x: Text = { t: agentStrings[lang], f: makeFmt(LOCALES[lang]), labels, lang };
+    return currentLetter(x, store, row, files.current);
+  };
+  /** What the letter refuses beyond the transition table: a letter that
+   * leaves the decision open is not approved, one not signed is not sent,
+   * a signed one is not returned. */
+  const letterRefusal = (row: number, to: number): WorkRefusal | null => {
+    const from = store.stage[row] ?? 0;
+    const signed = files.current.get(row)?.signature !== undefined;
+    // Without a person's edit the letter states the register's decision,
+    // which the transition's own guard asks for; an edit is read as written.
+    const edit = files.current.get(row)?.edits?.at(-1);
+    if (from === Stage.LegalReview && to === Stage.AwaitingSignature && edit && isUndecided(edit.text)) return { code: "letter-undecided" };
+    if (from === Stage.AwaitingSignature && to === Stage.Sent && !signed) return { code: "letter-not-signed" };
+    if (from === Stage.AwaitingSignature && to === Stage.Drafting && signed) return { code: "letter-signed" };
+    return null;
+  };
+  stageCheck.current = (row, value) => {
+    const refused = letterRefusal(row, value);
+    return refused ? workflowStrings[lang].letterRefusal[refused.code as keyof (typeof workflowStrings)["en"]["letterRefusal"]] : null;
+  };
+  const transition = (row: number, request: TransitionRequest): WorkRefusal | null => {
+    const target = transitionsFor(store.stage[row] ?? 0, role).find((t) => t.action === request.action);
+    const refused = target ? letterRefusal(row, target.to) : null;
+    if (refused) return refused;
     const result = applyTransition(store, row, request.action, { role, actor: selfActor(role), at: deskNow(Date.now()), reason: request.reason, comment: request.comment });
     if ("error" in result) return result.error;
     afterTransition(row);
@@ -429,6 +489,50 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const handover = (row: number, draft: ReplyDraft, run: number) => {
     const result = recordHandover(store, row, files.current, { draft, run, person: SELF_ASSIGNEE, at: deskNow(Date.now()) });
     if ("entry" in result) afterTransition(row);
+  };
+
+  // The letter: the reviewer's or the signatory's edit, and the signature
+  // with its decision record, or a deferral.
+  const self = (r: Role) => {
+    const actor = selfActor(r);
+    return actor.kind === "person" ? actor.person : 0;
+  };
+  const editLetter = (row: number, text: string, current: string) => {
+    const letter = letterText(row);
+    const refused = recordEdit(store, row, files.current, { text, current, lang: letter.lang === lang ? lang : letter.lang, role, person: self(role), at: deskNow(Date.now()) });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].review.saved(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+  const sign = (row: number, record: DecisionRecord & { decision: Exclude<SignDecision, "defer"> }) => {
+    const letter = letterText(row);
+    const refused = signLetter(store, row, files.current, {
+      record,
+      text: letter.text,
+      lang: letter.lang,
+      undecided: isUndecided(letter.text),
+      person: self("signatory"),
+      at: deskNow(Date.now()),
+      since: cameToSignature(store, row) ?? 0,
+    });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].signature.signed(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+  const defer = (row: number, record: { concerns: string; wrong: string }) => {
+    const refused = deferSignature(store, row, files.current, { ...record, person: self("signatory"), at: deskNow(Date.now()) });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].signature.deferred(rowId(row));
+    announce(said);
+    toasts.add({ tone: "info", text: said, timeout: 6000 });
+    return null;
   };
 
   // The simulated colleague.
@@ -680,6 +784,10 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           files={files.current}
           onTransition={(request) => transition(openCase, request)}
           onHandover={(draft, run) => handover(openCase, draft, run)}
+          onEditLetter={(text, current) => editLetter(openCase, text, current)}
+          onField={(field, value) => applyEdit(openCase, field, String(value))}
+          onSign={(record) => sign(openCase, record)}
+          onDefer={(record) => defer(openCase, record)}
         />
       ) : openCase !== null && load.loading ? (
         <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />

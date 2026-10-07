@@ -27,6 +27,12 @@ import { Journal, personName } from "./Journal";
 
 export type TransitionRequest = { action: Action; reason?: ReturnReason; comment?: string };
 
+/** A refusal of the desk beyond the transition table, by the letter: one
+ * that leaves the decision open is not approved, one not signed is not
+ * sent, a signed one is not returned. */
+export type LetterRefusal = { code: "letter-undecided" | "letter-not-signed" | "letter-signed" };
+export type WorkRefusal = TransitionError | LetterRefusal;
+
 export type CaseWorkProps = {
   store: ColumnStore;
   row: number;
@@ -36,7 +42,9 @@ export type CaseWorkProps = {
   /** Bumped by every write to the store. */
   version: number;
   /** Takes a transition as the role's person; the refusal, or null. */
-  onTransition: (request: TransitionRequest) => TransitionError | null;
+  onTransition: (request: TransitionRequest) => WorkRefusal | null;
+  /** Transitions not offered now (a signed letter is not returned). */
+  hidden?: readonly Action[];
 };
 
 /** Whether the role acts on this case: the operator on their own cases, the
@@ -48,16 +56,16 @@ export function actsOn(store: ColumnStore, row: number, role: Role): boolean {
   return true;
 }
 
-export function CaseWork({ store, row, role, lang, t, version, onTransition }: CaseWorkProps) {
+export function CaseWork({ store, row, role, lang, t, version, onTransition, hidden = [] }: CaseWorkProps) {
   const w = workflowStrings[lang];
   const { pools, labels } = POOLS[lang];
   const fmt = useFormatters({ timeZone: "Europe/Moscow" });
   const box = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<TransitionError | null>(null);
+  const [error, setError] = useState<WorkRefusal | null>(null);
   const [returning, setReturning] = useState(false);
   const [reason, setReason] = useState<ReturnReason | "none">("none");
   const [comment, setComment] = useState("");
-  const [dialogError, setDialogError] = useState<TransitionError | null>(null);
+  const [dialogError, setDialogError] = useState<WorkRefusal | null>(null);
   const refocus = useRef(false);
   const stage = store.stage[row] ?? 0;
   const id = rowId(row);
@@ -79,11 +87,13 @@ export function CaseWork({ store, row, role, lang, t, version, onTransition }: C
   }, [returning]);
 
   const mine = actsOn(store, row, role);
-  const actions = mine ? transitionsFor(stage, role) : [];
+  const actions = mine ? transitionsFor(stage, role).filter((a) => !hidden.includes(a.action)) : [];
   const take = (action: Action) => {
     const refused = onTransition({ action });
     setError(refused);
-    if (!refused) requestAnimationFrame(focusHeading);
+    // The button may go with the stage: the heading takes the focus now,
+    // before the page draws the new stage.
+    if (!refused) focusHeading();
   };
   const openReturn = () => {
     setReason("none");
@@ -100,8 +110,14 @@ export function CaseWork({ store, row, role, lang, t, version, onTransition }: C
       setReturning(false);
     }
   };
-  const errorText = (e: TransitionError) =>
-    e.code === "comment-required" ? w.commentRequired(String(e.min)) : e.code === "comment-too-long" ? w.commentTooLong(String(e.max), String(e.length)) : w.errors[e.code];
+  const errorText = (e: WorkRefusal) =>
+    e.code === "comment-required"
+      ? w.commentRequired(String(e.min))
+      : e.code === "comment-too-long"
+        ? w.commentTooLong(String(e.max), String(e.length))
+        : e.code === "letter-undecided" || e.code === "letter-not-signed" || e.code === "letter-signed"
+          ? w.letterRefusal[e.code]
+          : w.errors[e.code];
 
   return (
     <div ref={box} className="case-work">
