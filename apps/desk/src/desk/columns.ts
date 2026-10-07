@@ -27,7 +27,8 @@ import {
   type Labels,
   type Role,
 } from "@ariadne/grid";
-import { deadlineState, deadlineText, stoaFormatters, type DataGridColumn, type StatusTone, type StoaFormat } from "@ghostjima/stoa-react";
+import { createElement } from "react";
+import { DeadlineCell, deadlineText, stoaFormatters, type DataGridColumn, type StatusTone, type StoaFormat } from "@ghostjima/stoa-react";
 import { LOCALES, type Lang, type Strings } from "../i18n";
 import { POOLS } from "../data/query";
 
@@ -64,12 +65,6 @@ export function makeFormats(lang: Lang): Formats {
 export function stageTone(stage: number): StatusTone | null {
   if (stage >= 5) return "positive";
   return stage === 4 ? "warning" : null;
-}
-
-/** A deadline's tone: close, or passed. */
-export function deadlineTone(left: number): StatusTone | null {
-  const state = deadlineState(left, DUE_SOON);
-  return state === "overdue" ? "negative" : state === "warning" ? "warning" : null;
 }
 
 /** Width in CSS pixels by column id. */
@@ -266,14 +261,14 @@ export function buildColumns(ids: readonly string[], { store, lang, t, stoa, for
         });
         break;
       case "left":
-        // DeadlineCell's words and its symbol in its colour (a cell of the
-        // grid is text, so the grid draws the tone); an answered case has
-        // no time left to count.
+        // Drawn by DeadlineCell: its words, and its symbol in its colour;
+        // the cell's text is the same words, for assistive technology and
+        // copy. An answered case has no time left to count.
         columns.push({
           ...base,
           accessor: (i) => ((store.stage[i] ?? 0) >= 5 ? "" : workingDaysLeft(store, i)),
-          format: (v) => (v === "" ? "" : deadlineText(stoa, Number(v), "workingDays")),
-          tone: (v) => (v === "" ? null : deadlineTone(Number(v))),
+          render: (v) => (v === "" ? null : createElement(DeadlineCell, { left: Number(v), unit: "workingDays", warnAt: DUE_SOON })),
+          cellText: (v) => (v === "" ? "" : deadlineText(stoa, Number(v), "workingDays")),
           mono: false,
         });
         break;

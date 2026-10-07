@@ -73,9 +73,9 @@ export type WorkflowStrings = {
     diff: string;
     diffCaption: string;
     diffNone: string;
+    /** The share the measure of light edits counts: per changed passage,
+     * the longer side, over the draft's characters. */
     diffStats: (changed: string, base: string, share: string) => string;
-    removed: string;
-    added: string;
     edit: string;
     editTitle: (id: string) => string;
     editLabel: string;
@@ -307,9 +307,8 @@ const en: WorkflowStrings = {
     diff: "Changes against the assistant's draft",
     diffCaption: "Removed and added text, in order",
     diffNone: "No changes: the letter is the assistant's draft.",
-    diffStats: (changed, base, share) => `${changed} of ${base} characters changed (${share}).`,
-    removed: "removed",
-    added: "added",
+    diffStats: (changed, base, share) =>
+      `For the measure of light edits: ${changed} of the draft's ${base} characters changed (${share}), counting the longer side of each changed passage.`,
     edit: "Edit the letter",
     editTitle: (id) => `Edit the letter of ${id}`,
     editLabel: "Text of the letter",
@@ -560,9 +559,8 @@ const ru: WorkflowStrings = {
     diff: "Изменения относительно проекта ассистента",
     diffCaption: "Удалённый и добавленный текст по порядку",
     diffNone: "Изменений нет: письмо совпадает с проектом ассистента.",
-    diffStats: (changed, base, share) => `Изменено ${changed} из ${base} знаков (${share}).`,
-    removed: "удалено",
-    added: "добавлено",
+    diffStats: (changed, base, share) =>
+      `Для показателя лёгкой правки: изменено ${changed} из ${base} знаков проекта (${share}), по большей стороне каждого изменённого фрагмента.`,
     edit: "Редактировать письмо",
     editTitle: (id) => `Письмо по ${id}`,
     editLabel: "Текст письма",

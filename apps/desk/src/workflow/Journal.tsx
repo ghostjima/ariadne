@@ -1,6 +1,6 @@
 // The case's journal: every transition, oldest first, with who took it,
-// when and why. A thin dated list, the desk's own until Stoa has a
-// Timeline; it uses the same marks as the card's channel timeline.
+// when and why, in Stoa's Timeline, grouped by its day in Moscow time.
+import { Timeline, type TimelineEntry } from "@ghostjima/stoa-react";
 import type { Actor, JournalEntry, Role, TextPools } from "@ariadne/grid";
 import type { Strings } from "../i18n";
 import { parseDecisionComment } from "./caseFile";
@@ -32,32 +32,32 @@ export type JournalProps = {
   t: Strings;
   pools: TextPools;
   stages: readonly string[];
-  /** Epoch milliseconds as the register shows them (Moscow time). */
+  /** The time of day of epoch milliseconds, as the register shows them
+   * (Moscow time); the day is the heading it sits under. */
   time: (ms: number) => string;
 };
 
 export function Journal({ entries, w, t, pools, stages, time }: JournalProps) {
-  return (
-    <ol className="timeline journal" aria-label={w.journalCaption}>
-      {entries.map((e, k) => (
-        <li key={k} className="timeline__item" data-action={e.action}>
-          <span className="timeline__when">{time(e.at)}</span>
-          <div className="timeline__what">
-            <span className="journal__action">{w.action[e.action]}</span>
-            {e.from !== e.to && <span className="muted">{w.move(stages[e.from] ?? "", stages[e.to] ?? "")}</span>}
-            <span className="muted">{actorText(w, t, pools, e.actor)}</span>
-            {e.reason && <span>{w.why(w.reasons[e.reason])}</span>}
-            {e.copy && <span>{w.dispatch.copy[e.copy]}</span>}
-            {e.comment && (e.action === "sign" || e.action === "defer") ? (
-              <DecisionLines w={w} comment={e.comment} />
-            ) : (
-              e.comment && <span className="journal__comment">{w.said(e.comment)}</span>
-            )}
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
+  const items: TimelineEntry[] = entries.map((e, k) => ({
+    id: String(k),
+    at: e.at,
+    when: time(e.at),
+    kind: w.action[e.action],
+    actor: actorText(w, t, pools, e.actor),
+    text: (
+      <div className="journal__lines" data-action={e.action}>
+        {e.from !== e.to && <span className="muted">{w.move(stages[e.from] ?? "", stages[e.to] ?? "")}</span>}
+        {e.reason && <span>{w.why(w.reasons[e.reason])}</span>}
+        {e.copy && <span>{w.dispatch.copy[e.copy]}</span>}
+        {e.comment && (e.action === "sign" || e.action === "defer") ? (
+          <DecisionLines w={w} comment={e.comment} />
+        ) : (
+          e.comment && <span className="journal__comment">{w.said(e.comment)}</span>
+        )}
+      </div>
+    ),
+  }));
+  return <Timeline label={w.journalCaption} entries={items} timeZone="Europe/Moscow" dayLevel={5} />;
 }
 
 /** A signature's or a deferral's decision record, as the journal keeps it. */

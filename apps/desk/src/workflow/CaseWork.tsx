@@ -149,7 +149,7 @@ export function CaseWork({ store, row, role, lang, t, version, onTransition, hid
           </Callout>
         )}
         <h4 className="case-work__journal-title">{w.journal}</h4>
-        <Journal entries={caseJournal(store, row)} w={w} t={t} pools={pools} stages={labels.stage} time={(ms) => fmt.dateTime(ms)} />
+        <Journal entries={caseJournal(store, row)} w={w} t={t} pools={pools} stages={labels.stage} time={(ms) => fmt.time(ms)} />
       </Panel>
       <Dialog
         isOpen={returning}

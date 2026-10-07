@@ -185,6 +185,8 @@ export type Strings = {
     stopped: (n: string | null) => string;
     done: string;
     skipped: string;
+    /** Steps the run never reached: it was stopped before them. */
+    notRun: string;
     undone: string;
     asked: string;
     errors: string;
@@ -277,7 +279,6 @@ export type Strings = {
     title: string;
     clean: string;
     count: (n: Count) => string;
-    source: (name: string) => string;
     finding: Record<FindingCode, (subject: string, words: string) => string>;
     /** The subjects of option and deadline findings. */
     option: Record<ClientOption, string>;
@@ -467,6 +468,7 @@ const en: Strings = {
     stopped: (n) => (n ? `The run was stopped after step ${n}.` : "The run was stopped before any step was done."),
     done: "Done",
     skipped: "Skipped",
+    notRun: "Not run",
     undone: "Undone",
     asked: "Asked you",
     errors: "Errors",
@@ -640,7 +642,6 @@ const en: Strings = {
     title: "Rubric findings",
     clean: "The rubric found nothing to flag. That is not a verdict: a person decides.",
     count: (n) => `${n.text} ${n.n === 1 ? "finding" : "findings"} for a person to weigh.`,
-    source: (name) => `Source: ${name}`,
     finding: {
       ground_missing: () => "No legal ground is named.",
       ground_without_article: () => "A law is named without its article.",
@@ -888,6 +889,7 @@ const ruStrings: Strings = {
     stopped: (n) => (n ? `Запуск остановлен после шага ${n}.` : "Запуск остановлен до завершения первого шага."),
     done: "Выполнено",
     skipped: "Пропущено",
+    notRun: "Не запускалось",
     undone: "Отменено",
     asked: "Спросили вас",
     errors: "Ошибок",
@@ -1061,7 +1063,6 @@ const ruStrings: Strings = {
     title: "Замечания по критериям",
     clean: "Замечаний по критериям нет. Это не вывод: решает человек.",
     count: (n) => `${n.text} ${ru(n.n, "замечание", "замечания", "замечаний")} для оценки человеком.`,
-    source: (name) => `Источник: ${name}`,
     finding: {
       ground_missing: () => "Не названо правовое основание.",
       ground_without_article: () => "Закон назван без статьи.",

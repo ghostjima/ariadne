@@ -95,7 +95,7 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
   }, [service.takeovers, toasts]);
 
   // Undo windows and reconnections, as toasts.
-  const undoToasts = useRef(new Map<string, { key: string; timer: ReturnType<typeof setTimeout>; deadline: number }>());
+  const undoToasts = useRef(new Map<string, { key: string; timer: ReturnType<typeof setTimeout> }>());
   const closeUndoToast = useCallback(
     (stepId: string) => {
       const entry = undoToasts.current.get(stepId);
@@ -133,24 +133,18 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
         timeout: null,
       });
       const timer = setTimeout(() => closeUndoToast(stepId), left);
-      undoToasts.current.set(stepId, { key, timer, deadline });
+      undoToasts.current.set(stepId, { key, timer });
     },
     [session, toasts, undo, closeUndoToast],
   );
-  // While a confirmation is open the toast steps aside: on a phone it would
-  // lie over the dialog's buttons. It comes back when the dialog closes, if
-  // its window is still open.
-  const heldToast = useRef<{ stepId: string; deadline: number } | null>(null);
-  const confirming = useRef(false);
+  // While a confirmation is open, Stoa keeps the toasts behind it: their
+  // region is inert under the dialog's scrim and their time stands still,
+  // so a toast never lies over the dialog's buttons on a phone.
   useEffect(
     () =>
       session.onNotice((notice) => {
         if (notice.kind === "reconnected") {
           toasts.add({ tone: "positive", text: latestText.current.t.toast.reconnected });
-          return;
-        }
-        if (confirming.current) {
-          heldToast.current = { stepId: notice.stepId, deadline: notice.deadline };
           return;
         }
         showUndoToast(notice.stepId, notice.deadline);
@@ -308,20 +302,6 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
     handoverFinal !== undefined && steps.find((s) => s.id === stepId)?.snapshot.context.result?.summary.code === "handed_to_review" && handoverFinal(ctx.startedAt ?? 0);
 
   const decisionOpen = stream.status === "waiting" && !ctx.stopRequested && stream.waiting !== null && !stream.waiting.accepts.includes("retry");
-  useEffect(() => {
-    confirming.current = decisionOpen;
-    if (decisionOpen) {
-      const [open] = [...undoToasts.current.entries()];
-      if (open) {
-        heldToast.current = { stepId: open[0], deadline: open[1].deadline };
-        closeUndoToast(open[0]);
-      }
-    } else if (heldToast.current) {
-      const held = heldToast.current;
-      heldToast.current = null;
-      showUndoToast(held.stepId, held.deadline);
-    }
-  }, [decisionOpen, closeUndoToast, showUndoToast]);
 
   return (
     <div className="agent" data-plan-state={planState} data-stream={stream.status}>

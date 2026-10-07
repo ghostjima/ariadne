@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { diffStats, diffWords } from "@ghostjima/stoa-react";
 import { changeStats, diffText, tokenize } from "./textDiff";
 
 const join = (parts: ReturnType<typeof diffText>, keep: "before" | "after") =>
@@ -42,5 +43,22 @@ describe("the text diff", () => {
     const stats = changeStats(diffText(before, after));
     expect(stats.removed).toBe(0);
     expect(stats.added).toBe([..."Добавлено одно предложение. "].length);
+  });
+
+  it("is not Stoa's share: TextDiff counts deleted plus inserted over both texts, this measure the longer side of each passage over the draft", () => {
+    // Added only: 4 characters against a draft of 3 here, 4 of the 10 of
+    // both texts in Stoa's.
+    expect(changeStats(diffText("abc", "abc def")).share).toBeCloseTo(4 / 3);
+    expect(diffStats(diffWords("abc", "abc def")).changed).toBeCloseTo(4 / 10);
+    // Deleted only: 4 of the draft's 7 here, 4 of 10 in Stoa's.
+    expect(changeStats(diffText("abc def", "abc")).share).toBeCloseTo(4 / 7);
+    expect(diffStats(diffWords("abc def", "abc")).changed).toBeCloseTo(4 / 10);
+    // Three words replaced: three passages of one letter here, one passage
+    // of five characters in Stoa's, which joins the spaces between them.
+    expect(changeStats(diffText("a b c", "x y z")).changed).toBe(3);
+    expect(diffWords("a b c", "x y z")).toEqual([
+      { kind: "deleted", text: "a b c" },
+      { kind: "inserted", text: "x y z" },
+    ]);
   });
 });

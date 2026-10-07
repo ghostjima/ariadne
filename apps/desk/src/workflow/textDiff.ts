@@ -1,9 +1,12 @@
-// A word-level diff between two texts, and how much of the first changed.
-// The desk's own, kept apart so that a diff from Stoa can take its place:
-// nothing outside this file knows how it works. Tokens are words, numbers,
-// runs of white space and single marks; the alignment is the longest
-// common subsequence of tokens, so a moved sentence reads as removed and
-// added.
+// A word-level diff between two texts, and how much of the first changed:
+// the count behind the supervisor's measure of light edits (drafts signed
+// with at most 20% changed) and the line under the review's diff. The
+// review draws Stoa's TextDiff; Stoa's share (deleted plus inserted over
+// both texts) is another measure, and its word diff gives some letters of
+// the register other counts, so this count stays the desk's own
+// (measure.test.ts compares the two). Tokens are words, numbers, runs of
+// white space and single marks; the alignment is the longest common
+// subsequence of tokens, so a moved sentence reads as removed and added.
 
 export type DiffPart = { kind: "same" | "removed" | "added"; text: string };
 

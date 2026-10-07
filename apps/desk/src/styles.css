@@ -54,9 +54,9 @@ body { margin: 0; }
 .field-error { margin: 0; color: var(--stoa-color-down); font-size: var(--stoa-font-size-sm); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--stoa-space-2); }
 
-/* The open case: a bar with the way back, which case, where it stands and
-   how long is left; then the card and the assistant, side by side on a
-   wide screen. */
+/* The open case: Stoa's DetailHeader (the way back, which case, where it
+   stands and how long is left); then the card and the assistant, side by
+   side on a wide screen. The metrics view keeps a bar of the same look. */
 .case { display: grid; gap: var(--stoa-space-4); min-inline-size: 0; }
 .case__bar {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-2) var(--stoa-space-4);
@@ -65,7 +65,6 @@ body { margin: 0; }
 .case__heading { margin: 0; font-size: var(--stoa-font-size-lg); font-weight: var(--stoa-font-weight-semibold); }
 .case__heading:focus { outline: none; }
 .case__heading:focus-visible { outline: var(--stoa-focus-width) solid var(--stoa-color-focus); outline-offset: 2px; }
-.case__status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-2); flex: 1 1 auto; }
 .case__body { display: grid; gap: var(--stoa-space-6); grid-template-columns: minmax(0, 1fr); align-items: start; }
 @media (min-width: 64rem) {
   .case__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -84,15 +83,4 @@ body { margin: 0; }
   margin: 0; padding: var(--stoa-space-2) var(--stoa-space-3);
   border-inline-start: 3px solid var(--stoa-color-border-strong);
   background: var(--stoa-color-surface-sunken); white-space: pre-wrap; overflow-wrap: anywhere;
-}
-.case-card__flag-title { font-weight: var(--stoa-font-weight-medium); }
-
-/* A dated list of what happened to the case, oldest first. */
-.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--stoa-space-2); }
-.timeline__item { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: var(--stoa-space-3); align-items: baseline; }
-.timeline__when { color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.timeline__what { display: grid; gap: var(--stoa-space-1); min-inline-size: 0; overflow-wrap: anywhere; }
-.timeline__item--due .timeline__what { font-weight: var(--stoa-font-weight-medium); }
-@media (max-width: 40rem) {
-  .timeline__item { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }

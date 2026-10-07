@@ -14,11 +14,13 @@ import {
   DescriptionList,
   Panel,
   Table,
+  Timeline,
   deadlineText,
   useFormatters,
   useStoaFormat,
   type DerivationStep,
   type TableColumn,
+  type TimelineEntry,
 } from "@ghostjima/stoa-react";
 import {
   AS_OF_DAY,
@@ -48,6 +50,13 @@ import { caseDetails, type CaseDetails, type Flag, type Relation, type TimelineE
 import { basisName } from "./sources";
 
 const DAY_MS = 86_400_000;
+/** The register keeps Moscow time: a day is the day in Moscow. */
+const MOSCOW = "Europe/Moscow";
+
+/** Where an entry known only by its day stands in Stoa's Timeline, which
+ * sorts by time: at the end of its Moscow day, after the one timed entry
+ * of the card (the receipt), and in the card's own order among the rest. */
+const dayAt = (day: number) => moscowMs(day, 24 * 60 - 1);
 
 export type CaseCardProps = {
   store: ColumnStore;
@@ -60,8 +69,7 @@ export type CaseCardProps = {
 };
 
 export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardProps) {
-  // The register keeps Moscow time: a day is the day in Moscow.
-  const fmt = useFormatters({ timeZone: "Europe/Moscow" });
+  const fmt = useFormatters({ timeZone: MOSCOW });
   const stoa = useStoaFormat();
   const c = t.case;
   const { pools, labels } = POOLS[lang];
@@ -135,11 +143,11 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
       </Panel>
 
       <Panel title={c.flags} level={3}>
-        <Flags details={details} t={t} lang={lang} day={day} />
+        <Flags details={details} t={t} lang={lang} />
       </Panel>
 
       <Panel title={c.timeline} level={3}>
-        <Timeline events={details.timeline} t={t} lang={lang} day={day} time={(d, m) => fmt.dateTime(moscowMs(d, m))} />
+        <ChannelTimeline events={details.timeline} t={t} lang={lang} day={day} time={(ms) => fmt.time(ms)} />
       </Panel>
 
       <Panel title={c.related} level={3}>
@@ -153,54 +161,49 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
   );
 }
 
-function Flags({ details, t, lang, day }: { details: CaseDetails; t: Strings; lang: Lang; day: (d: number) => string }) {
+function Flags({ details, t, lang }: { details: CaseDetails; t: Strings; lang: Lang }) {
   const c = t.case;
   const { labels } = POOLS[lang];
   if (details.flags.length === 0) return <p className="muted">{c.noFlags}</p>;
-  const line = (flag: Flag) => {
+  const entry = (flag: Flag): Pick<TimelineEntry, "kind" | "text"> => {
     switch (flag.kind) {
       case "sign": {
         const operation = labels.operation[flag.operation] ?? "";
-        return (
-          <>
-            <p className="case-card__flag-title">{c.sign(flag.sign.number)}</p>
-            <p>{flag.suspended ? c.signSuspended(operation) : c.signRefused(operation)}</p>
-            <p className="muted">
-              {c.signWording}: <q lang="ru">{flag.sign.wording}</q>
-            </p>
-            {lang !== "ru" && (
+        return {
+          kind: c.sign(flag.sign.number),
+          text: (
+            <>
+              <p>{flag.suspended ? c.signSuspended(operation) : c.signRefused(operation)}</p>
               <p className="muted">
-                {c.signSummary}: {flag.sign.summary}
+                {c.signWording}: <q lang="ru">{flag.sign.wording}</q>
               </p>
-            )}
-          </>
-        );
+              {lang !== "ru" && (
+                <p className="muted">
+                  {c.signSummary}: {flag.sign.summary}
+                </p>
+              )}
+            </>
+          ),
+        };
       }
       case "aml": {
         const label = labels.amlReasons[(AML_REASON_CODES as readonly string[]).indexOf(flag.reason.code)] ?? flag.reason.code;
-        return (
-          <p className="case-card__flag-title">
-            {c.amlDecision(label, basisName({ source: flag.reason.source, act: "", article: flag.reason.article, part: flag.reason.part, revision: flag.reason.revision, url: "", reading: "text" }, lang))}
-          </p>
-        );
+        return {
+          kind: c.amlDecision(
+            label,
+            basisName({ source: flag.reason.source, act: "", article: flag.reason.article, part: flag.reason.part, revision: flag.reason.revision, url: "", reading: "text" }, lang),
+          ),
+        };
       }
       case "deadline":
-        return <p>{c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind}</p>;
+        return { kind: c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind };
     }
   };
-  return (
-    <ol className="timeline">
-      {details.flags.map((flag, k) => (
-        <li key={k} className="timeline__item">
-          <span className="timeline__when">{day(flag.day)}</span>
-          <div className="timeline__what">{line(flag)}</div>
-        </li>
-      ))}
-    </ol>
-  );
+  const entries: TimelineEntry[] = details.flags.map((flag, k) => ({ id: `${flag.kind}-${k}`, at: dayAt(flag.day), ...entry(flag) }));
+  return <Timeline label={c.flags} entries={entries} timeZone={MOSCOW} dayLevel={4} />;
 }
 
-function Timeline({ events, t, lang, day, time }: { events: TimelineEvent[]; t: Strings; lang: Lang; day: (d: number) => string; time: (d: number, minute: number) => string }) {
+function ChannelTimeline({ events, t, lang, day, time }: { events: TimelineEvent[]; t: Strings; lang: Lang; day: (d: number) => string; time: (ms: number) => string }) {
   const e = t.case.event;
   const { labels } = POOLS[lang];
   const channel = (code: number) => labels.channel[code] ?? "";
@@ -224,16 +227,13 @@ function Timeline({ events, t, lang, day, time }: { events: TimelineEvent[]; t: 
         return e.replyDue;
     }
   };
-  return (
-    <ol className="timeline">
-      {events.map((event, k) => (
-        <li key={k} className={`timeline__item${event.kind === "reply_due" ? " timeline__item--due" : ""}`}>
-          <span className="timeline__when">{event.kind === "received" ? time(event.day, event.minute) : day(event.day)}</span>
-          <span className="timeline__what">{line(event)}</span>
-        </li>
-      ))}
-    </ol>
+  const entries: TimelineEntry[] = events.map((event, k) =>
+    event.kind === "received"
+      ? { id: `${event.kind}-${k}`, at: moscowMs(event.day, event.minute), when: time(moscowMs(event.day, event.minute)), kind: line(event) }
+      : // The reply's last day, still to come, is the entry to notice first.
+        { id: `${event.kind}-${k}`, at: dayAt(event.day), kind: line(event), emphasis: event.kind === "reply_due" },
   );
+  return <Timeline label={t.case.timeline} entries={entries} timeZone={MOSCOW} dayLevel={4} />;
 }
 
 type RelatedRow = { row: number; relation: Relation };

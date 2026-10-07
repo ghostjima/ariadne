@@ -23,7 +23,7 @@ const CLAIM = "C-001192";
 const TRANSFER = "C-001196";
 
 const panel = (page: Page) => page.locator(".dispatch-panel");
-const lastEntry = (page: Page) => page.locator(".case-work .journal li").last();
+const lastEntry = (page: Page) => page.locator(".case-work .stoa-timeline__entry").last();
 /** The confirmation: Stoa's AlertDialog (a toast has the role alertdialog too). */
 const confirmation = (page: Page) => page.locator('section.stoa-dialog[role="alertdialog"]');
 const bodyHasFocus = (page: Page) => page.evaluate(() => document.activeElement === document.body);
@@ -61,7 +61,7 @@ test("a signed reply is dispatched once a person confirms it and its send delay 
   await expect(panel(page).getByRole("progressbar")).toBeVisible();
   await expect(panel(page).getByRole("button", { name: d.cancel })).toBeVisible();
   expect(await bodyHasFocus(page)).toBe(false);
-  await expect(page.locator(".case__status")).toContainText("Reply sent", { timeout: 10_000 });
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Reply sent", { timeout: 10_000 });
   await expect(lastEntry(page)).toContainText("Sent");
   const copy = panel(page).locator(".copies li").filter({ hasText: d.copy.bank_of_russia });
   await expect(copy).toContainText("due Oct 6, 2026");
@@ -79,7 +79,7 @@ test("the copy is marked sent and journaled, and leaves the view of copies due t
   await sign(page);
   await panel(page).getByRole("button", { name: d.dispatch, exact: true }).click();
   await confirmation(page).getByRole("button", { name: d.confirm, exact: true }).click();
-  await expect(page.locator(".case__status")).toContainText("Reply sent", { timeout: 10_000 });
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Reply sent", { timeout: 10_000 });
   await panel(page).getByRole("button", { name: `${d.markSent}: ${d.copy.bank_of_russia}` }).click();
   await expect(panel(page).locator(".copies")).toContainText(`${d.copy.bank_of_russia}: sent Oct 6, 2026`);
   await expect(lastEntry(page)).toContainText(w.action.copy_sent);
@@ -95,7 +95,7 @@ test("a dispatch is cancelled within its send delay: nothing went out, and the j
   const cancel = panel(page).getByRole("button", { name: d.cancel });
   await cancel.click();
   await expect(panel(page).getByRole("heading", { name: d.panel })).toBeFocused();
-  await expect(page.locator(".case__status")).toContainText("Awaiting signature");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Awaiting signature");
   await expect(lastEntry(page)).toContainText(w.action.dispatch_cancelled);
   await expect(panel(page).getByRole("button", { name: d.dispatch, exact: true })).toBeVisible();
   await expect(panel(page)).toContainText(d.noCopies);
@@ -119,7 +119,7 @@ test("a non-bank company's breach of a standard owes its self-regulatory organis
   const confirm = confirmation(page);
   await expect(confirm).toContainText(d.copy.sro);
   await confirm.getByRole("button", { name: d.confirm, exact: true }).click();
-  await expect(page.locator(".case__status")).toContainText("Reply sent", { timeout: 10_000 });
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Reply sent", { timeout: 10_000 });
   await expect(panel(page).locator(".copies")).toContainText(d.copy.sro);
 });
 
@@ -136,7 +136,7 @@ test("the supervisor's extension: refused for a money claim under 123-FZ, in wor
   await expect(lastEntry(page)).toContainText(w.action.extend);
   await expect(lastEntry(page)).toContainText("Comment: =SUM(A1) statements from the branch");
   await expect(panel(page).locator(".copies")).toContainText(d.copy.notice);
-  await expect(page.locator(".case__status")).toContainText("25 working days left");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("25 working days left");
 
   // The export for an inspection: text and CSV, formulas written as text.
   const text = page.waitForEvent("download");

@@ -28,9 +28,19 @@ test("O opens the case of the active row; Q goes back with the focus on that row
   await expect(caseHeading(page)).toContainText("C-001196, ");
   await expect(caseHeading(page)).toBeFocused();
   expect(new URL(page.url()).searchParams.get("case")).toBe("C-001196");
-  await expect(page.locator(".case__status")).toContainText("Block, 161-FZ");
-  await expect(page.locator(".case__status")).toContainText("15 working days left");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Block, 161-FZ");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("15 working days left");
   await page.keyboard.press("q");
+  await expect(cell(page, 0, 1)).toBeFocused();
+  expect(new URL(page.url()).searchParams.get("case")).toBeNull();
+});
+
+test("Back in the case's header goes to the queue with the focus on the row the case was opened from", async ({ page }) => {
+  await open(page, `view=${viewParam({ search: "C-001196" })}`, "1 of 1,200 cases");
+  await focusCell(page, 0, 1);
+  await page.keyboard.press("o");
+  await expect(caseHeading(page)).toBeFocused();
+  await page.locator(".stoa-detail-header").getByRole("button", { name: /^Back to the queue/ }).click();
   await expect(cell(page, 0, 1)).toBeFocused();
   expect(new URL(page.url()).searchParams.get("case")).toBeNull();
 });
@@ -97,9 +107,13 @@ test("a money claim under 123-FZ: the ombudsman law's term, and no extension", a
 test("a linked case opens from the card, and the timeline runs from receipt to the reply's last day", async ({ page }) => {
   await openCase(page, "C-001156");
   const timeline = page.getByRole("region", { name: "Channel timeline" });
-  await expect(timeline.locator(".timeline__item").first()).toContainText("Received: Email");
+  await expect(timeline.locator(".stoa-timeline__entry").first()).toContainText("Received: Email");
   await expect(timeline).toContainText("Registration notice: Email");
-  await expect(timeline.locator(".timeline__item").last()).toContainText("Reply due");
+  await expect(timeline.locator(".stoa-timeline__entry").last()).toContainText("Reply due");
+  // The reply's last day, still to come, is the entry to notice first: a
+  // symbol and a word before it, never its colour alone.
+  await expect(timeline.locator(".stoa-timeline__entry--emphasis")).toHaveCount(1);
+  await expect(timeline.locator(".stoa-timeline__entry--emphasis")).toContainText("Important:");
   const linked = page.getByRole("region", { name: "Linked cases" });
   await expect(linked.getByRole("row").nth(1)).toContainText("This case is linked to it");
   await linked.getByRole("button", { name: "Open case C-001136" }).click();

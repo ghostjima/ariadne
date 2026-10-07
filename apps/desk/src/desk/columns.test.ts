@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { COLUMN_IDS, Outcome, Stage, Stream, generateAll, visibleColumns, writeField, workingDaysLeft } from "@ariadne/grid";
 import { stoaFormat } from "@ghostjima/stoa-react";
 import { LOCALES, strings } from "../i18n";
-import { buildColumns, deadlineTone, makeFormats, stageTone } from "./columns";
+import { isValidElement } from "react";
+import { DeadlineCell, dataGridCellText } from "@ghostjima/stoa-react";
+import { DUE_SOON, buildColumns, makeFormats, stageTone } from "./columns";
 import { readUrlConfig } from "./settings";
 
 const store = generateAll(20261006, 1_200, 400);
@@ -38,20 +40,27 @@ describe("grid columns", () => {
     expect(visibleColumns({ columns: [...COLUMN_IDS] }, "operator")).not.toContain("assignee");
   });
 
-  it("write the time left as DeadlineCell does: Stoa's words in working days, a warning within 3, a cross once overdue", () => {
+  it("draw the time left with DeadlineCell, and state it in Stoa's words in working days for assistive technology and copy", () => {
     const [ru] = buildColumns(["left"], ctx("ru"));
-    const say = (left: number) => ru!.format!(left, 0, {} as never);
+    const say = (left: number) => ru!.cellText!(left, 0, {} as never);
     expect(say(3)).toBe("Осталось 3 рабочих дня");
     expect(say(0)).toBe("Срок сегодня");
     expect(say(-2)).toBe("Просрочено на 2 рабочих дня");
-    expect([deadlineTone(4), deadlineTone(3), deadlineTone(0), deadlineTone(-1)]).toEqual([null, "warning", "warning", "negative"]);
+    // No tone of the grid's own: the cell is DeadlineCell, which draws the
+    // warning within 3 working days and the cross once overdue itself.
+    expect(ru!.tone).toBeUndefined();
+    expect(ru!.format).toBeUndefined();
     const [left] = buildColumns(["left"], ctx("en"));
     const open = rows((i) => store.stage[i]! < Stage.Sent)[0]!;
     expect(left!.accessor(open)).toBe(workingDaysLeft(store, open));
-    expect(left!.tone!(left!.accessor(open), open)).toBe(deadlineTone(workingDaysLeft(store, open)));
+    const drawn = left!.render!(left!.accessor(open), open);
+    expect(isValidElement(drawn) && drawn.type === DeadlineCell).toBe(true);
+    expect((drawn as { props: object }).props).toEqual({ left: workingDaysLeft(store, open), unit: "workingDays", warnAt: DUE_SOON });
+    expect(dataGridCellText(left!, open, stoaFormat(LOCALES.en))).toBe(left!.cellText!(workingDaysLeft(store, open), open, {} as never));
     const sent = rows((i) => store.stage[i]! >= Stage.Sent)[0]!;
     expect(left!.accessor(sent)).toBe("");
-    expect(left!.tone!("", sent)).toBeNull();
+    expect(left!.render!("", sent)).toBeNull();
+    expect(left!.cellText!("", sent, {} as never)).toBe("");
   });
 
   it("mark the stage: answered done, awaiting signature called out, the rest plain", () => {

@@ -4,7 +4,7 @@
 // decision record, then the signed letter, frozen, with the signatory named
 // on it). Approve and return are the case's transitions, in the work above.
 import { useRef, useState } from "react";
-import { Button, Callout, ChoiceGroup, Dialog, Panel, Select, TextField, useFormatters } from "@ghostjima/stoa-react";
+import { Button, ChoiceGroup, Dialog, Letter, Panel, Select, TextDiff, TextField, useFormatters } from "@ghostjima/stoa-react";
 import { GROUND_COUNT, Stage, rowId, type ColumnStore, type Role } from "@ariadne/grid";
 import type { CaseFacts } from "@ariadne/rules";
 import { strings as agentStrings } from "../agent/i18n";
@@ -14,11 +14,9 @@ import { ReplyCheck } from "../agent/ui/ReplyCheck";
 import { POOLS } from "../data/query";
 import { LOCALES, type Lang, type Strings } from "../i18n";
 import { LETTER_MAX, RECORD_MIN, SIGN_DECISIONS, type CaseFiles, type DecisionRecord, type LetterError, type SignDecision, type SignError } from "./caseFile";
-import { DiffView } from "./DiffView";
 import { workflowStrings } from "./i18n";
 import { actorText, personName } from "./Journal";
 import { assistantDraft, currentLetter, draftText } from "./letter";
-import { LetterView } from "./LetterView";
 import { TextArea } from "./TextArea";
 import { changeStats, diffText } from "./textDiff";
 import { actsOn } from "./CaseWork";
@@ -132,7 +130,10 @@ export function LetterPanel(props: LetterPanelProps) {
               : w.letter.fromRegister}
         </p>
         {letter.lang !== lang && <p className="muted">{w.letter.otherLanguage}</p>}
-        <LetterView text={letter.text} lang={letter.lang} signatory={signLine} label={signed ? w.letter.signedPanel : w.letter.asItStands} />
+        <div className="letter">
+          <Letter label={signed ? w.letter.signedPanel : w.letter.asItStands} hideLabel lines={letter.text.split("\n")} lang={letter.lang} />
+          <p className="letter__signatory">{signLine}</p>
+        </div>
         {signed && <p>{w.signature.frozen}</p>}
         {canEdit && (
           <div className="letter-form__actions">
@@ -174,8 +175,11 @@ export function LetterPanel(props: LetterPanelProps) {
           <p className="muted">{w.review.diffNone}</p>
         ) : (
           <>
-            <p>{w.review.diffStats(x.f.int(stats.changed), x.f.int(stats.base), x.f.percent(stats.share))}</p>
-            <DiffView parts={parts} label={w.review.diffCaption} removed={w.review.removed} added={w.review.added} lang={letter.lang} />
+            {/* Stoa's diff and its own share of changed characters; under
+                it the share the supervisor's measure of light edits counts,
+                which is this desk's own (textDiff.ts). */}
+            <TextDiff label={w.review.diffCaption} hideLabel before={original} after={letter.text} lang={letter.lang} />
+            <p className="muted">{w.review.diffStats(x.f.int(stats.changed), x.f.int(stats.base), x.f.percent(stats.share))}</p>
           </>
         )}
 

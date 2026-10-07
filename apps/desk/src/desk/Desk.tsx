@@ -339,15 +339,17 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
 
   // The case of the active row, and back.
   const gridBox = useRef<HTMLDivElement>(null);
-  const focusGrid = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]')?.focus();
+  const gridCell = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]') ?? null;
+  const focusGrid = () => gridCell()?.focus();
   const returnToGrid = useRef(false);
   const openCaseOf = (row: number | undefined) => {
     if (row === undefined) return;
     setOpenCase(row);
     setParam("case", rowId(row));
   };
+  // Back from a case: its header's Back and Q put the focus on the grid's
+  // active cell themselves (focusWhenReady), once the queue is drawn.
   const backToQueue = () => {
-    returnToGrid.current = true;
     setOpenCase(null);
     setParam("case", null);
   };
@@ -361,8 +363,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     setMetricsOpen(false);
     setParam("metrics", null);
   };
-  // Back in the queue, the focus goes to the grid's active cell: the row
-  // the case was opened from.
+  // Back in the queue from the metrics, the focus goes to the grid's active
+  // cell.
   useEffect(() => {
     if (openCase !== null || metricsOpen || !returnToGrid.current) return;
     returnToGrid.current = false;
@@ -876,6 +878,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           service={service}
           toasts={toasts}
           onBack={backToQueue}
+          backFocus={gridCell}
           onOpenCase={openCaseOf}
           role={role}
           files={files.current}

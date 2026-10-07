@@ -19,7 +19,7 @@ const SIGN_CASE = "C-001062";
 const letterPanel = (page: Page) => page.locator(".letter-panel");
 const letter = (page: Page) => letterPanel(page).locator(".letter blockquote");
 const work = (page: Page) => page.locator(".case-work");
-const lastEntry = (page: Page) => work(page).locator(".journal li").last();
+const lastEntry = (page: Page) => work(page).locator(".stoa-timeline__entry").last();
 /** The confirmation: Stoa's AlertDialog (a toast has the role alertdialog too). */
 const confirmation = (page: Page) => page.locator('section.stoa-dialog[role="alertdialog"]');
 const bodyHasFocus = (page: Page) => page.evaluate(() => document.activeElement === document.body);
@@ -65,8 +65,11 @@ test("the reviewer reads the letter, what the rubric finds and the changes; edit
   await expect(letterPanel(page).getByRole("button", { name: w.review.edit })).toBeFocused();
   await expect(letter(page)).toContainText("We apologise for the delay in our answer.");
   await expect(letterPanel(page)).toContainText("Edited by Reviewer K. Saburova");
-  await expect(letterPanel(page)).toContainText(/\d+ of [\d,]+ characters changed \(\d+%\)\./);
-  await expect(letterPanel(page).getByRole("group", { name: w.review.diffCaption }).locator("ins")).toContainText("We apologise for the delay in our answer.");
+  // Stoa's share of changed characters over both texts, and under it the
+  // share the measure of light edits counts, which is the desk's own.
+  await expect(letterPanel(page).locator(".stoa-diff__summary")).toHaveText(/of the characters changed: 0 deleted and 42 inserted, out of 586 in the two texts together\.$/);
+  await expect(letterPanel(page)).toContainText("For the measure of light edits: 42 of the draft's 272 characters changed (15%), counting the longer side of each changed passage.");
+  await expect(letterPanel(page).getByRole("figure", { name: w.review.diffCaption }).locator(".stoa-diff__text ins")).toContainText("We apologise for the delay in our answer.");
   await expect(lastEntry(page)).toContainText(w.action.edit);
   await expect(lastEntry(page)).toContainText("Reviewer K. Saburova");
 });
@@ -76,12 +79,12 @@ test("a letter that leaves the decision open is not approved; the decided one go
   await editLetter(page, (text) => `${text}\n${agentStrings.en.reply.outcome.pending}`);
   await work(page).getByRole("button", { name: w.act.approve }).click();
   await expect(work(page).getByRole("alert")).toContainText(w.letterRefusal["letter-undecided"]);
-  await expect(page.locator(".case__status")).toContainText("Legal review");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Legal review");
   await editLetter(page, (text) => text.replace(`\n${agentStrings.en.reply.outcome.pending}`, ""));
   const approve = work(page).getByRole("button", { name: w.act.approve });
   await approve.focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator(".case__status")).toContainText("Awaiting signature");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Awaiting signature");
   expect(await bodyHasFocus(page)).toBe(false);
 });
 
@@ -117,7 +120,7 @@ test("the signatory signs with a decision record: what would make this wrong is 
   await expect(work(page).getByRole("button", { name: w.act.return })).toHaveCount(0);
   await page.getByRole("button", { name: w.dispatch.dispatch, exact: true }).click();
   await confirmation(page).getByRole("button", { name: w.dispatch.confirm, exact: true }).click();
-  await expect(page.locator(".case__status")).toContainText("Reply sent", { timeout: 10_000 });
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Reply sent", { timeout: 10_000 });
   await expect(lastEntry(page)).toContainText("Sent");
   await expect(letterPanel(page).locator(".letter__signatory")).toContainText("Signed by V. Izotova");
 });
@@ -134,7 +137,7 @@ test("a deferred signature keeps the case at signature, with the concerns in the
   await expect(form.getByRole("heading", { name: w.letter.panel })).toBeFocused();
   await expect(form).toContainText(w.signature.deferrals);
   await expect(form).toContainText("Concerns: The facts from operations are not in yet.");
-  await expect(page.locator(".case__status")).toContainText("Awaiting signature");
+  await expect(page.locator(".stoa-detail-header__status")).toContainText("Awaiting signature");
   await expect(lastEntry(page)).toContainText(w.action.defer);
 });
 
@@ -152,7 +155,7 @@ for (const lang of ["ru", "en"] as const)
       const words = workflowStrings[lang];
       await openAs(page, REVIEW_CASE, "reviewer", `lang=${lang}&theme=${theme}`);
       await editLetter(page, (text) => `${text}\n${lang === "en" ? "We apologise for the delay." : "Приносим извинения за задержку."}`, words);
-      await expect(letterPanel(page).locator(".diff")).toBeVisible();
+      await expect(letterPanel(page).locator(".stoa-diff")).toBeVisible();
       await expectNoSeriousViolations(page, "review", { lang, theme });
       await openAs(page, SIGN_CASE, "signatory", `lang=${lang}&theme=${theme}`);
       await letterPanel(page).getByRole("button", { name: words.signature.sign }).click();
