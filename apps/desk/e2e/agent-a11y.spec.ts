@@ -122,6 +122,41 @@ for (const width of [1280, 375])
       expect(await sideways()).toEqual([0, 0]);
     });
 
+// The plan's bar on a phone: the bar stays inside its panel, and every
+// control in it (its row of buttons, Run, Restore) inside its own
+// container, in both languages. Russian is the longer one: there the step
+// list's widest row once widened the panel's column past the panel, and
+// the bar, with Restore at its end, ran past the panel's right edge.
+for (const lang of LANGS)
+  test(`at 375 px no control in the plan's bar is wider than its container, in ${lang}`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(agentUrl(`lang=${lang}`));
+    await serviceReady(page, lang);
+    const misfits = await page.locator(".agent .plan").evaluate((panel) => {
+      const out: string[] = [];
+      const name = (el: Element) => `${el.tagName.toLowerCase()}${el.className ? `.${String(el.className).split(" ")[0]}` : ""} "${(el.textContent ?? "").trim().slice(0, 24)}"`;
+      // An element's box against its container's: the bar against its
+      // panel's border box (the bar reaches into the panel's padding on
+      // purpose), every control against its container's content box.
+      const within = (el: Element, container: Element, inner: boolean) => {
+        const box = el.getBoundingClientRect();
+        const c = container.getBoundingClientRect();
+        const style = getComputedStyle(container);
+        const start = inner ? parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart) : 0;
+        const end = inner ? parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd) : 0;
+        if (box.left < c.left + start - 0.5 || box.right > c.right - end + 0.5)
+          out.push(`${name(el)} ${Math.round(box.left)}..${Math.round(box.right)} in ${name(container)} ${Math.round(c.left + start)}..${Math.round(c.right - end)}`);
+        if (el.scrollWidth > el.clientWidth + 0.5) out.push(`${name(el)} clips its content`);
+      };
+      const bar = panel.querySelector(".plan-bar")!;
+      within(bar, panel, false);
+      for (const control of bar.querySelectorAll(".actions, button")) within(control, control.parentElement!, true);
+      return out;
+    });
+    expect(misfits).toEqual([]);
+    expect(await page.getByRole("button", { name: strings[lang].plan.restore }).isVisible()).toBe(true);
+  });
+
 /** Waits until the case's assistant is drawn and its run service is
  * ready: the plan's bar is there, and neither the service's start nor its
  * failure is shown under it. */
@@ -195,17 +230,19 @@ test("the reason there is no Run and the run service's state are on the first sc
 });
 
 // Whatever the case: every open case is opened on a phone in Russian, the
-// longer language, and the one whose content above the assistant's Run is
-// tallest (the top of the plan's bar lowest on the page; the first in the
-// queue's order on a tie) is checked as above. A change to the register or
-// to the case's header is measured again, never assumed. The tallest may be
-// a case past drafting: the walk waits for the plan's bar, not for Run, and
-// the check measures the reason there is no Run in Run's place.
-test("Run, or the reason there is none, and the run service's state are on the first screen at 375x812 for the open case with the tallest content above the plan's bar, in Russian", async ({ browser }) => {
-  // The walk opens every open case; a slow runner is given two minutes.
-  test.setTimeout(120_000);
+// longer language, with its run service ready, as the check above opens
+// it. The case whose offer ends lowest on the page (the bottom edge of Run
+// for a case in drafting, of the reason there is no Run for a case past
+// it: what the check measures; the first in the queue's order on a tie)
+// is checked as above. A failed run service's title stands right under
+// the plan's bar, so the case whose plan bar is lowest is checked too,
+// when it is another one. A change to the register or to the case's
+// header is measured again, never assumed.
+test("Run, or the reason there is none, and the run service's state are on the first screen at 375x812 for the open case whose offer ends lowest, in Russian", async ({ browser }) => {
+  // The walk opens every open case; a slow runner is given three minutes.
+  test.setTimeout(180_000);
   const [width, height] = [375, 812];
-  const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+  const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   // The desk starts on the open cases; each opens on its assistant.
   await page.goto("/?lang=ru&colleague=off&panel=assistant");
@@ -217,7 +254,10 @@ test("Run, or the reason there is none, and the run service's state are on the f
   await idCell(0).click();
   await expect(idCell(0)).toBeFocused();
   const planBar = page.locator(".agent .plan-bar");
-  let tallest = { id: "", top: -1 };
+  const run = page.getByRole("button", { name: strings.ru.plan.run });
+  const reason = pastDraftingReason(page, "ru");
+  let lowest = { id: "", offer: "run" as Offer, bottom: -1 };
+  let lowestBar = { id: "", top: -1 };
   for (let row = 0; row < open; row += 1) {
     if (row > 0) {
       await page.keyboard.press("ArrowDown");
@@ -226,15 +266,24 @@ test("Run, or the reason there is none, and the run service's state are on the f
     const id = (await idCell(row).textContent())!.trim();
     await page.keyboard.press("o");
     await expect(page.locator("#case-heading")).toContainText(`${id}, `);
-    await expect(planBar).toBeVisible();
+    await serviceReady(page, "ru");
+    await expect(run.or(reason), `${id}: Run or the reason there is none`).toHaveCount(1);
+    const offer: Offer = (await reason.count()) === 1 ? "reason" : "run";
+    const box = (await (offer === "run" ? run : reason).boundingBox())!;
+    const bottom = box.y + box.height;
+    if (bottom > lowest.bottom) lowest = { id, offer, bottom };
     const top = (await planBar.boundingBox())!.y;
-    if (top > tallest.top) tallest = { id, top };
+    if (top > lowestBar.top) lowestBar = { id, top };
     await page.keyboard.press("q");
     await expect(idCell(row)).toBeFocused();
   }
   await context.close();
-  test.info().annotations.push({ type: "tallest-open-case", description: `${tallest.id} of ${open}: the plan's bar at ${Math.round(tallest.top * 10) / 10} px` });
-  await expectAssistantOnFirstScreen(browser, width, height, "ru", tallest.id);
+  test.info().annotations.push({
+    type: "lowest-open-case",
+    description: `${lowest.id} of ${open}: ${lowest.offer === "run" ? "Run's" : "the reason's"} bottom edge at ${Math.round(lowest.bottom * 10) / 10} px; the lowest plan bar ${lowestBar.id} at ${Math.round(lowestBar.top * 10) / 10} px`,
+  });
+  expect(await expectAssistantOnFirstScreen(browser, width, height, "ru", lowest.id)).toBe(lowest.offer);
+  if (lowestBar.id !== lowest.id) await expectAssistantOnFirstScreen(browser, width, height, "ru", lowestBar.id);
 });
 
 for (const theme of THEMES)
