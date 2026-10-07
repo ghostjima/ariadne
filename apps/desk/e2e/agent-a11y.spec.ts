@@ -2,7 +2,7 @@
 // main state in each language and theme, the language switch reaching the
 // assistant, no sideways scroll, Run on the first screen, and the page
 // frame (a fixed header, Stoa's scrollbars) with a long log.
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import { strings } from "../src/agent/i18n";
 import type { Lang } from "../src/i18n";
 import { LINKED_CASE, en, expectNoSeriousViolations, expectPlanState, ready, confirmation, agentUrl } from "./agent-helpers";
@@ -121,32 +121,76 @@ for (const width of [1280, 375])
       expect(await sideways()).toEqual([0, 0]);
     });
 
+/** Run, and a failed run service's title, end within the first screen of
+ * a case's assistant. */
+async function expectRunOnFirstScreen(browser: Browser, width: number, height: number, lang: Lang, caseId?: string) {
+  const t = strings[lang];
+  const context = await browser.newContext({ viewport: { width, height } });
+  const page = await context.newPage();
+  await page.goto(agentUrl(`lang=${lang}`, caseId));
+  await ready(page, t.plan.run);
+  const run = page.getByRole("button", { name: t.plan.run });
+  const box = (await run.boundingBox())!;
+  expect(box.y + box.height, `${lang}: Run's bottom edge`).toBeLessThanOrEqual(height);
+  await context.close();
+  // A run service that failed says so where Run is.
+  const blocked = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+  const second = await blocked.newPage();
+  await second.goto(agentUrl(`lang=${lang}`, caseId));
+  const failed = second.getByText(t.service.failedTitle);
+  await expect(failed).toBeVisible();
+  const top = (await failed.boundingBox())!;
+  expect(top.y + top.height, `${lang}: the failure's title`).toBeLessThanOrEqual(height);
+  await blocked.close();
+}
+
 for (const [width, height] of [
   [1280, 800],
   [375, 812],
 ] as const)
   test(`Run and the run service's state are on the first screen at ${width}x${height}`, async ({ browser }) => {
-    for (const lang of LANGS) {
-      const t = strings[lang];
-      const context = await browser.newContext({ viewport: { width, height } });
-      const page = await context.newPage();
-      await page.goto(agentUrl(`lang=${lang}`));
-      await ready(page, t.plan.run);
-      const run = page.getByRole("button", { name: t.plan.run });
-      const box = (await run.boundingBox())!;
-      expect(box.y + box.height, `${lang}: Run's bottom edge`).toBeLessThanOrEqual(height);
-      await context.close();
-      // A run service that failed says so where Run is.
-      const blocked = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
-      const second = await blocked.newPage();
-      await second.goto(agentUrl(`lang=${lang}`));
-      const failed = second.getByText(t.service.failedTitle);
-      await expect(failed).toBeVisible();
-      const top = (await failed.boundingBox())!;
-      expect(top.y + top.height, `${lang}: the failure's title`).toBeLessThanOrEqual(height);
-      await blocked.close();
-    }
+    for (const lang of LANGS) await expectRunOnFirstScreen(browser, width, height, lang);
   });
+
+// Whatever the case: every open case is opened on a phone in Russian, the
+// longer language, and the one whose content above the assistant's Run is
+// tallest (the top of the plan's bar lowest on the page; the first in the
+// queue's order on a tie) is checked as above. A change to the register or
+// to the case's header is measured again, never assumed.
+test("Run and the run service's state are on the first screen at 375x812 for the open case with the tallest content above Run, in Russian", async ({ browser }) => {
+  test.setTimeout(300_000);
+  const [width, height] = [375, 812];
+  const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+  const page = await context.newPage();
+  // The desk starts on the open cases; each opens on its assistant.
+  await page.goto("/?lang=ru&colleague=off&panel=assistant");
+  const count = page.getByTestId("row-count");
+  await expect(count).toHaveText(/ из /, { timeout: 15_000 });
+  const open = Number((await count.textContent())!.split(" из ")[0]!.replace(/\D/g, ""));
+  expect(open).toBeGreaterThan(0);
+  const idCell = (row: number) => page.getByRole("grid").locator(`[data-cell="${row}:1"]`);
+  await idCell(0).click();
+  await expect(idCell(0)).toBeFocused();
+  const planBar = page.locator(".agent .plan-bar");
+  let tallest = { id: "", top: -1 };
+  for (let row = 0; row < open; row += 1) {
+    if (row > 0) {
+      await page.keyboard.press("ArrowDown");
+      await expect(idCell(row)).toBeFocused();
+    }
+    const id = (await idCell(row).textContent())!.trim();
+    await page.keyboard.press("o");
+    await expect(page.locator(".case__heading")).toContainText(`${id}, `);
+    await expect(planBar).toBeVisible();
+    const top = (await planBar.boundingBox())!.y;
+    if (top > tallest.top) tallest = { id, top };
+    await page.keyboard.press("q");
+    await expect(idCell(row)).toBeFocused();
+  }
+  await context.close();
+  test.info().annotations.push({ type: "tallest-open-case", description: `${tallest.id} of ${open}: the plan's bar at ${Math.round(tallest.top * 10) / 10} px` });
+  await expectRunOnFirstScreen(browser, width, height, "ru", tallest.id);
+});
 
 for (const theme of THEMES)
   test(`the header stays put and the scrollbars are Stoa's, ${theme}`, async ({ page }) => {
