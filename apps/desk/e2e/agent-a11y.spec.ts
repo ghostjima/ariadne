@@ -195,17 +195,19 @@ test("the reason there is no Run and the run service's state are on the first sc
 });
 
 // Whatever the case: every open case is opened on a phone in Russian, the
-// longer language, and the one whose content above the assistant's Run is
-// tallest (the top of the plan's bar lowest on the page; the first in the
-// queue's order on a tie) is checked as above. A change to the register or
-// to the case's header is measured again, never assumed. The tallest may be
-// a case past drafting: the walk waits for the plan's bar, not for Run, and
-// the check measures the reason there is no Run in Run's place.
-test("Run, or the reason there is none, and the run service's state are on the first screen at 375x812 for the open case with the tallest content above the plan's bar, in Russian", async ({ browser }) => {
-  // The walk opens every open case; a slow runner is given two minutes.
-  test.setTimeout(120_000);
+// longer language, with its run service ready, as the check above opens
+// it. The case whose offer ends lowest on the page (the bottom edge of Run
+// for a case in drafting, of the reason there is no Run for a case past
+// it: what the check measures; the first in the queue's order on a tie)
+// is checked as above. A failed run service's title stands right under
+// the plan's bar, so the case whose plan bar is lowest is checked too,
+// when it is another one. A change to the register or to the case's
+// header is measured again, never assumed.
+test("Run, or the reason there is none, and the run service's state are on the first screen at 375x812 for the open case whose offer ends lowest, in Russian", async ({ browser }) => {
+  // The walk opens every open case; a slow runner is given three minutes.
+  test.setTimeout(180_000);
   const [width, height] = [375, 812];
-  const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+  const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   // The desk starts on the open cases; each opens on its assistant.
   await page.goto("/?lang=ru&colleague=off&panel=assistant");
@@ -217,7 +219,10 @@ test("Run, or the reason there is none, and the run service's state are on the f
   await idCell(0).click();
   await expect(idCell(0)).toBeFocused();
   const planBar = page.locator(".agent .plan-bar");
-  let tallest = { id: "", top: -1 };
+  const run = page.getByRole("button", { name: strings.ru.plan.run });
+  const reason = pastDraftingReason(page, "ru");
+  let lowest = { id: "", offer: "run" as Offer, bottom: -1 };
+  let lowestBar = { id: "", top: -1 };
   for (let row = 0; row < open; row += 1) {
     if (row > 0) {
       await page.keyboard.press("ArrowDown");
@@ -226,15 +231,24 @@ test("Run, or the reason there is none, and the run service's state are on the f
     const id = (await idCell(row).textContent())!.trim();
     await page.keyboard.press("o");
     await expect(page.locator("#case-heading")).toContainText(`${id}, `);
-    await expect(planBar).toBeVisible();
+    await serviceReady(page, "ru");
+    await expect(run.or(reason), `${id}: Run or the reason there is none`).toHaveCount(1);
+    const offer: Offer = (await reason.count()) === 1 ? "reason" : "run";
+    const box = (await (offer === "run" ? run : reason).boundingBox())!;
+    const bottom = box.y + box.height;
+    if (bottom > lowest.bottom) lowest = { id, offer, bottom };
     const top = (await planBar.boundingBox())!.y;
-    if (top > tallest.top) tallest = { id, top };
+    if (top > lowestBar.top) lowestBar = { id, top };
     await page.keyboard.press("q");
     await expect(idCell(row)).toBeFocused();
   }
   await context.close();
-  test.info().annotations.push({ type: "tallest-open-case", description: `${tallest.id} of ${open}: the plan's bar at ${Math.round(tallest.top * 10) / 10} px` });
-  await expectAssistantOnFirstScreen(browser, width, height, "ru", tallest.id);
+  test.info().annotations.push({
+    type: "lowest-open-case",
+    description: `${lowest.id} of ${open}: ${lowest.offer === "run" ? "Run's" : "the reason's"} bottom edge at ${Math.round(lowest.bottom * 10) / 10} px; the lowest plan bar ${lowestBar.id} at ${Math.round(lowestBar.top * 10) / 10} px`,
+  });
+  expect(await expectAssistantOnFirstScreen(browser, width, height, "ru", lowest.id)).toBe(lowest.offer);
+  if (lowestBar.id !== lowest.id) await expectAssistantOnFirstScreen(browser, width, height, "ru", lowestBar.id);
 });
 
 for (const theme of THEMES)
