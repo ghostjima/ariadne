@@ -5,7 +5,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { strings } from "../src/agent/i18n";
 import type { Lang } from "../src/i18n";
-import { LINKED_CASE, en, expectNoSeriousViolations, expectPlanState, ready, confirmation, agentUrl } from "./agent-helpers";
+import { LINKED_CASE, PAST_DRAFTING_CASE, en, expectNoSeriousViolations, expectPlanState, ready, confirmation, agentUrl } from "./agent-helpers";
 
 const LANGS: Lang[] = ["ru", "en"];
 const THEMES = ["light", "dark"] as const;
@@ -121,17 +121,30 @@ for (const width of [1280, 375])
       expect(await sideways()).toEqual([0, 0]);
     });
 
+/** Waits until the case's assistant is drawn and its run service is
+ * ready: the plan's bar is there, and neither the service's start nor its
+ * failure is shown under it. Run itself may stay disabled: a case past
+ * drafting offers no run, and says why. */
+async function serviceReady(page: Page, lang: Lang) {
+  const t = strings[lang];
+  const agent = page.locator(".agent");
+  await expect(agent.locator(".plan-bar")).toBeVisible({ timeout: 15_000 });
+  await expect(agent.getByRole("progressbar", { name: t.service.starting })).toHaveCount(0, { timeout: 15_000 });
+  await expect(agent.getByText(t.service.failedTitle)).toHaveCount(0);
+}
+
 /** Run, and a failed run service's title, end within the first screen of
- * a case's assistant. */
+ * a case's assistant (AGENT_CASE unless named). */
 async function expectRunOnFirstScreen(browser: Browser, width: number, height: number, lang: Lang, caseId?: string) {
   const t = strings[lang];
+  const label = `${lang}, ${caseId ?? "the assistant's case"}`;
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   await page.goto(agentUrl(`lang=${lang}`, caseId));
-  await ready(page, t.plan.run);
+  await serviceReady(page, lang);
   const run = page.getByRole("button", { name: t.plan.run });
   const box = (await run.boundingBox())!;
-  expect(box.y + box.height, `${lang}: Run's bottom edge`).toBeLessThanOrEqual(height);
+  expect(box.y + box.height, `${label}: Run's bottom edge`).toBeLessThanOrEqual(height);
   await context.close();
   // A run service that failed says so where Run is.
   const blocked = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
@@ -140,7 +153,7 @@ async function expectRunOnFirstScreen(browser: Browser, width: number, height: n
   const failed = second.getByText(t.service.failedTitle);
   await expect(failed).toBeVisible();
   const top = (await failed.boundingBox())!;
-  expect(top.y + top.height, `${lang}: the failure's title`).toBeLessThanOrEqual(height);
+  expect(top.y + top.height, `${label}: the failure's title`).toBeLessThanOrEqual(height);
   await blocked.close();
 }
 
@@ -152,13 +165,21 @@ for (const [width, height] of [
     for (const lang of LANGS) await expectRunOnFirstScreen(browser, width, height, lang);
   });
 
+// The check holds a case past drafting too: Run is there, disabled, and
+// the page waits for the run service, not for Run to be enabled.
+test("Run and the run service's state are on the first screen at 375x812 for a case past drafting, in Russian", async ({ browser }) => {
+  await expectRunOnFirstScreen(browser, 375, 812, "ru", PAST_DRAFTING_CASE);
+});
+
 // Whatever the case: every open case is opened on a phone in Russian, the
 // longer language, and the one whose content above the assistant's Run is
 // tallest (the top of the plan's bar lowest on the page; the first in the
 // queue's order on a tie) is checked as above. A change to the register or
-// to the case's header is measured again, never assumed.
+// to the case's header is measured again, never assumed. The tallest may be
+// a case past drafting, whose Run is there but disabled.
 test("Run and the run service's state are on the first screen at 375x812 for the open case with the tallest content above Run, in Russian", async ({ browser }) => {
-  test.setTimeout(300_000);
+  // The walk opens every open case; a slow runner is given two minutes.
+  test.setTimeout(120_000);
   const [width, height] = [375, 812];
   const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
   const page = await context.newPage();
