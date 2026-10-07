@@ -29,7 +29,8 @@ it that proposes and stops for a person at every risky step. In Russian
   marked in the cells; on a phone the groups fold into a sheet.
 - **Views**: open cases (where the desk opens, the least time left first),
   due within 3 working days, overdue, forwarded by the Bank of Russia,
-  waiting for facts, awaiting signature and all cases; saved views kept
+  waiting for facts, awaiting signature, copies due today (a filter of
+  its own, with counts) and all cases; saved views kept
   in this browser, and a link that carries the current view (`?view=`).
 - **Roles**: the operator works the cases assigned to them (facts,
   drafting, the handover to legal review, the decision, the ground,
@@ -102,6 +103,23 @@ assistant's).
   signed letter is frozen and names the signatory, and only a signed
   reply is sent, from the case or from the queue. Every edit, signature
   and deferral is in the journal.
+- **Dispatch and copies**: the signed reply is dispatched by the
+  signatory once they confirm it (a high-risk step: the confirmation
+  names the channel and the copies it will owe, with the focus on Do not
+  dispatch), then waits out a send delay counted down on the case
+  (`?sendDelay=` seconds, 30 by default), in which Cancel sending stops
+  it; once it has left it is not recalled. It leaves with the copies the
+  rules say it owes: to the Bank of Russia for a forwarded complaint, to
+  the self-regulatory organisation when a non-bank company marked a
+  breach of a standard. Each is due that day, listed in the queue's view
+  of copies due today, and marked sent from the case. The supervisor
+  extends the reply term with a reason; the rules' refusal of a money
+  claim under 123-FZ is shown in words, and a forwarded complaint's
+  extension notice owes the Bank of Russia a copy that day. How long the
+  case is kept is on the case, and the case exports for an inspection as
+  plain text and as CSV (its header, the derivation of the reply day, the
+  journal, the letter and the copies; text that a spreadsheet would read
+  as a formula is written as text).
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -262,7 +280,8 @@ dialogs, no matches, loading, a partial load failure with the operator
 role, the open case with its card and assistant, the work on a case
 with its journal, the return for rework with its refusal, the review
 of a letter with its findings and changes, the signature with a refused
-decision record, and, in the assistant,
+decision record, the dispatch's confirmation and its send delay, the
+supervisor's refused extension, and, in the assistant,
 the plan, the agent's request to change a step, a failed step, the
 reply's confirmation with its letter, a finished run with the draft, the
 rubric's check, its summary and toasts, New plan asking before it ends
@@ -278,7 +297,8 @@ from a confirmation, pausing and resuming) and editing with the mouse;
 where the focus goes after a bulk change, a Retry, the conflict dialog,
 deleting a view, opening and closing a case, a transition taken from
 the case and the return dialog, the confirmed handover, the letter's
-editor, a signature and a deferral, and after every
+editor, a signature and a deferral, the dispatch's confirmation and its
+cancel, a copy marked sent, and after every
 decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI

@@ -30,7 +30,7 @@ export type TransitionRequest = { action: Action; reason?: ReturnReason; comment
 /** A refusal of the desk beyond the transition table, by the letter: one
  * that leaves the decision open is not approved, one not signed is not
  * sent, a signed one is not returned. */
-export type LetterRefusal = { code: "letter-undecided" | "letter-not-signed" | "letter-signed" };
+export type LetterRefusal = { code: "letter-undecided" | "letter-not-signed" | "letter-signed" | "dispatch-from-case" };
 export type WorkRefusal = TransitionError | LetterRefusal;
 
 export type CaseWorkProps = {
@@ -115,7 +115,7 @@ export function CaseWork({ store, row, role, lang, t, version, onTransition, hid
       ? w.commentRequired(String(e.min))
       : e.code === "comment-too-long"
         ? w.commentTooLong(String(e.max), String(e.length))
-        : e.code === "letter-undecided" || e.code === "letter-not-signed" || e.code === "letter-signed"
+        : e.code === "letter-undecided" || e.code === "letter-not-signed" || e.code === "letter-signed" || e.code === "dispatch-from-case"
           ? w.letterRefusal[e.code]
           : w.errors[e.code];
 

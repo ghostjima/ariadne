@@ -33,9 +33,9 @@ import { pools as ru } from "../src/pools/ru.js";
 import { storeDigest } from "./digest.js";
 
 describe("generator", () => {
-  it("has a 24-column catalogue with unique ids", () => {
-    expect(COLUMNS).toHaveLength(24);
-    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(24);
+  it("has a 25-column catalogue with unique ids", () => {
+    expect(COLUMNS).toHaveLength(25);
+    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(25);
   });
 
   it("is deterministic for the same seed", () => {
@@ -174,7 +174,11 @@ describe("generator", () => {
        data is taken (most within the term, a minority due within three
        working days, a few overdue) and blocked operations were complained
        about within days: the stage, extension, operation day and reply
-       day of many rows changed. */
+       day of many rows changed.
+       Re-pinned when the group's non-bank companies, a base-standard
+       breach and the copies a reply owes were added: three new columns,
+       drawn from a stream of their own, and the self-regulatory copy bit
+       of the rows with a breach; every other column is as it was. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
@@ -197,4 +201,4 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "901fd3c2";
+const GOLDEN_DIGEST = "9659766b";

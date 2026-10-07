@@ -3,7 +3,7 @@
 // and why, and the handover of the assistant's draft. Russian first,
 // English second; the stages' own names are the engine's language
 // modules'.
-import type { Action, ReturnReason, TransitionError } from "@ariadne/grid";
+import type { Action, CopyKind, ReturnReason, TransitionError } from "@ariadne/grid";
 import type { SignDecision } from "./caseFile";
 import type { Lang } from "../i18n";
 
@@ -49,7 +49,7 @@ export type WorkflowStrings = {
   person: (role: string, name: string) => string;
 
   /** Refusals of the desk beyond the transition table, by the letter. */
-  letterRefusal: { "letter-undecided": string; "letter-not-signed": string; "letter-signed": string };
+  letterRefusal: { "letter-undecided": string; "letter-not-signed": string; "letter-signed": string; "dispatch-from-case": string };
 
   /** The letter: the assistant's draft, the text as it stands, the
    * signatory named on it. */
@@ -117,6 +117,66 @@ export type WorkflowStrings = {
       "letter-undecided": string;
     };
     notYours: (name: string) => string;
+  };
+
+  /** Dispatch, its copies, the breach mark, the supervisor's extension,
+   * retention and the export for an inspection. */
+  dispatch: {
+    panel: string;
+    dispatch: string;
+    help: string;
+    confirmTitle: (id: string) => string;
+    confirmTo: (channel: string) => string;
+    confirmCopies: string;
+    confirmNoCopies: string;
+    confirmDelay: (seconds: string) => string;
+    confirm: string;
+    keep: string;
+    pending: (seconds: string) => string;
+    pendingLabel: string;
+    cancel: string;
+    cancelled: (id: string) => string;
+    sent: (id: string) => string;
+    notYet: string;
+    copies: string;
+    copy: Record<CopyKind, string>;
+    copyBasis: string;
+    due: (day: string) => string;
+    sentOn: (day: string) => string;
+    markSent: string;
+    markedSent: (copy: string) => string;
+    noCopies: string;
+    breach: string;
+    breachHelp: string;
+    breachRefused: string;
+    extension: string;
+    extensionHelp: string;
+    extensionReason: string;
+    extend: string;
+    extended: (id: string, day: string) => string;
+    extensionRefusedBy: (words: string) => string;
+    reasonRequired: (min: string) => string;
+    alreadyExtended: string;
+    retention: (until: string, basis: string) => string;
+    retentionNone: (until: string) => string;
+    export: string;
+    exportText: string;
+    exportCsv: string;
+    exported: string;
+    file: (id: string, ext: string) => string;
+  };
+  /** The words of the export for an inspection. */
+  inspection: {
+    title: (id: string) => string;
+    taken: (day: string) => string;
+    synthetic: string;
+    fields: { case: string; applicant: string; stream: string; organisation: string; source: string; received: string; registered: string; replyDue: string; stage: string; retention: string };
+    derivation: string;
+    journal: string;
+    letter: string;
+    noLetter: string;
+    copies: string;
+    columns: { section: string; when: string; who: string; what: string; detail: string };
   };
 
   /** The assistant's handover, on the case. */
@@ -208,6 +268,10 @@ const en: WorkflowStrings = {
     edit: "Letter edited",
     sign: "Letter signed",
     defer: "Signature deferred",
+    breach_marked: "Breach of a standard found",
+    breach_withdrawn: "Breach of a standard withdrawn",
+    copy_sent: "Copy sent",
+    dispatch_cancelled: "Dispatch cancelled before sending",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Reason: ${reason}`,
@@ -222,6 +286,7 @@ const en: WorkflowStrings = {
     "letter-undecided": "The letter still leaves the decision open: state it, or edit the letter, first.",
     "letter-not-signed": "The reply goes out only signed: sign the letter first.",
     "letter-signed": "The letter is signed: it is not returned for rework.",
+    "dispatch-from-case": "A signed reply goes out from its case: dispatched, with its send delay and its copies.",
   },
   letter: {
     panel: "The letter",
@@ -296,6 +361,78 @@ const en: WorkflowStrings = {
       "letter-undecided": "The letter still leaves the decision open; it is not signed.",
     },
     notYours: (name) => `The signature is ${name}'s.`,
+  },
+  dispatch: {
+    panel: "Dispatch and copies",
+    dispatch: "Dispatch the reply",
+    help: "High risk: the reply goes to the applicant. It leaves after a send delay in which you can cancel it; once it has left it is not recalled.",
+    confirmTitle: (id) => `Dispatch the reply in ${id}?`,
+    confirmTo: (channel) => `To the applicant, by ${channel}.`,
+    confirmCopies: "The same day, these copies become due:",
+    confirmNoCopies: "No copies are owed for this reply.",
+    confirmDelay: (seconds) => `It leaves in ${seconds} seconds; until then you can cancel it.`,
+    confirm: "Dispatch",
+    keep: "Do not dispatch",
+    pending: (seconds) => `Leaves in ${seconds} s.`,
+    pendingLabel: "Send delay",
+    cancel: "Cancel sending",
+    cancelled: (id) => `The reply in ${id} was not sent: dispatch cancelled.`,
+    sent: (id) => `The reply in ${id} has gone out.`,
+    notYet: "The reply goes out once it is signed.",
+    copies: "Copies",
+    copy: {
+      bank_of_russia: "Copy of the reply to the Bank of Russia",
+      sro: "Copy of the complaint and the reply to the self-regulatory organisation",
+      notice: "Copy of the extension notice to the Bank of Russia",
+    },
+    copyBasis:
+      "Each copy is due the day its original goes out: to the Bank of Russia for a complaint it forwarded (Banking Law art. 30.1 part 15 and the sector articles); to the self-regulatory organisation when a non-bank company finds a breach of a standard (151-FZ art. 9.1 part 12, 4015-1 art. 6.2 item 8, 39-FZ art. 15.11 item 5, 190-FZ art. 6.2 part 10).",
+    due: (day) => `due ${day}`,
+    sentOn: (day) => `sent ${day}`,
+    markSent: "Mark sent",
+    markedSent: (copy) => `${copy}: marked sent.`,
+    noCopies: "No copies are owed for this case.",
+    breach: "A breach of a base or internal standard was found",
+    breachRefused: "A breach is marked for a non-bank company, before its reply goes out.",
+    breachHelp: "For a microfinance company, an insurer, a broker or a credit cooperative: the complaint and the reply go to its self-regulatory organisation the day the reply goes out. Marked before the reply goes out.",
+    extension: "Extend the reply term",
+    extensionHelp: "By 10 working days, once, only to request documents, with a reasoned notice to the applicant.",
+    extensionReason: "Reason: which documents, from whom",
+    extend: "Extend by 10 working days",
+    extended: (id, day) => `The reply term in ${id} is extended to ${day}.`,
+    extensionRefusedBy: (words) => `Refused by the rules: ${words}`,
+    reasonRequired: (min) => `Give the reason, in at least ${min} characters.`,
+    alreadyExtended: "The term is already extended; it is extended once.",
+    retention: (until, basis) => `Kept until ${until}: three years from registration (${basis}).`,
+    retentionNone: (until) => `Kept until ${until}: 190-FZ art. 6.2 sets no term for a credit cooperative; the desk keeps it three years, as the other sectors, its own choice.`,
+    export: "Export for an inspection",
+    exportText: "Plain text",
+    exportCsv: "CSV",
+    exported: "The export is saved.",
+    file: (id, ext) => `${id}-inspection.${ext}`,
+  },
+  inspection: {
+    title: (id) => `Case ${id}: export for an inspection`,
+    taken: (day) => `Deadlines as of ${day}.`,
+    synthetic: "Synthetic data of a demonstration desk; no real client.",
+    fields: {
+      case: "Case",
+      applicant: "Applicant",
+      stream: "Stream",
+      organisation: "Organisation",
+      source: "Source",
+      received: "Received",
+      registered: "Registered",
+      replyDue: "Reply due",
+      stage: "Stage",
+      retention: "Retention",
+    },
+    derivation: "How the reply's last day was worked out",
+    journal: "Journal",
+    letter: "Letter",
+    noLetter: "No letter kept in this page.",
+    copies: "Copies",
+    columns: { section: "Section", when: "When", who: "Who", what: "What", detail: "Detail" },
   },
   handover: {
     recorded: (stage, who, time) => `On the case: “${stage}”, ${who}, ${time}.`,
@@ -384,6 +521,10 @@ const ru: WorkflowStrings = {
     edit: "Письмо отредактировано",
     sign: "Письмо подписано",
     defer: "Подпись отложена",
+    breach_marked: "Выявлено нарушение стандарта",
+    breach_withdrawn: "Отметка о нарушении стандарта снята",
+    copy_sent: "Копия направлена",
+    dispatch_cancelled: "Отправка отменена до ухода",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Причина: ${reason}`,
@@ -398,6 +539,7 @@ const ru: WorkflowStrings = {
     "letter-undecided": "В письме ещё не указано решение: сначала укажите его или отредактируйте письмо.",
     "letter-not-signed": "Ответ уходит только подписанным: сначала подпишите письмо.",
     "letter-signed": "Письмо подписано: на доработку оно не возвращается.",
+    "dispatch-from-case": "Подписанный ответ отправляется из обращения: с задержкой отправки и копиями.",
   },
   letter: {
     panel: "Письмо",
@@ -472,6 +614,78 @@ const ru: WorkflowStrings = {
       "letter-undecided": "В письме ещё не указано решение; оно не подписывается.",
     },
     notYours: (name) => `Подпись за подписантом ${name}.`,
+  },
+  dispatch: {
+    panel: "Отправка и копии",
+    dispatch: "Отправить ответ",
+    help: "Высокий риск: ответ уходит заявителю. Он уходит после задержки, в течение которой отправку можно отменить; ушедший ответ не отзывается.",
+    confirmTitle: (id) => `Отправить ответ по ${id}?`,
+    confirmTo: (channel) => `Заявителю, канал: ${channel}.`,
+    confirmCopies: "В тот же день нужно будет направить копии:",
+    confirmNoCopies: "Копии по этому ответу не нужны.",
+    confirmDelay: (seconds) => `Ответ уйдёт через ${seconds} с; до этого отправку можно отменить.`,
+    confirm: "Отправить",
+    keep: "Не отправлять",
+    pending: (seconds) => `Уйдёт через ${seconds} с.`,
+    pendingLabel: "Задержка отправки",
+    cancel: "Отменить отправку",
+    cancelled: (id) => `Ответ по ${id} не отправлен: отправка отменена.`,
+    sent: (id) => `Ответ по ${id} отправлен.`,
+    notYet: "Ответ уходит после подписи.",
+    copies: "Копии",
+    copy: {
+      bank_of_russia: "Копия ответа в Банк России",
+      sro: "Копии обращения и ответа в СРО",
+      notice: "Копия уведомления о продлении в Банк России",
+    },
+    copyBasis:
+      "Каждая копия направляется в день отправки подлинника: в Банк России по переданному им обращению (Закон о банках, ст. 30.1, ч. 15, и отраслевые статьи); в СРО, если небанковская организация выявила нарушение стандарта (151-ФЗ, ст. 9.1, ч. 12; закон № 4015-1, ст. 6.2, п. 8; 39-ФЗ, ст. 15.11, п. 5; 190-ФЗ, ст. 6.2, ч. 10).",
+    due: (day) => `срок ${day}`,
+    sentOn: (day) => `направлена ${day}`,
+    markSent: "Отметить направленной",
+    markedSent: (copy) => `${copy}: отмечена направленной.`,
+    noCopies: "Копии по этому обращению не нужны.",
+    breach: "Выявлено нарушение базового или внутреннего стандарта",
+    breachRefused: "Нарушение отмечается для небанковской организации до отправки ответа.",
+    breachHelp: "Для МФО, страховщика, брокера или кредитного кооператива: обращение и ответ уходят в СРО в день отправки ответа. Отмечается до отправки ответа.",
+    extension: "Продлить срок ответа",
+    extensionHelp: "На 10 рабочих дней, один раз, только для запроса документов, с мотивированным уведомлением заявителя.",
+    extensionReason: "Причина: какие документы и у кого",
+    extend: "Продлить на 10 рабочих дней",
+    extended: (id, day) => `Срок ответа по ${id} продлён до ${day}.`,
+    extensionRefusedBy: (words) => `Отказ по правилам: ${words}`,
+    reasonRequired: (min) => `Укажите причину, не короче ${min} знаков.`,
+    alreadyExtended: "Срок уже продлён; продление бывает один раз.",
+    retention: (until, basis) => `Хранится до ${until}: три года со дня регистрации (${basis}).`,
+    retentionNone: (until) => `Хранится до ${until}: 190-ФЗ, ст. 6.2, не устанавливает срок для кредитного кооператива; стол хранит обращение три года, как в других отраслях, по собственному решению.`,
+    export: "Выгрузка для проверки",
+    exportText: "Текст",
+    exportCsv: "CSV",
+    exported: "Выгрузка сохранена.",
+    file: (id, ext) => `${id}-proverka.${ext}`,
+  },
+  inspection: {
+    title: (id) => `Обращение ${id}: выгрузка для проверки`,
+    taken: (day) => `Сроки на ${day}.`,
+    synthetic: "Синтетические данные демонстрационного стола; реальных клиентов нет.",
+    fields: {
+      case: "Обращение",
+      applicant: "Заявитель",
+      stream: "Поток",
+      organisation: "Организация",
+      source: "Источник",
+      received: "Поступило",
+      registered: "Зарегистрировано",
+      replyDue: "Срок ответа",
+      stage: "Этап",
+      retention: "Хранение",
+    },
+    derivation: "Как получен последний день ответа",
+    journal: "Журнал",
+    letter: "Письмо",
+    noLetter: "Письмо в этой вкладке не хранится.",
+    copies: "Копии",
+    columns: { section: "Раздел", when: "Когда", who: "Кто", what: "Что", detail: "Подробности" },
   },
   handover: {
     recorded: (stage, who, time) => `В обращении: «${stage}», ${who}, ${time}.`,

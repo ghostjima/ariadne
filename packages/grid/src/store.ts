@@ -1,4 +1,4 @@
-import { AS_OF, DUE_SOON_WORKING_DAYS, DeadlineClass, Extension, Stage, type EnumField } from "./schema.js";
+import { AS_OF, Copy, CopyClass, DUE_SOON_WORKING_DAYS, DeadlineClass, Extension, Stage, type EnumField } from "./schema.js";
 import { dayNumber } from "./days.js";
 import type { JournalEntry } from "./workflow.js";
 
@@ -32,6 +32,9 @@ export const RulesFlag = {
   RegistrationNotice: 8,
   /* The reply and every notice are copied to the Bank of Russia */
   CopyToBankOfRussia: 16,
+  /* The complaint and the reply are copied to the self-regulatory
+     organisation (a non-bank sector, a base-standard breach found) */
+  CopyToSro: 32,
 } as const;
 
 export type Columns = {
@@ -41,6 +44,8 @@ export type Columns = {
   registered: Int32Array;
   stream: Uint8Array;
   source: Uint8Array;
+  /* the organisation of the group (Sector) */
+  sector: Uint8Array;
   channel: Uint8Array;
   applicant: Uint8Array;
   /* an individual (see clientName) or a company, by `applicant` */
@@ -79,6 +84,10 @@ export type Columns = {
   rules: Uint8Array;
   /* the day the reply went out, or -1 */
   sentOn: Int32Array;
+  /* 1 when a breach of a base or internal standard was found */
+  breach: Uint8Array;
+  /* Copy bits: the copies owed and sent */
+  copies: Uint8Array;
   /* the complaint's text: template, variation bits, adversarial insertion
      (0 none, k > 0 the k-th) */
   template: Uint8Array;
@@ -128,6 +137,7 @@ export function allocColumns(size: number): Columns {
     registered: new Int32Array(size),
     stream: new Uint8Array(size),
     source: new Uint8Array(size),
+    sector: new Uint8Array(size),
     channel: new Uint8Array(size),
     applicant: new Uint8Array(size),
     client: new Uint16Array(size),
@@ -152,6 +162,8 @@ export function allocColumns(size: number): Columns {
     leftExt: new Int16Array(size),
     rules: new Uint8Array(size),
     sentOn: new Int32Array(size),
+    breach: new Uint8Array(size),
+    copies: new Uint8Array(size),
     template: new Uint8Array(size),
     variant: new Uint16Array(size),
     injection: new Uint8Array(size),
@@ -277,6 +289,7 @@ export type RowCodes = {
   registered: number;
   stream: number;
   source: number;
+  sector: number;
   channel: number;
   applicant: number;
   client: number;
@@ -301,6 +314,8 @@ export type RowCodes = {
   leftExt: number;
   rules: number;
   sentOn: number;
+  breach: number;
+  copies: number;
   template: number;
   variant: number;
   injection: number;
@@ -352,4 +367,18 @@ export function writeNote(store: ColumnStore, row: number, value: NoteValue, now
     store.noteEdits.set(row, value);
   }
   store.updatedAt[row] = dayOf(now);
+}
+
+/* Copies due today and not yet sent, sent, or none owed: the copies of a
+   reply are due on the day it went out, the copy of an extension notice
+   on the day of the extension (always the day the data is taken) */
+export function copyClass(store: ColumnStore, i: number): number {
+  const c = store.copies[i] ?? 0;
+  if (c === 0) return CopyClass.None;
+  const today = (store.sentOn[i] ?? -1) === AS_OF_DAY;
+  const open =
+    (today && (c & Copy.BankOfRussiaDue) !== 0 && (c & Copy.BankOfRussiaSent) === 0) ||
+    (today && (c & Copy.SroDue) !== 0 && (c & Copy.SroSent) === 0) ||
+    ((c & Copy.NoticeDue) !== 0 && (c & Copy.NoticeSent) === 0);
+  return open ? CopyClass.DueToday : CopyClass.Sent;
 }

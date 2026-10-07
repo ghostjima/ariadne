@@ -1,4 +1,4 @@
-import { COLUMN_BY_ID, DEFAULT_COLUMNS, DeadlineClass, PRESET_IDS, Source, Stage } from "./schema.js";
+import { COLUMN_BY_ID, CopyClass, DEFAULT_COLUMNS, DeadlineClass, PRESET_IDS, Source, Stage } from "./schema.js";
 import type { Criteria, Sort } from "./filter.js";
 import { roleScope, type Role } from "./roles.js";
 
@@ -17,6 +17,8 @@ export type ViewFilters = {
   stream: number[];
   source: number[];
   deadline: number[];
+  /* CopyClass codes */
+  copy: number[];
 };
 
 export type View = {
@@ -29,7 +31,7 @@ export type View = {
   density: Density;
 };
 
-export const EMPTY_FILTERS: ViewFilters = { stage: [], stream: [], source: [], deadline: [] };
+export const EMPTY_FILTERS: ViewFilters = { stage: [], stream: [], source: [], deadline: [], copy: [] };
 
 const OPEN_STAGES = [
   Stage.Registered,
@@ -102,6 +104,16 @@ export const PRESET_VIEWS: readonly View[] = [
     sort: BY_TIME_LEFT,
     density: "default",
   },
+  {
+    /* The copies of today's replies and notices still to send: to the
+       Bank of Russia, and to the self-regulatory organisation */
+    name: "copiesDueToday",
+    filters: { ...EMPTY_FILTERS, copy: [CopyClass.DueToday] },
+    search: "",
+    columns: ["id", "client", "sector", "source", "stage", "stream", "assignee"],
+    sort: { id: "id", desc: false },
+    density: "default",
+  },
   DEFAULT_VIEW,
 ];
 
@@ -110,11 +122,11 @@ export function isPreset(name: string): boolean {
 }
 
 export function hasActiveFilters(f: ViewFilters): boolean {
-  return f.stage.length > 0 || f.stream.length > 0 || f.source.length > 0 || f.deadline.length > 0;
+  return f.stage.length > 0 || f.stream.length > 0 || f.source.length > 0 || f.deadline.length > 0 || f.copy.length > 0;
 }
 
 export function activeFilterCount(f: ViewFilters): number {
-  return f.stage.length + f.stream.length + f.source.length + f.deadline.length;
+  return f.stage.length + f.stream.length + f.source.length + f.deadline.length + f.copy.length;
 }
 
 /* Filter criteria for a view as seen by a role */
@@ -124,6 +136,7 @@ export function criteriaFor(view: View, role: Role): Criteria {
     stream: view.filters.stream,
     source: view.filters.source,
     deadline: view.filters.deadline,
+    copy: view.filters.copy,
     search: view.search,
     scope: roleScope(role),
   };
@@ -157,14 +170,16 @@ export function removeView(saved: readonly View[], name: string): View[] {
 }
 
 /* URL serialization: compact JSON in base64url. `v` is the wire version:
-   views saved before the complaints register (no `v`) do not parse. */
+   views saved before the complaints register (no `v`) do not parse. The
+   copy filter is the fifth list of `f`; a view saved before it has four,
+   and reads as no copy filter. */
 
 const WIRE_VERSION = 2;
 
 type Wire = {
   v: number;
   n: string;
-  f: [number[], number[], number[], number[]];
+  f: [number[], number[], number[], number[], number[]] | [number[], number[], number[], number[]];
   q: string;
   c: string[];
   s: [string, 0 | 1] | null;
@@ -190,7 +205,7 @@ export function serializeView(view: View): string {
   const w: Wire = {
     v: WIRE_VERSION,
     n: view.name,
-    f: [view.filters.stage, view.filters.stream, view.filters.source, view.filters.deadline],
+    f: [view.filters.stage, view.filters.stream, view.filters.source, view.filters.deadline, view.filters.copy],
     q: view.search,
     c: view.columns,
     s: view.sort ? [view.sort.id, view.sort.desc ? 1 : 0] : null,
@@ -220,7 +235,7 @@ export function parseView(raw: string | null | undefined): View | null {
         : null;
     return {
       name: typeof w.n === "string" && w.n.trim() ? w.n.slice(0, VIEW_NAME_MAX) : "",
-      filters: { stage: numList(f[0]), stream: numList(f[1]), source: numList(f[2]), deadline: numList(f[3]) },
+      filters: { stage: numList(f[0]), stream: numList(f[1]), source: numList(f[2]), deadline: numList(f[3]), copy: numList(f[4]) },
       search: typeof w.q === "string" ? w.q.slice(0, 100) : "",
       columns: columns.length > 0 ? columns : [...DEFAULT_COLUMNS],
       sort,

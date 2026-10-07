@@ -11,6 +11,7 @@ import {
   COMPANY_COUNT,
   DUE_SOON_WORKING_DAYS,
   Channel,
+  Copy,
   ELECTRONIC_CHANNELS,
   Extension,
   FIRST_NAME_COUNT,
@@ -21,6 +22,7 @@ import {
   Outcome,
   SIGNATORY_COUNT,
   SIGN_COUNT,
+  Sector,
   SURNAME_COUNT,
   Source,
   Stage,
@@ -137,6 +139,19 @@ const OUTCOME_WEIGHTS: readonly (readonly number[])[] = [
 /* The ground of a first antifraud action, whatever the operation: 161-FZ
    art. 8 part 3.4 (see GROUNDS) */
 const PAYMENT_FIRST_ACTION = 1;
+
+/* The side draws (organisation, breach, copies) come from a stream of
+   their own */
+const SIDE_SALT = 0x5ec7012;
+/* Bank, microfinance, insurer, broker, credit cooperative */
+const GENERAL_SECTOR_WEIGHTS = [0.82, 0.06, 0.05, 0.04, 0.03];
+/* A money claim only to a company that takes part in the ombudsman's
+   procedure by law (123-FZ art. 28 part 1): not to a broker */
+const CLAIM_SECTOR_WEIGHTS = [0.85, 0.07, 0.05, 0, 0.03];
+const BREACH_SHARE = 0.15;
+/* Of the copies of replies sent on the day the data is taken, the share
+   still to send */
+const TODAY_UNSENT_SHARE = 0.6;
 
 /* Share of complaints with an adversarial insertion */
 const INJECTION_SHARE = 0.03;
@@ -293,8 +308,25 @@ export function generateChunk(seed: number, start: number, count: number, total:
       template = c.template[j] ?? 0;
     }
 
+    /* The organisation of the group, from a draw of its own so the rest of
+       the row is what it was before the group had other companies: a
+       general complaint or a money claim may be to a non-bank company
+       (a money claim only to one that takes part in the ombudsman's
+       procedure by law, so its clock is the bank's); blocks and 115-FZ
+       refusals are the bank's. A linked case is to the same company. */
+    const side = makeRng(mixSeed(seed ^ SIDE_SALT, r));
+    const sector =
+      linked >= 0
+        ? (c.sector[linked - start] ?? Sector.Bank)
+        : stream === Stream.General
+          ? weighted(side(), GENERAL_SECTOR_WEIGHTS)
+          : stream === Stream.MoneyClaim
+            ? weighted(side(), CLAIM_SECTOR_WEIGHTS)
+            : Sector.Bank;
     const clock = replyClock({
       stream,
+      sector,
+      breach: false,
       applicant,
       forwarded: source === Source.BankOfRussia,
       electronic: ELECTRONIC_CHANNELS.includes(channel),
@@ -358,6 +390,35 @@ export function generateChunk(seed: number, start: number, count: number, total:
       }
     }
 
+    /* A breach of a base or internal standard found in a non-bank
+       company's justified complaint, now and then; then the complaint and
+       the reply are copied to its self-regulatory organisation on the day
+       of the reply, as ariadne-rules says. The copies of a reply sent
+       before the day the data is taken went out; some of today's are
+       still to send. */
+    const breach = sector !== Sector.Bank && stage >= Stage.LegalReview && outcome !== Outcome.Refused && side() < BREACH_SHARE;
+    const flags = breach
+      ? replyClock({
+          stream,
+          sector,
+          breach,
+          applicant,
+          forwarded: source === Source.BankOfRussia,
+          electronic: ELECTRONIC_CHANNELS.includes(channel),
+          received,
+          registered,
+          claim,
+          standardForm: claimForm === 1,
+          breachOn: claim > 0 ? opOn : -1,
+        }).flags
+      : clock.flags;
+    let copies = 0;
+    if (answered && sentOn >= 0) {
+      const pending = sentOn === AS_OF_DAY && side() < TODAY_UNSENT_SHARE;
+      if ((flags & RulesFlag.CopyToBankOfRussia) !== 0) copies |= Copy.BankOfRussiaDue | (pending ? 0 : Copy.BankOfRussiaSent);
+      if ((flags & RulesFlag.CopyToSro) !== 0) copies |= Copy.SroDue | (pending ? 0 : Copy.SroSent);
+    }
+
     const noteSlot = pick(NOTE_COUNT + 4);
     const updatedDay = answered ? sentOn : registered + pick(Math.max(1, AS_OF_DAY - registered + 1));
 
@@ -366,6 +427,9 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.registered[i] = registered;
     c.stream[i] = stream;
     c.source[i] = source;
+    c.sector[i] = sector;
+    c.breach[i] = breach ? 1 : 0;
+    c.copies[i] = copies;
     c.channel[i] = channel;
     c.applicant[i] = applicant;
     c.client[i] = client;
@@ -388,7 +452,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.extNotice[i] = clock.extNotice;
     c.leftBase[i] = leftBase;
     c.leftExt[i] = leftExt;
-    c.rules[i] = clock.flags;
+    c.rules[i] = flags;
     c.sentOn[i] = sentOn;
     c.template[i] = template;
     c.variant[i] = pick(0x10000);

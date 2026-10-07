@@ -34,7 +34,28 @@ they are taken again with `pnpm measure`.
   source (the client, a representative, or forwarded by the Bank of
   Russia), the stream, the operation behind it (reference, day, amount),
   the stage, the decision, the legal ground, the extension, the assignee
-  and the signatory, a linked case and a note.
+  and the signatory, a linked case and a note; the organisation of the
+  group it is to, a breach of a standard found, and the copies its reply
+  owes.
+- **The group's companies.** Most complaints are to the bank; a general
+  complaint or a money claim may be to the group's microfinance company,
+  insurer, broker or credit cooperative (a money claim never to the
+  broker, which takes part in the ombudsman's procedure only by choice),
+  so its reply clock is the bank's. Drawn from a stream of their own, so
+  every other column is what it was without them. A non-bank company
+  that finds a breach of a base or internal standard copies the complaint
+  and the reply to its self-regulatory organisation the day the reply
+  goes out; a bank has none.
+- **Copies.** A reply owes, the day it goes out, a copy to the Bank of
+  Russia for a forwarded complaint and the self-regulatory copy above, as
+  ariadne-rules computes the case's duties; an extension's notice owes
+  the Bank of Russia a copy the same day. Copies of replies sent before
+  the day the data is taken went out; some of that day's are still to
+  send.
+- **Retention.** Three years from registration, by each sector's
+  complaint article; the credit cooperatives' article sets no term, and
+  the desk keeps their cases three years too, its own choice, and says
+  so.
 - **Streams.** A written complaint under 442-FZ; a money claim up to
   500,000 roubles under 123-FZ, with the amount claimed; a block or
   refusal under 161-FZ, with the sign of Bank of Russia Order No. OD-2506
@@ -175,12 +196,14 @@ All of it is exported from `@ariadne/grid`.
 | legal | `replyClock`, `replyFacts`, `isWorking`, `nextWorking`, `plusWorkingDays`, `workingDaysFrom`: cached questions to ariadne-rules |
 | text | `TextPools`, `Labels`, `validatePools`, `validateLabels`, `clientName`, `complaintText`, `reasonText`, `noteText`, `rowText`, `buildSearchIndex`, `refreshSearch` |
 | filter | `filterRows(store, order, criteria, search?)` returns the index array, facets (stage, stream, source, deadline) and compute time; `sortOrder(store, sort, pools?)`; `percentile`; `splitMatches` |
-| views | `View`, `PRESET_VIEWS` (open, due within 3 working days, overdue, forwarded by the Bank of Russia, waiting for facts, awaiting signature, all), `criteriaFor(view, role)`, `serializeView` and `parseView` (base64url), `viewToUrl`, `saveView`, `removeView`, `validateViewName`, `serializeViews`, `parseViews` |
+| views | `View`, `PRESET_VIEWS` (open, due within 3 working days, overdue, forwarded by the Bank of Russia, waiting for facts, awaiting signature, copies due today, all), `criteriaFor(view, role)`, `serializeView` and `parseView` (base64url), `viewToUrl`, `saveView`, `removeView`, `validateViewName`, `serializeViews`, `parseViews` |
 | workflow | `TRANSITIONS`, `ACTIONS`, `RETURN_REASONS`, `transitionsFor`, `transitionBetween`, `checkTransition`, `applyTransition`, `caseJournal`, `generatedJournal`, `appendJournal`, `wasReturned`, `deskNow`, `JournalEntry`, `Actor` |
 | roles | `roleRules(role)`, `visibleColumns`, `hiddenForRole`, `roleScope`, `canEditColumn`, `canSetStage`, `canBulk`, `canExport`, `canSeeRow` |
 | edits | `checkField`, `checkNote`, `validateEdit(col, draft, row, role)` return an error code or null; `normalizeDraft`; `editContext` |
 | undo | `EditHistory`: `setField(store, rows, field, value, role, now)`, `setNote(store, row, value, role, now)`, `undo(store, { overwrite? })` |
 | colleague | `colleagueSchedule(seed, count)`, `dueTicks`, `planColleagueEdit`, `applyRemoteEdit`, `beginEdit`, `detectConflict` |
+| dispatch | `dispatchReply`, `replyCopies`, `copiesOwed`, `copiesSent`, `markCopySent`, `markBreach`, `extendDeadline`, `copiesDueOn`, `copyClass` |
+| retention | `retentionOf`, `plusYears`, `RETENTION_YEARS` |
 | CSV | `toCsv(store, index, columns, { headers, pools, labels, limit? })`, `cellText`, `csvEscape`, `neutralizeFormula`, `CSV_LIMIT` (5,000) |
 | loading | `DatasetLoader` (worker or main thread, `subscribe` and `getSnapshot`), `createChunkProducer`, `WorkerRequest`, `WorkerResponse` |
 

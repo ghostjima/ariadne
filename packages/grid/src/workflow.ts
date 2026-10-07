@@ -45,6 +45,13 @@ export const ACTIONS = [
   "edit",
   "sign",
   "defer",
+  /* Recorded without a stage change: a base-standard breach found, a
+     copy sent (to the Bank of Russia or the self-regulatory
+     organisation), a dispatch cancelled within its send delay */
+  "breach_marked",
+  "breach_withdrawn",
+  "copy_sent",
+  "dispatch_cancelled",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -114,9 +121,15 @@ export type JournalEntry = {
   reason?: ReturnReason;
   /* The person's own words, as they typed them */
   comment?: string;
+  /* The copy a "copy_sent" entry is about */
+  copy?: CopyKind;
   /* Worked out from the generated row, not made in this page */
   generated?: true;
 };
+
+/* The copies a dispatch or an extension owes */
+export const COPY_KINDS = ["bank_of_russia", "sro", "notice"] as const;
+export type CopyKind = (typeof COPY_KINDS)[number];
 
 export type TransitionError =
   | { code: "transition-not-allowed" }

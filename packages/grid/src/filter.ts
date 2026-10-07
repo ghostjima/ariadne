@@ -1,5 +1,5 @@
-import { COLUMN_BY_ID, DEADLINE_COUNT, SOURCE_COUNT, STAGE_COUNT, STREAM_COUNT } from "./schema.js";
-import { deadlineClass, effectiveDue, getNote, workingDaysLeft, type ColumnStore } from "./store.js";
+import { COLUMN_BY_ID, COPY_CLASS_COUNT, DEADLINE_COUNT, SOURCE_COUNT, STAGE_COUNT, STREAM_COUNT } from "./schema.js";
+import { copyClass, deadlineClass, effectiveDue, getNote, workingDaysLeft, type ColumnStore } from "./store.js";
 import { clientName, noteText, subjectText, type SearchIndex, type TextPools } from "./text.js";
 
 /*
@@ -20,6 +20,8 @@ export type Criteria = {
   source: readonly number[];
   /* DeadlineClass codes */
   deadline: readonly number[];
+  /* CopyClass codes; absent is none chosen */
+  copy?: readonly number[];
   search: string;
   /* Role restriction, applied on top of user filters */
   scope: Scope;
@@ -30,6 +32,7 @@ export const EMPTY_CRITERIA: Criteria = {
   stream: [],
   source: [],
   deadline: [],
+  copy: [],
   search: "",
   scope: ALL_ROWS,
 };
@@ -39,6 +42,7 @@ export type Facets = {
   stream: Uint32Array;
   source: Uint32Array;
   deadline: Uint32Array;
+  copy: Uint32Array;
 };
 
 export type FilterResult = {
@@ -93,6 +97,7 @@ export function filterRows(
   const streamMask = mask(criteria.stream, STREAM_COUNT);
   const sourceMask = mask(criteria.source, SOURCE_COUNT);
   const deadlineMask = mask(criteria.deadline, DEADLINE_COUNT);
+  const copyMask = mask(criteria.copy ?? [], COPY_CLASS_COUNT);
   const assignees = scopeMask(criteria.scope.assignees);
   const signatories = scopeMask(criteria.scope.signatories);
   const q = normalizeSearch(criteria.search);
@@ -105,6 +110,7 @@ export function filterRows(
   const facetStream = new Uint32Array(STREAM_COUNT);
   const facetSource = new Uint32Array(SOURCE_COUNT);
   const facetDeadline = new Uint32Array(DEADLINE_COUNT);
+  const facetCopy = new Uint32Array(COPY_CLASS_COUNT);
 
   const { stage, stream, source, assignee, signatory, loaded } = store;
 
@@ -114,24 +120,27 @@ export function filterRows(
     if (assignees && assignees[assignee[i] ?? 0] === 0) continue;
     if (signatories && signatories[signatory[i] ?? 0] === 0) continue;
     if (hasQ && !(search![i] ?? "").includes(q)) continue;
-    /* Base matches; now the four facet groups */
+    /* Base matches; now the five facet groups */
     const st = stage[i] ?? 0;
     const sm = stream[i] ?? 0;
     const so = source[i] ?? 0;
     const dl = deadlineClass(store, i);
+    const cp = copyClass(store, i);
     const mSt = !stageMask || stageMask[st] === 1;
     const mSm = !streamMask || streamMask[sm] === 1;
     const mSo = !sourceMask || sourceMask[so] === 1;
     const mDl = !deadlineMask || deadlineMask[dl] === 1;
-    if (mSm && mSo && mDl) facetStage[st] = (facetStage[st] ?? 0) + 1;
-    if (mSt && mSo && mDl) facetStream[sm] = (facetStream[sm] ?? 0) + 1;
-    if (mSt && mSm && mDl) facetSource[so] = (facetSource[so] ?? 0) + 1;
-    if (mSt && mSm && mSo) facetDeadline[dl] = (facetDeadline[dl] ?? 0) + 1;
-    if (mSt && mSm && mSo && mDl) out[k++] = i;
+    const mCp = !copyMask || copyMask[cp] === 1;
+    if (mSm && mSo && mDl && mCp) facetStage[st] = (facetStage[st] ?? 0) + 1;
+    if (mSt && mSo && mDl && mCp) facetStream[sm] = (facetStream[sm] ?? 0) + 1;
+    if (mSt && mSm && mDl && mCp) facetSource[so] = (facetSource[so] ?? 0) + 1;
+    if (mSt && mSm && mSo && mCp) facetDeadline[dl] = (facetDeadline[dl] ?? 0) + 1;
+    if (mSt && mSm && mSo && mDl) facetCopy[cp] = (facetCopy[cp] ?? 0) + 1;
+    if (mSt && mSm && mSo && mDl && mCp) out[k++] = i;
   }
   return {
     index: out.subarray(0, k),
-    facets: { stage: facetStage, stream: facetStream, source: facetSource, deadline: facetDeadline },
+    facets: { stage: facetStage, stream: facetStream, source: facetSource, deadline: facetDeadline, copy: facetCopy },
     computeMs: performance.now() - t0,
   };
 }
@@ -192,6 +201,7 @@ function numericKeys(store: ColumnStore, id: string): ArrayLike<number> | null {
     case "applicant":
     case "stream":
     case "source":
+    case "sector":
     case "channel":
     case "extension":
     case "stage":

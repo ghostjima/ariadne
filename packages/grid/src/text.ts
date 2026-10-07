@@ -6,6 +6,7 @@ import {
   ASSIGNEE_COUNT,
   Applicant,
   CHANNEL_COUNT,
+  COPY_CLASS_COUNT,
   COLUMN_IDS,
   COMPANY_COUNT,
   DEADLINE_COUNT,
@@ -18,6 +19,7 @@ import {
   OUTCOME_COUNT,
   PRESET_IDS,
   REVIEWER_COUNT,
+  SECTOR_COUNT,
   SIGNATORY_COUNT,
   SIGN_COUNT,
   SOURCE_COUNT,
@@ -84,6 +86,9 @@ export type Labels = {
   stage: readonly string[];
   stream: readonly string[];
   source: readonly string[];
+  sector: readonly string[];
+  /* By CopyClass code */
+  copy: readonly string[];
   channel: readonly string[];
   applicant: readonly string[];
   outcome: readonly string[];
@@ -155,6 +160,8 @@ export function validateLabels(labels: Labels): TextIssue[] {
   checkList(issues, "stage", labels.stage, STAGE_COUNT);
   checkList(issues, "stream", labels.stream, STREAM_COUNT);
   checkList(issues, "source", labels.source, SOURCE_COUNT);
+  checkList(issues, "sector", labels.sector, SECTOR_COUNT);
+  checkList(issues, "copy", labels.copy, COPY_CLASS_COUNT);
   checkList(issues, "channel", labels.channel, CHANNEL_COUNT);
   checkList(issues, "applicant", labels.applicant, APPLICANT_COUNT);
   checkList(issues, "outcome", labels.outcome, OUTCOME_COUNT);

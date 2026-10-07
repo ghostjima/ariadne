@@ -263,6 +263,27 @@ function Related({ store, details, t, lang, onOpenCase }: { store: ColumnStore; 
   return <Table caption={c.related} hideCaption columns={columns} rows={details.related} rowKey={(r) => r.row} emptyText={c.relatedNone} wrapHeaders />;
 }
 
+/** The derivation of a case's reply day, with the card's own words and
+ * sources, for a caller outside the card (the export for an inspection). */
+export function caseDerivation(
+  store: ColumnStore,
+  row: number,
+  t: Strings,
+  lang: Lang,
+  fmt: { date: (ms: number) => string },
+  stoa: ReturnType<typeof useStoaFormat>,
+): DerivationStep[] {
+  const c = t.case;
+  const day = (d: number) => fmt.date(d * DAY_MS);
+  const isoDate = (iso: string) => day(dayNumber(iso));
+  const source = (b: Basis) => ({
+    name: b.reading === "conservative" ? `${basisName(b, lang)} (${c.conservative})` : basisName(b, lang),
+    revision: b.revision,
+    href: b.url,
+  });
+  return derivation(store, row, caseDetails(store, row), t, day, isoDate, source, (left) => deadlineText(stoa, left, "workingDays"));
+}
+
 /** The steps from receipt to the reply's last day, and the time left. */
 function derivation(
   store: ColumnStore,

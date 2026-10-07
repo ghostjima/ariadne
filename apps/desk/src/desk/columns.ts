@@ -81,6 +81,7 @@ const WIDTHS: Record<string, number> = {
   reason: 280,
   subject: 280,
   source: 152,
+  sector: 200,
   channel: 184,
   received: 152,
   registered: 136,
@@ -234,6 +235,9 @@ export function buildColumns(ids: readonly string[], { store, lang, t, stoa, for
         break;
       case "source":
         columns.push({ ...base, accessor: code(labels.source, store.source) });
+        break;
+      case "sector":
+        columns.push({ ...base, accessor: code(labels.sector, store.sector) });
         break;
       case "channel":
         columns.push({ ...base, accessor: code(labels.channel, store.channel) });

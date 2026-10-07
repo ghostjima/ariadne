@@ -15,6 +15,9 @@ export function applySync(store: ColumnStore, msg: SyncRequest): void {
     store.extension[row] = msg.extension[k] ?? 0;
     store.assignee[row] = msg.assignee[k] ?? 0;
     store.sentOn[row] = msg.sentOn[k] ?? -1;
+    store.breach[row] = msg.breach[k] ?? 0;
+    store.copies[row] = msg.copies[k] ?? 0;
+    store.rules[row] = msg.rules[k] ?? 0;
     const note = msg.notes?.[k];
     if (note) writeNote(store, row, note, 0);
     store.updatedAt[row] = msg.updatedAt[k] ?? 0;

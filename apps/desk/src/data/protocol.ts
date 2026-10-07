@@ -16,6 +16,9 @@ export type SyncRequest = {
   extension: Uint8Array;
   assignee: Uint8Array;
   sentOn: Int32Array;
+  breach: Uint8Array;
+  copies: Uint8Array;
+  rules: Uint8Array;
   updatedAt: Float64Array;
   /** Present when notes changed. */
   notes?: NoteValue[];

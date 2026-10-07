@@ -20,6 +20,8 @@ const letterPanel = (page: Page) => page.locator(".letter-panel");
 const letter = (page: Page) => letterPanel(page).locator(".letter blockquote");
 const work = (page: Page) => page.locator(".case-work");
 const lastEntry = (page: Page) => work(page).locator(".journal li").last();
+/** The confirmation: Stoa's AlertDialog (a toast has the role alertdialog too). */
+const confirmation = (page: Page) => page.locator('section.stoa-dialog[role="alertdialog"]');
 const bodyHasFocus = (page: Page) => page.evaluate(() => document.activeElement === document.body);
 
 async function openAs(page: Page, id: string, role: string, query = "") {
@@ -84,10 +86,11 @@ test("a letter that leaves the decision open is not approved; the decided one go
 });
 
 test("the signatory signs with a decision record: what would make this wrong is asked for, the letter is frozen and names them, and only then is it sent", async ({ page }) => {
-  await openAs(page, SIGN_CASE, "signatory");
+  await openAs(page, SIGN_CASE, "signatory", "sendDelay=1");
   await expect(letterPanel(page)).toContainText(w.signature.basis.slice(0, 40));
   // Send is not offered before the signature.
   await expect(work(page).getByRole("button", { name: w.act.send })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: w.dispatch.dispatch, exact: true })).toHaveCount(0);
   const form = letterPanel(page);
   await form.getByRole("button", { name: w.signature.sign }).click();
   await expect(form.getByRole("alert")).toHaveText(w.signature.errors["wrong-required"]("10"));
@@ -110,10 +113,11 @@ test("the signatory signs with a decision record: what would make this wrong is 
   await expect(lastEntry(page)).toContainText(w.action.sign);
   await expect(lastEntry(page)).toContainText("Decision: Modify");
   await expect(lastEntry(page)).toContainText("What would make this wrong: The client has already been answered by phone.");
-  // A signed letter is not returned; it is sent.
+  // A signed letter is not returned; it is dispatched.
   await expect(work(page).getByRole("button", { name: w.act.return })).toHaveCount(0);
-  await work(page).getByRole("button", { name: w.act.send }).click();
-  await expect(page.locator(".case__status")).toContainText("Reply sent");
+  await page.getByRole("button", { name: w.dispatch.dispatch, exact: true }).click();
+  await confirmation(page).getByRole("button", { name: w.dispatch.confirm, exact: true }).click();
+  await expect(page.locator(".case__status")).toContainText("Reply sent", { timeout: 10_000 });
   await expect(lastEntry(page)).toContainText("Sent");
   await expect(letterPanel(page).locator(".letter__signatory")).toContainText("Signed by V. Izotova");
 });

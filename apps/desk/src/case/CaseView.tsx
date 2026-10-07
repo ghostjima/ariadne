@@ -18,6 +18,8 @@ import type { Lang, Strings } from "../i18n";
 import { CaseCard } from "./CaseCard";
 import { CaseWork, actsOn, type TransitionRequest, type WorkRefusal } from "../workflow/CaseWork";
 import { LetterPanel } from "../workflow/LetterPanel";
+import { DispatchPanel, type PendingDispatch } from "../workflow/DispatchPanel";
+import type { CopyKind, ExtensionError } from "@ariadne/grid";
 import type { DecisionRecord, LetterError, SignDecision, SignError } from "../workflow/caseFile";
 import { Handover } from "../workflow/Handover";
 import type { CaseFiles } from "../workflow/caseFile";
@@ -57,6 +59,15 @@ export type CaseViewProps = {
   onField: (field: "outcome" | "ground", value: number) => string | null;
   onSign: (record: DecisionRecord & { decision: Exclude<SignDecision, "defer"> }) => SignError | null;
   onDefer: (record: { concerns: string; wrong: string }) => SignError | null;
+  /** A dispatch waiting out its send delay, if any. */
+  pending: PendingDispatch | null;
+  sendDelay: number;
+  onDispatch: () => void;
+  onCancelDispatch: () => void;
+  onMarkCopy: (kind: CopyKind) => void;
+  onBreach: (found: boolean) => string | null;
+  onExtend: (reason: string) => ExtensionError | null;
+  onExported: () => void;
   /** Records the assistant's handover a person confirmed. */
   onHandover: (draft: ReplyDraft, run: number) => void;
 };
@@ -100,7 +111,7 @@ export function CaseView(props: CaseViewProps) {
         t={t}
         version={version}
         onTransition={onTransition}
-        hidden={files.get(row)?.signature ? ["return"] : stage === Stage.AwaitingSignature ? ["send"] : []}
+        hidden={files.get(row)?.signature || props.pending ? ["return", "send"] : ["send"]}
       />
       <LetterPanel
         store={store}
@@ -115,6 +126,23 @@ export function CaseView(props: CaseViewProps) {
         onField={props.onField}
         onSign={props.onSign}
         onDefer={props.onDefer}
+      />
+      <DispatchPanel
+        store={store}
+        row={row}
+        role={role}
+        lang={lang}
+        t={t}
+        version={version}
+        files={files}
+        pending={props.pending}
+        delay={props.sendDelay}
+        onDispatch={props.onDispatch}
+        onCancel={props.onCancelDispatch}
+        onMarkCopy={props.onMarkCopy}
+        onBreach={props.onBreach}
+        onExtend={props.onExtend}
+        onExported={props.onExported}
       />
       <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
     </div>
