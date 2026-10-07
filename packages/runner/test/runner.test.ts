@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLIENT_DEADLINE_KINDS,
   decodeDecisions,
   decodePlanPayload,
   encodeDecisions,
@@ -301,6 +302,30 @@ describe("protocol helpers", () => {
     const decoded = decodePlanPayload(encodePlanPayload(extra as never));
     expect(decoded).toEqual({ ok: true, payload: payloadFor(["s1"]) });
     expect(JSON.stringify(decoded)).not.toContain("Ignore");
+  });
+
+  it("takes every deadline ariadne-rules' rubric asks a reply to state, the refused repeat's two days and the rating review among them", () => {
+    const deadlines = [
+      { kind: "antifraud_repeat_refusal_ends", due: "2026-10-06" },
+      { kind: "antifraud_after_repeat_refusal", due: "2026-10-07" },
+      { kind: "high_risk_rating_review", due: "2026-10-27" },
+    ];
+    const payload = { ...payloadFor(["s1"]), brief: { ...BRIEF, deadlines } };
+    expect(decodePlanPayload(encodePlanPayload(payload as never))).toEqual({ ok: true, payload });
+    expect(CLIENT_DEADLINE_KINDS).toEqual([
+      "antifraud_suspension_ends",
+      "antifraud_confirmation",
+      "antifraud_repeat_suspension_ends",
+      "antifraud_after_repeat_suspension",
+      "antifraud_repeat_refusal_ends",
+      "antifraud_after_repeat_refusal",
+      "exclusion_decision",
+      "antifraud_refund",
+      "aml_documents_answer",
+      "aml_commission_decision",
+      "high_risk_commission_application",
+      "high_risk_rating_review",
+    ]);
   });
 
   it("encodes and decodes the decision log", () => {

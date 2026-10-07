@@ -128,6 +128,16 @@ served, and a payload without `v: 2` is refused with
 `invalid_case`. The exported session log is version 2 and carries the
 brief.
 
+The client deadlines a brief and a reply draft may carry
+(`CLIENT_DEADLINE_KINDS`) are the ones ariadne-rules' rubric asks a
+reply to state while they run. Version 2 takes three more than it first
+did: `antifraud_repeat_refusal_ends` and
+`antifraud_after_repeat_refusal` (a refused repeat of a card, Faster
+Payments or e-money operation, 161-FZ art. 8 parts 3.10 and 3.11) and
+`high_risk_rating_review` (115-FZ art. 7.8 item 1.1). Nothing else in
+the payload or the events changed; a reader of the stream that lists
+the codes it knows has three more to know.
+
 ## API
 
 ```ts
