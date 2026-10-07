@@ -5,7 +5,7 @@
 // tabs, so the assistant's Run is never a long scroll away.
 import { useEffect, useRef, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
-import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
+import { Button, Countdown, ProgressBar, StatusBadge, Tabs, Tag, VisuallyHidden, useBreakpoint, useShortcuts, type Shortcut, type ToastQueue } from "@ghostjima/stoa-react";
 import { caseFacts, clientName, isAnswered, rowId, workingDaysLeft, type ColumnStore } from "@ariadne/grid";
 import { AgentPanel } from "../agent/AgentPanel";
 import { strings as agentStrings } from "../agent/i18n";
@@ -66,6 +66,10 @@ export function CaseView({ store, row, lang, t, version, service, toasts, onBack
   }, [row]);
 
   const shortcuts: Shortcut[] = [{ key: "q", description: c.keys.back, group: c.keysGroup, onTrigger: onBack }];
+  // The assistant's panel lists Q with its own keys and listens for it;
+  // until the panel is there (the rules module is still loading), the view
+  // listens for Q itself, so Back to the queue works from the first moment.
+  useShortcuts(shortcuts, { enabled: session === null });
   const card = ready ? (
     <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
   ) : (
