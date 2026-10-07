@@ -96,6 +96,8 @@ import {
 } from "@ariadne/grid";
 import { useRunService } from "../agent/service";
 import { CaseView } from "../case/CaseView";
+import { Metrics } from "../supervision/Metrics";
+import { supervisionStrings } from "../supervision/i18n";
 import type { TransitionRequest, WorkRefusal } from "../workflow/CaseWork";
 import {
   deferSignature,
@@ -201,6 +203,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const files = useRef<CaseFiles>(new Map());
   // The open case, by row; from the link (?case=C-000123) on load.
   const [openCase, setOpenCase] = useState<number | null>(() => (config.caseId ? rowOfId(config.caseId, store.size) : null));
+  // The supervisor's metrics, from the toolbar or a link (?metrics=1).
+  const [metricsOpen, setMetricsOpen] = useState(() => config.metrics && config.role === "supervisor" && !config.caseId);
 
   useEffect(() => {
     engine.start();
@@ -347,14 +351,24 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     setOpenCase(null);
     setParam("case", null);
   };
+  const openMetrics = () => {
+    if (!canExport(role)) return;
+    setMetricsOpen(true);
+    setParam("metrics", "1");
+  };
+  const closeMetrics = () => {
+    returnToGrid.current = true;
+    setMetricsOpen(false);
+    setParam("metrics", null);
+  };
   // Back in the queue, the focus goes to the grid's active cell: the row
   // the case was opened from.
   useEffect(() => {
-    if (openCase !== null || !returnToGrid.current) return;
+    if (openCase !== null || metricsOpen || !returnToGrid.current) return;
     returnToGrid.current = false;
     const frame = requestAnimationFrame(focusGrid);
     return () => cancelAnimationFrame(frame);
-  }, [openCase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [openCase, metricsOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edits. An edit session (the value the editor started from) runs from
   // the grid's edit start to its save or cancel.
@@ -712,7 +726,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   // its own (the assistant's and Q back to the queue).
   const searchBox = useRef<HTMLDivElement>(null);
   const app = t.shortcutGroups.app;
-  const queueShown = openCase === null;
+  const queueShown = openCase === null && !metricsOpen;
   const shortcuts: Shortcut[] = [
     { key: "/", description: t.keys.search, group: app, onTrigger: () => searchBox.current?.querySelector("input")?.focus() },
     { key: "?", description: t.keys.help, group: app, onTrigger: () => setDialog("shortcuts") },
@@ -726,6 +740,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   // Listed only for a role that may export: Stoa draws a disabled line in
   // the shortcuts dialog below the contrast axe asks for.
   if (canExport(role)) shortcuts.push({ key: "e", description: t.keys.export, group: app, onTrigger: () => void exportCsv() });
+  if (canExport(role)) shortcuts.push({ key: "m", description: supervisionStrings[lang].keys.open, group: app, onTrigger: openMetrics });
   const help = useShortcuts(shortcuts, { enabled: queueShown && dialog === null && conflict === null });
   const apple = isApplePlatform();
   const k = (key: string, modifiers?: Shortcut["modifiers"]) => shortcutKeys({ key, modifiers }, apple, stoa.messages);
@@ -845,7 +860,13 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
 
   return (
     <div className="desk">
-      {openCase !== null && openCase >= 0 && openCase < store.size && store.loaded[openCase] === 1 ? (
+      {metricsOpen && openCase === null ? (
+        load.loading ? (
+          <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />
+        ) : (
+          <Metrics store={store} lang={lang} files={files.current} version={version} onBack={closeMetrics} />
+        )
+      ) : openCase !== null && openCase >= 0 && openCase < store.size && store.loaded[openCase] === 1 ? (
         <CaseView
           store={store}
           row={openCase}
@@ -939,6 +960,11 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
               {canExport(role) && (
                 <Button variant="ghost" onPress={() => void exportCsv()} isDisabled={!result || shownCount === 0}>
                   {t.exportCsv}
+                </Button>
+              )}
+              {canExport(role) && (
+                <Button variant="ghost" onPress={openMetrics} shortcut={narrow ? undefined : { key: "m" }}>
+                  {supervisionStrings[lang].open}
                 </Button>
               )}
               <Button variant="ghost" onPress={() => setDialog("shortcuts")}>

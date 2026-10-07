@@ -20,6 +20,8 @@ export type UrlConfig = {
   colleagueSeconds: number | null;
   /** Seconds a dispatched reply waits before it leaves (?sendDelay=). */
   sendDelaySeconds: number;
+  /** The supervisor's metrics open (?metrics=1). */
+  metrics: boolean;
 };
 
 /** The send delay of a dispatch, by default: the window in which it can
@@ -45,6 +47,7 @@ export function readUrlConfig(search: string = location.search): UrlConfig {
     useWorker: params.get("worker") !== "off",
     colleagueSeconds: colleague === "off" || !Number.isFinite(seconds) || seconds <= 0 ? null : seconds,
     sendDelaySeconds: sendDelay(params.get("sendDelay")),
+    metrics: params.get("metrics") === "1",
   };
 }
 

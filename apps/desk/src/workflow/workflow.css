@@ -48,3 +48,8 @@
 .dispatch-pending { display: grid; gap: var(--stoa-space-2); justify-items: start; }
 .copies { margin: 0; padding-inline-start: var(--stoa-space-5); display: grid; gap: var(--stoa-space-2); }
 .copies li > span { margin-inline-end: var(--stoa-space-2); }
+/* The supervisor's metrics. */
+.metrics { display: grid; gap: var(--stoa-space-4); min-inline-size: 0; }
+.metrics__definitions { margin: 0; padding-inline-start: var(--stoa-space-5); display: grid; gap: var(--stoa-space-2); }
+.metrics__grid { display: grid; gap: var(--stoa-space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); }
+.metrics__grid .stoa-metric { margin: 0; padding: var(--stoa-space-3); border: 1px solid var(--stoa-color-border); border-radius: var(--stoa-radius-md); }
