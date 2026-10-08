@@ -9,6 +9,7 @@ import {
   COPY_CLASS_COUNT,
   COLUMN_IDS,
   COMPANY_COUNT,
+  DATABASE_COUNT,
   DEADLINE_COUNT,
   EXTENSION_COUNT,
   FIRST_NAME_COUNT,
@@ -94,6 +95,10 @@ export type Labels = {
   outcome: readonly string[];
   /* By ground code; code 0, no ground, included */
   ground: readonly string[];
+  /* By Database code: the client's own data in the Bank of Russia's
+     database, with or without the Ministry of Internal Affairs'
+     information; code 0, none, included */
+  database: readonly string[];
   extension: readonly string[];
   deadline: readonly string[];
   operation: readonly string[];
@@ -166,6 +171,7 @@ export function validateLabels(labels: Labels): TextIssue[] {
   checkList(issues, "applicant", labels.applicant, APPLICANT_COUNT);
   checkList(issues, "outcome", labels.outcome, OUTCOME_COUNT);
   checkList(issues, "ground", labels.ground, GROUND_COUNT);
+  checkList(issues, "database", labels.database, DATABASE_COUNT);
   checkList(issues, "extension", labels.extension, EXTENSION_COUNT);
   checkList(issues, "deadline", labels.deadline, DEADLINE_COUNT);
   checkList(issues, "operation", labels.operation, OPERATION_COUNT);

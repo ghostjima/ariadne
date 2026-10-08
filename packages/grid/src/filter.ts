@@ -202,6 +202,7 @@ function numericKeys(store: ColumnStore, id: string): ArrayLike<number> | null {
     case "stream":
     case "source":
     case "sector":
+    case "database":
     case "channel":
     case "extension":
     case "stage":

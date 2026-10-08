@@ -33,9 +33,9 @@ import { pools as ru } from "../src/pools/ru.js";
 import { storeDigest } from "./digest.js";
 
 describe("generator", () => {
-  it("has a 25-column catalogue with unique ids", () => {
-    expect(COLUMNS).toHaveLength(25);
-    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(25);
+  it("has a 26-column catalogue with unique ids", () => {
+    expect(COLUMNS).toHaveLength(26);
+    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(26);
   });
 
   it("is deterministic for the same seed", () => {
@@ -193,9 +193,19 @@ describe("generator", () => {
        161-FZ art. 9 part 11.6 as a refusal's ground, and alone the
        application to remove the data; the other half keep sign 1.1 with
        the complaint texts of a blocked operation and may have a second
-       step. Every other column is as it was, which the next test checks
-       against the previous pin. */
+       step. Every other column is as it was, which a test below checks
+       against the previous pin.
+       Re-pinned when the Ministry of Internal Affairs' information was
+       drawn for some of the cases about the client's data (the next draw
+       of their own stream): their `database` code and the ground of their
+       refusals, 161-FZ art. 9 part 11.7, changed; every other column is
+       as it was, which the next test checks. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
+  });
+
+  it("leaves every column but the database code and the ground as it was before the Ministry's information was drawn", () => {
+    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground");
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_POLICE_INFORMATION);
   });
 
   it("leaves every column but those that tell the client's own data from sign 1.1 as it was before", () => {
@@ -223,7 +233,10 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "722e7330";
+const GOLDEN_DIGEST = "6d000bb1";
+/* The pin before the Ministry's information was drawn ("722e7330"), over
+   every column but `database` and `ground` */
+const DIGEST_BEFORE_POLICE_INFORMATION = "bf6ecaa8";
 /* The pin before the client's own data were told apart from sign 1.1
    ("7f0ba479"), over the columns that did not change */
 const DIGEST_BEFORE_CLIENT_DATA = "7acd7001";

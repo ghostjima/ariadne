@@ -117,8 +117,15 @@ they are taken again with `pnpm measure`.
   online banking suspended under art. 9 part 11.6 on the operation day
   column. Half of the rows whose draw fell on sign 1.1's share are such
   cases, by a draw of their own, so every other draw of the row is what
-  it was when the two were not told apart; the share is the generator's
-  own.
+  it was when the two were not told apart. The database also holds the
+  Ministry of Internal Affairs' information on unlawful acts (art. 27
+  parts 5 and 8), which the bank receives with the record (part 7):
+  about a third of these cases have it, by the next draw of the same
+  stream. Without it the suspension is the bank's choice (art. 9 part
+  11.6), with it a duty (part 11.7); `caseFacts` passes it to
+  ariadne-rules, which gives the part. The register shows the code in
+  its own column, blank for the other cases. The shares are the
+  generator's own.
 - **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
   `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
   their own so every other column, and every answered case, is what it
@@ -140,8 +147,9 @@ they are taken again with `pnpm measure`.
   late, and flagged), answered no earlier than registered, decided before
   legal review, and a refusal past drafting names a ground of its own
   stream (for a 161-FZ block, art. 8 part 3.4, the first action; for a
-  case about the client's own data in the database, art. 9 part 11.6, the
-  suspension the bank keeps while the data stay there);
+  case about the client's own data in the database, art. 9 part 11.6, or
+  11.7 with the Ministry's information, the suspension the bank keeps
+  while the data stay there);
   linked cases share the client and the operation.
 - **Ground codes** (`GROUNDS`, the column `ground`) are never
   renumbered: a code is its index in the list, and a new ground is added
@@ -155,7 +163,8 @@ they are taken again with `pnpm measure`.
   of Russia's database, without and with the Ministry of Internal
   Affairs' information, the ground of a reply about the client's own
   data in the database. The generator draws part 11.6 as the ground of a
-  refused case about the client's data, never part 11.7 or part 3.10;
+  refused case about the client's data, part 11.7 when the register
+  holds the Ministry's information, and never part 3.10;
   the reply of such a case names the part ariadne-rules gives, and a
   person may name either.
 
