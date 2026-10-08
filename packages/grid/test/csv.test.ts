@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CSV_LIMIT, csvEscape, neutralizeFormula, toCsv, type CsvOptions } from "../src/csv.js";
 import { generateAll } from "../src/generator.js";
-import { COLUMN_IDS } from "../src/schema.js";
+import { COLUMN_IDS, Database } from "../src/schema.js";
 import { isoDay } from "../src/days.js";
 import { effectiveDue, isAnswered, workingDaysLeft, writeNote } from "../src/store.js";
 import { clientName } from "../src/text.js";
@@ -48,7 +48,7 @@ describe("csv export", () => {
   it("writes every column of the catalogue with the defaults", () => {
     const row = Array.from({ length: store.size }, (_, i) => i).find((i) => store.linked[i]! >= 0 && store.operation[i]! > 0)!;
     const [header, line] = toCsv(store, [row], COLUMN_IDS, { headers: enLabels.columns, pools: en, labels: enLabels }).split("\r\n");
-    expect(header?.split(";")).toHaveLength(25);
+    expect(header?.split(";")).toHaveLength(26);
     const cells = Object.fromEntries(COLUMN_IDS.map((id, k) => [id, line!.split(";")[k]]));
     expect(cells.id).toBe(`C-${String(row + 1).padStart(6, "0")}`);
     expect(cells.received).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/);
@@ -58,6 +58,14 @@ describe("csv export", () => {
     expect(cells.linked).toMatch(/^C-\d{6}$/);
     expect(cells.operation).toMatch(/^OP-[0-9A-Z]{7}$/);
     expect(cells.opAmount).toBe(String(store.opAmount[row]));
+  });
+
+  it("writes the client's own data in the Bank of Russia's database, with or without the Ministry of Internal Affairs' information, and nothing for the other cases", () => {
+    const of = (code: number) => Array.from({ length: store.size }, (_, i) => i).find((i) => store.database[i] === code)!;
+    const rows = [of(Database.None), of(Database.ClientData), of(Database.ClientDataWithPoliceInformation)];
+    const cells = (options: CsvOptions) => toCsv(store, rows, ["database"], options).split("\r\n").slice(1);
+    expect(cells({ headers: enLabels.columns, pools: en, labels: enLabels })).toEqual(["", "The client's data", "The client's data and the police information"]);
+    expect(cells(ruOptions)).toEqual(["", "Сведения о клиенте", "Сведения о клиенте и сведения МВД"]);
   });
 
   it("uses the caller's formatters, separator and newline", () => {

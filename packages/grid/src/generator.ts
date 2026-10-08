@@ -113,6 +113,11 @@ const SIGN_WEIGHTS = [0.14, 0.06, 0.01, 0.06, 0.05, 0.35, 0.05, 0.01, 0.08, 0.12
    when the two were not told apart. The share is this generator's own. */
 const CLIENT_DATA_SHARE = 0.5;
 const DATABASE_SALT = 0xdb5a1e;
+/* Of those, the share whose record came with the Ministry of Internal
+   Affairs' information (161-FZ art. 27 parts 5 and 8), where the
+   suspension is a duty (art. 9 part 11.7): the next draw of the same
+   stream, the generator's own share */
+const POLICE_INFORMATION_SHARE = 0.35;
 /* 115-FZ categories in ariadne-rules' order */
 const AML_WEIGHTS = [0.42, 0.08, 0.16, 0.12, 0.04, 0.04, 0.14];
 const AML_OPERATION = [
@@ -154,8 +159,10 @@ const OUTCOME_WEIGHTS: readonly (readonly number[])[] = [
 const PAYMENT_FIRST_ACTION = 1;
 /* The ground of a refusal to lift the suspension of the client's card or
    online banking while the client's own data stay in the database: 161-FZ
-   art. 9 part 11.6 (see GROUNDS). No art. 8 action was taken. */
+   art. 9 part 11.6, or part 11.7 with the Ministry of Internal Affairs'
+   information (see GROUNDS). No art. 8 action was taken. */
 const INSTRUMENT_SUSPENSION = 11;
+const INSTRUMENT_SUSPENSION_ON_POLICE_INFORMATION = 12;
 
 /* The side draws (organisation, breach, copies) come from a stream of
    their own */
@@ -288,11 +295,12 @@ export function generateChunk(seed: number, start: number, count: number, total:
       opAmount = amount(rng, 1_500, 900_000);
       /* The complaint the client writes follows what happened */
       template = sign === 9 ? 2 : operation === Operation.FasterPayment ? 0 : operation === Operation.CardPayment ? 1 : 4;
-      if (sign === 0 && makeRng(mixSeed(seed ^ DATABASE_SALT, r))() < CLIENT_DATA_SHARE) {
+      const kind = makeRng(mixSeed(seed ^ DATABASE_SALT, r));
+      if (sign === 0 && kind() < CLIENT_DATA_SHARE) {
         /* The client's own data in the database: the card or online
            banking suspended on `opOn`, no sign, no operation; the client
            asks how to have the data removed */
-        database = Database.ClientData;
+        database = kind() < POLICE_INFORMATION_SHARE ? Database.ClientDataWithPoliceInformation : Database.ClientData;
         reason = 0;
         operation = Operation.None;
         opAmount = 0;
@@ -422,7 +430,9 @@ export function generateChunk(seed: number, start: number, count: number, total:
       outcome = 1 + weighted(rng(), OUTCOME_WEIGHTS[stream] ?? OUTCOME_WEIGHTS[0]!);
       const gr = rng();
       if (outcome === Outcome.Refused && (stage >= Stage.LegalReview || gr < 0.6)) {
-        if (stream === Stream.Antifraud) ground = database !== Database.None ? INSTRUMENT_SUSPENSION : gr < 0.85 ? PAYMENT_FIRST_ACTION : Ground.Contract;
+        if (stream === Stream.Antifraud && database !== Database.None)
+          ground = database === Database.ClientDataWithPoliceInformation ? INSTRUMENT_SUSPENSION_ON_POLICE_INFORMATION : INSTRUMENT_SUSPENSION;
+        else if (stream === Stream.Antifraud) ground = gr < 0.85 ? PAYMENT_FIRST_ACTION : Ground.Contract;
         else if (stream === Stream.Aml) ground = gr < 0.9 ? AML_GROUND_OFFSET + (reason - 1) : Ground.Contract;
         else ground = Ground.Contract;
       }

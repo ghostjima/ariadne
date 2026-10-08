@@ -210,11 +210,13 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
     }
   }
   /* The client's own data in the database: no operation was blocked; the
-     card or online banking was suspended on `opOn`; then, if the client
+     card or online banking was suspended on `opOn`, a duty with the
+     Ministry of Internal Affairs' information; then, if the client
      applied, the application to remove the data through the bank, and its
      receipt by the Bank of Russia once forwarded */
-  if (stream === Stream.Antifraud && (store.database[i] ?? Database.None) !== Database.None) {
-    facts.database = { instrumentSuspendedOn: on };
+  const database = store.database[i] ?? Database.None;
+  if (stream === Stream.Antifraud && database !== Database.None) {
+    facts.database = { instrumentSuspendedOn: on, policeInformation: database === Database.ClientDataWithPoliceInformation };
     if (path === Path.DatabaseRemoval && pathOn >= 0) {
       facts.database.exclusionReceivedByOperatorOn = isoDay(pathOn);
       if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);

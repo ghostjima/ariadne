@@ -244,13 +244,20 @@ export const PATH_COUNT = 4;
    transfer of theirs matched an OD-2506 sign (sign 1.1 is about the
    recipient of the client's transfer). A case about the client's data
    carries no sign and no blocked operation: the client's card or online
-   banking was suspended under art. 9 part 11.6 on `opOn`, and the client
-   may apply to remove the data (part 11.8; Path.DatabaseRemoval). */
+   banking was suspended on `opOn`, and the client may apply to remove the
+   data (part 11.8; Path.DatabaseRemoval). The database also holds the
+   Ministry of Internal Affairs' information on unlawful acts (part 5,
+   received under part 8), and the bank receives it with the record (part
+   7): without it the suspension is the bank's choice (art. 9 part 11.6),
+   with it a duty (part 11.7). */
 export const Database = {
   None: 0,
+  /* The client's data, without the Ministry's information: part 11.6 */
   ClientData: 1,
+  /* The client's data with the Ministry's information: part 11.7 */
+  ClientDataWithPoliceInformation: 2,
 } as const;
-export const DATABASE_COUNT = 2;
+export const DATABASE_COUNT = 3;
 
 /* The 115-FZ categories, in ariadne-rules' order */
 export const AML_REASON_CODES = [
@@ -303,6 +310,7 @@ export const COLUMNS: readonly ColumnSpec[] = [
   { id: "applicant", kind: "enum" },
   { id: "stream", kind: "enum" },
   { id: "reason", kind: "enum" },
+  { id: "database", kind: "enum" },
   { id: "subject", kind: "text", searchable: true },
   { id: "source", kind: "enum" },
   { id: "sector", kind: "enum" },

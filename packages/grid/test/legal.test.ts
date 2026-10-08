@@ -316,10 +316,12 @@ describe("the paths beyond the first action or decision", () => {
   it("an application to remove the client's data, through the bank: the card suspended under 161-FZ art. 9, forwarded by the next working day, decided in 15 working days from the Bank of Russia's receipt", () => {
     const removal = withPath(Path.DatabaseRemoval);
     for (const i of removal) {
-      expect([store.stream[i], store.database[i], store.reason[i]]).toEqual([Stream.Antifraud, Database.ClientData, 0]);
+      expect([store.stream[i], store.reason[i]]).toEqual([Stream.Antifraud, 0]);
+      const police = store.database[i] === Database.ClientDataWithPoliceInformation;
+      expect(police || store.database[i] === Database.ClientData, `row ${i}`).toBe(true);
       expect(store.pathOn[i]).toBeGreaterThanOrEqual(store.received[i]!);
       const c = clock(caseFacts(store, i));
-      expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6" });
+      expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
       const forwarding = c.deadlines.find((d) => d.kind === "exclusion_forwarding");
       expect(forwarding?.basis).toMatchObject({ source: "directive_6748_u", part: "1.5" });
       expect(c.duties.map((d) => d.kind)).toContain("notify_client_of_right_to_apply");
@@ -330,21 +332,25 @@ describe("the paths beyond the first action or decision", () => {
     }
   });
 
-  it("the client's own data in the database is a case of its own, not a block on sign 1.1: no operation blocked, the card or online banking suspended under 161-FZ art. 9 part 11.6, a refusal resting on it, and only there an application to remove the data", () => {
-    const clientData = rows((i) => store.database[i] === Database.ClientData);
+  it("the client's own data in the database is a case of its own, not a block on sign 1.1: no operation blocked, the card or online banking suspended under 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information, a refusal resting on it, and only there an application to remove the data", () => {
+    const clientData = rows((i) => store.database[i] !== Database.None);
     const signOne = rows((i) => store.stream[i] === Stream.Antifraud && store.reason[i] === 1);
     expect(clientData.length).toBeGreaterThan(10);
     expect(signOne.length).toBeGreaterThan(10);
     for (const i of clientData) {
       const facts = caseFacts(store, i);
+      const police = store.database[i] === Database.ClientDataWithPoliceInformation;
       expect(facts.blocked, `row ${i}`).toBeUndefined();
-      expect(facts.database?.instrumentSuspendedOn, `row ${i}`).toBe(isoDay(store.opOn[i]!));
+      expect(facts.database, `row ${i}`).toMatchObject({ instrumentSuspendedOn: isoDay(store.opOn[i]!), policeInformation: police });
       expect(measures(i), `row ${i}`).toEqual(["suspend_instrument"]);
-      expect(clock(facts).measures[0]?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6" });
+      expect(clock(facts).measures[0]?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
       expect(kinds(i), `row ${i}`).toContain("instrument_suspension_notice");
-      if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None) expect(GROUNDS[store.ground[i]!]?.id, `row ${i}`).toBe("payment_9_11_6");
+      if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)
+        expect(GROUNDS[store.ground[i]!]?.id, `row ${i}`).toBe(police ? "payment_9_11_7" : "payment_9_11_6");
     }
-    expect(clientData.some((i) => store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)).toBe(true);
+    /* Both kinds, each with a refusal resting on its own part */
+    for (const code of [Database.ClientData, Database.ClientDataWithPoliceInformation])
+      expect(clientData.some((i) => store.database[i] === code && store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None), `code ${code}`).toBe(true);
     /* Sign 1.1 is about the recipient of the client's transfer: the client
        confirms or repeats, and the database may answer again (part 3.10);
        the recipient's data are not the client's to have removed */

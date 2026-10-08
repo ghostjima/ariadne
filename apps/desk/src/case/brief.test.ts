@@ -124,13 +124,16 @@ describe("caseBrief", () => {
   });
 
   it("a reply about the client's own data in the database names 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information, and no art. 8 action, with or without an application to remove the data", () => {
-    const clientData = rows.filter((i) => store.database[i] === Database.ClientData);
+    const clientData = rows.filter((i) => store.database[i] !== Database.None);
     const removal = clientData.filter((i) => store.path[i] === Path.DatabaseRemoval);
     expect(removal.length).toBeGreaterThan(0);
     expect(clientData.length).toBeGreaterThan(removal.length);
+    // The part follows the register's copy of the database record.
+    const police = (row: number) => store.database[row] === Database.ClientDataWithPoliceInformation;
+    expect(clientData.some(police) && !clientData.every(police)).toBe(true);
     for (const row of clientData) {
       const grounds = caseBrief(store, row).grounds;
-      expect(grounds, `row ${row}`).toEqual(["payment_9_11_6"]);
+      expect(grounds, `row ${row}`).toEqual([police(row) ? "payment_9_11_7" : "payment_9_11_6"]);
       expect(caseBrief(store, row).reason, `row ${row}`).toBeNull();
     }
     for (const row of rows.filter((i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None))
