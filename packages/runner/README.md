@@ -74,7 +74,7 @@ field is a code from `src/codes.ts`, a step id or an ISO date.
 
 | type | fields |
 |---|---|
-| `plan.started` | `at`, `total`, `protocol` (2) |
+| `plan.started` | `at`, `total`, `protocol` (3) |
 | `step.started` | `stepId`, `at`, `requiresConfirmation` |
 | `step.deviation` | `stepId`, `deviation`: `reason`, `linkedCase`, `proposal`, `newType`, `newRisk` |
 | `step.deviated` | `stepId`, `deviatedTo`, `actionType`, `risk`, `requiresConfirmation` |
@@ -120,31 +120,40 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (2): the plan payload
-carries it as `v` and `plan.started` repeats it as `protocol`. Version 1
-was a procurement scenario of twelve supplier requests; it is no longer
-served, and a payload without `v: 2` is refused with
-`unsupported_version`. A brief that does not validate is refused with
-`invalid_case`. The exported session log is version 2 and carries the
-brief.
+The protocol has a version, `PROTOCOL_VERSION` (3): the plan payload
+carries it as `v` and `plan.started` repeats it as `protocol`. A payload
+without `v: 3` is refused with `unsupported_version`. A brief that does
+not validate is refused with `invalid_case`.
 
-The client deadlines a brief and a reply draft may carry
-(`CLIENT_DEADLINE_KINDS`) are the ones ariadne-rules' rubric asks a
-reply to state while they run. Version 2 takes three more than it first
-did: `antifraud_repeat_refusal_ends` and
-`antifraud_after_repeat_refusal` (a refused repeat of a card, Faster
-Payments or e-money operation, 161-FZ art. 8 parts 3.10 and 3.11) and
-`high_risk_rating_review` (115-FZ art. 7.8 item 1.1). Nothing else in
-the payload or the events changed; a reader of the stream that lists
-the codes it knows has three more to know.
+A version names the closed lists of codes a brief, an event and a log
+may draw from. The engine validates a brief against them and refuses
+any other string, so a code added to a list is a new version: a reader
+of the old version would refuse a brief or a log that uses it, and would
+call it an invalid case rather than another version.
 
-The grounds a brief and a reply draft may name (`GROUND_CODES`) take two
-more in version 2, added at the end so the list keeps the register's code
-order: `payment_9_11_6` and `payment_9_11_7`, the suspension of the
-client's card or online banking for the client's own data in the Bank of
-Russia's database (161-FZ art. 9 parts 11.6 and 11.7), the ground of a
-reply about removing the data. The engine carries them as it carries
-every ground, from the brief to the draft; nothing else changed.
+- Version 1 was a procurement scenario of twelve supplier requests. It
+  is no longer served.
+- Version 2 is the run about one complaint. It took three client
+  deadlines (`CLIENT_DEADLINE_KINDS`) after it was first published,
+  without a new number: `antifraud_repeat_refusal_ends` and
+  `antifraud_after_repeat_refusal` (a refused repeat of a card, Faster
+  Payments or e-money operation, 161-FZ art. 8 parts 3.10 and 3.11) and
+  `high_risk_rating_review` (115-FZ art. 7.8 item 1.1). It is no longer
+  served.
+- Version 3 adds two grounds a brief and a reply draft may name
+  (`GROUND_CODES`), at the end so the list keeps the register's code
+  order: `payment_9_11_6` and `payment_9_11_7`, the suspension of the
+  client's card or online banking for the client's own data in the Bank
+  of Russia's database (161-FZ art. 9 parts 11.6 and 11.7). The engine
+  carries them as it carries every ground, from the brief to the draft.
+  Nothing else in the payload, the events or the decisions changed.
+
+The exported session log has a version of its own, 2, for its shape,
+which is unchanged; its `protocol` field names the version its entries
+were received in, now 3. A page left open across a deployment may speak
+version 2 to the new Service Worker and is refused with
+`unsupported_version`, which the desk shows; a reload brings the page of
+version 3.
 
 ## API
 
