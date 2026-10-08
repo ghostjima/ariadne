@@ -31,7 +31,7 @@ rules. The complaint's text never reaches the engine: the protocol
 refuses a brief with any string that is not one of its codes or a date,
 so nothing an applicant writes can instruct the run.
 
-Status: early. One scripted scenario (95 tests). Measured in Node on an
+Status: early. One scripted scenario (97 tests). Measured in Node on an
 Apple M4 Pro: a plan generates in about 1 us and a complete run replays
 in about 4 to 14 us; method, stamps and spread in
 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
@@ -137,6 +137,14 @@ Payments or e-money operation, 161-FZ art. 8 parts 3.10 and 3.11) and
 `high_risk_rating_review` (115-FZ art. 7.8 item 1.1). Nothing else in
 the payload or the events changed; a reader of the stream that lists
 the codes it knows has three more to know.
+
+The grounds a brief and a reply draft may name (`GROUND_CODES`) take two
+more in version 2, added at the end so the list keeps the register's code
+order: `payment_9_11_6` and `payment_9_11_7`, the suspension of the
+client's card or online banking for the client's own data in the Bank of
+Russia's database (161-FZ art. 9 parts 11.6 and 11.7), the ground of a
+reply about removing the data. The engine carries them as it carries
+every ground, from the brief to the draft; nothing else changed.
 
 ## API
 

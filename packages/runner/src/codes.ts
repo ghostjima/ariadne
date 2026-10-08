@@ -134,7 +134,8 @@ export type ReasonCode = (typeof REASON_CODES)[number];
 
 /* The legal grounds a reply may name; the application maps each to an act,
    an article and a part (the desk takes them from the register's ground
-   list, which ariadne-rules' tests pin) */
+   list, which ariadne-rules' tests pin). In the register's code order: a
+   new ground is added at the end. */
 export const GROUND_CODES = [
   "payment_8_3_4",
   "payment_8_3_10",
@@ -146,6 +147,8 @@ export const GROUND_CODES = [
   "aml_funds_frozen",
   "aml_high_risk_measures",
   "contract",
+  "payment_9_11_6",
+  "payment_9_11_7",
 ] as const;
 export type GroundCode = (typeof GROUND_CODES)[number];
 
