@@ -12,9 +12,13 @@
 */
 
 /* The version of the wire protocol: the plan payload carries it as `v`,
-   and plan.started repeats it. Version 1 was the procurement scenario of
-   twelve supplier requests; it is no longer served. */
-export const PROTOCOL_VERSION = 2;
+   and plan.started repeats it. A version names the closed lists a brief,
+   an event and a log may draw from: a code added to one of them is a new
+   version, since a reader of the old one refuses it. Version 1 was the
+   procurement scenario of twelve supplier requests; version 2 the
+   complaint before the grounds of 161-FZ art. 9 parts 11.6 and 11.7.
+   Neither is served. */
+export const PROTOCOL_VERSION = 3;
 
 /* What a step does for the complaint */
 export const ACTION_TYPES = [

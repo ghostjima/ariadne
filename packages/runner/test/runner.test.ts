@@ -7,7 +7,9 @@ import {
   encodeFrame,
   encodePlanPayload,
   encodeWaitingFrame,
+  exportLog,
   generateScenario,
+  PROTOCOL_VERSION,
   parseStreamOptions,
   resolvePlan,
   type Decision,
@@ -17,12 +19,12 @@ import { decide, find, payloadFor, run } from "./helpers.js";
 
 describe("plan resolution", () => {
   it("rejects unknown steps and empty plans", () => {
-    expect(resolvePlan({ v: 2, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
+    expect(resolvePlan({ v: 3, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
       ok: false,
       error: "empty_plan",
     });
     expect(
-      resolvePlan({ v: 2, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
+      resolvePlan({ v: 3, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
     ).toEqual({ ok: false, error: "unknown_step", stepId: "zz" });
     expect(resolvePlan(payloadFor(["s1"])).ok).toBe(true);
   });
@@ -42,7 +44,7 @@ describe("runner: one segment per decision", () => {
     ]);
     expect(segment.events.map((e) => e.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(segment.pause).toBeNull();
-    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 2 });
+    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 3 });
     const phases = segment.events.flatMap((e) =>
       e.event.type === "step.progress" ? [[e.event.percent, e.event.phase]] : [],
     );
@@ -261,11 +263,25 @@ describe("protocol helpers", () => {
      stream tests were removed with it: the scenario no longer exists, so
      there is nothing to keep them for. What remains of version 1 is that it
      is refused, with a code the application can show. */
-  it("refuses a version 1 payload, and any version but 2", () => {
+  it("refuses a version 1 payload, and any version but 3", () => {
     const v1 = encodePlanPayload({ seed: 7, autonomy: "high_only", steps: [{ id: "s1", askFirst: false }] } as never);
     expect(decodePlanPayload(v1)).toEqual({ ok: false, error: "unsupported_version" });
-    const v3 = encodePlanPayload({ ...payloadFor(["s1"]), v: 3 } as never);
-    expect(decodePlanPayload(v3)).toEqual({ ok: false, error: "unsupported_version" });
+    for (const v of [2, 4]) {
+      const other = encodePlanPayload({ ...payloadFor(["s1"]), v } as never);
+      expect(decodePlanPayload(other), `v ${v}`).toEqual({ ok: false, error: "unsupported_version" });
+    }
+  });
+
+  /* Version 3 added the grounds of 161-FZ art. 9 parts 11.6 and 11.7. A
+     reader of version 2 refuses them as an invalid case; the version tells
+     the two apart before the brief is read. */
+  it("takes the grounds of 161-FZ art. 9 parts 11.6 and 11.7 in version 3 only, and calls a version 2 payload another version", () => {
+    const removal = payloadFor(["s1"], "high_only", [], 7, { ...BRIEF, grounds: ["payment_9_11_6"] });
+    expect(PROTOCOL_VERSION).toBe(3);
+    expect(decodePlanPayload(encodePlanPayload(removal))).toEqual({ ok: true, payload: removal });
+    expect(decodePlanPayload(encodePlanPayload({ ...removal, v: 2 } as never))).toEqual({ ok: false, error: "unsupported_version" });
+    const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief: removal.brief });
+    expect([exported.version, exported.protocol]).toEqual([2, 3]);
   });
 
   it("refuses a brief with a string that is not a code, and drops fields it does not know", () => {
