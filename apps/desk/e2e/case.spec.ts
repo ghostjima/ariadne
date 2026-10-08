@@ -108,9 +108,14 @@ test("a second step under 161-FZ: the first action and the second with their gro
   await expect(ru).toContainText("Подтверждённое распоряжение исполняется");
 });
 
-test("an application to remove the client's data through the bank: the card suspended under 161-FZ art. 9, and the terms of Directive No. 6748-U by item", async ({ page }) => {
+test("an application to remove the client's data through the bank: no operation blocked and no sign, the card suspended under 161-FZ art. 9, and the terms of Directive No. 6748-U by item", async ({ page }) => {
   await openCase(page, "C-001115");
+  // The client's own data in the database: no OD-2506 sign (sign 1.1 is
+  // about the recipient of a transfer) and no art. 8 action.
+  await expect(page.getByRole("region", { name: "Operation" })).toContainText("No operation");
   const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).not.toContainText("Order No. OD-2506");
+  await expect(flags).not.toContainText("art. 8");
   await expect(flags).toContainText("The client's card or online banking suspended: the client's own data are in the Bank of Russia's database");
   await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.6");
   await expect(flags).toContainText("The client is told of the suspension and its reason");

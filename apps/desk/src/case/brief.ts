@@ -9,6 +9,7 @@ import {
   AML_GROUND_OFFSET,
   AML_REASON_CODES,
   AS_OF,
+  Database,
   GROUNDS,
   Ground,
   Path,
@@ -50,15 +51,14 @@ export function reasonOf(store: ColumnStore, row: number): ReasonCode | null {
  * matched a sign: a transfer by bank details suspended, a card, e-money or
  * Faster Payments operation refused; then part 3.10 for a case whose
  * client confirmed or repeated before the Bank of Russia's database
- * answered, the second action; then art. 9 part 11.6, or 11.7 with the
- * Ministry of Internal Affairs' information, for a case whose client's own
- * card or online banking was suspended for their data in the database,
- * the ground of a reply about removing the data, as the rules engine
- * gives it unless a person named the other part in the register; the
- * category's own article and item under 115-FZ), then the ground the
- * register holds, if it is another one its stream may name. A general
- * complaint or a money claim rests on the contract unless the register
- * says otherwise. */
+ * answered, the second action; for a case about the client's own data in
+ * the database, where no operation was blocked, art. 9 part 11.6, or 11.7
+ * with the Ministry of Internal Affairs' information, the suspension of
+ * the client's card or online banking, as the rules engine gives it unless
+ * a person named the other part in the register; the category's own
+ * article and item under 115-FZ), then the ground the register holds, if
+ * it is another one its stream may name. A general complaint or a money
+ * claim rests on the contract unless the register says otherwise. */
 const FIRST_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
 const SECOND_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
 
@@ -80,9 +80,10 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
     const spec = GROUNDS[index];
     if (spec && spec.streams.includes(stream) && !out.includes(spec.id as GroundCode)) out.push(spec.id as GroundCode);
   };
-  if (stream === Stream.Antifraud) add(FIRST_ACTION);
+  const clientData = stream === Stream.Antifraud && (store.database[row] ?? Database.None) !== Database.None;
+  if (stream === Stream.Antifraud && !clientData) add(FIRST_ACTION);
   if (stream === Stream.Antifraud && store.path[row] === Path.SecondStep) add(SECOND_ACTION);
-  if (stream === Stream.Antifraud && store.path[row] === Path.DatabaseRemoval) {
+  if (clientData) {
     // Parts 11.6 and 11.7 exclude each other: one a person named in the
     // register (who knows of the Ministry's information when the register
     // does not) stands instead of the engine's.
