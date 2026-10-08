@@ -307,12 +307,12 @@ timeline, and the case's journal), DetailHeader (the open case's header,
 with `focusWhenReady` for Back and Q), Letter (the assistant's draft, the
 letter under review and the signed letter), FindingsList (the rubric's
 findings), TextDiff (the review's changes), RadioGroup and TextArea (the
-signatory's decision record), StepList, and the preferences, formatter
-and breakpoint helpers. The desk keeps its own count of changed
-characters for the measure of light edits (`workflow/textDiff.ts`: per
-changed passage, the longer side, over the draft), which is not
-TextDiff's share, and the letter's editor (`workflow/TextArea.tsx`),
-which marks the letter's language, which Stoa's TextArea does not take.
+signatory's decision record, and the letter's editor with the letter's
+language on its text), StepList, and the preferences, formatter and
+breakpoint helpers. The desk keeps its own count of changed characters
+for the measure of light edits (`workflow/textDiff.ts`: per changed
+passage, the longer side, over the draft), which is not TextDiff's
+share.
 
 ## Accessibility, as far as the tests go
 

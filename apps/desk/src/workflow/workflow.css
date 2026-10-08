@@ -23,8 +23,6 @@
 /* Stoa's Letter, with the signatory named under it. */
 .letter { display: grid; gap: var(--stoa-space-2); min-inline-size: 0; }
 .letter__signatory { font-weight: var(--stoa-font-weight-medium); }
-.text-area { display: grid; gap: var(--stoa-space-1); }
-.text-area__input { inline-size: 100%; box-sizing: border-box; min-block-size: 12rem; resize: vertical; font: inherit; line-height: 1.5; }
 .letter-form { display: grid; gap: var(--stoa-space-3); }
 .letter-form__actions { display: flex; flex-wrap: wrap; gap: var(--stoa-space-2); }
 .signature-record { display: grid; gap: var(--stoa-space-1); }
