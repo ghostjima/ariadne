@@ -306,9 +306,10 @@ needs no legal judgment:
 | `deadline_missing`, `deadline_mismatch` | a deadline that concerns the client and runs on the reply's day is not stated, or stated with another date than the clock's | the Bank of Russia's recommendations on replies (concrete terms) |
 | `text_empty`, `sentence_too_long`, `sentences_long_on_average` | no text; a sentence of more than 25 words; more than 15 words a sentence on average | the same recommendations (no long sentences) |
 
-The word limits, 25 and 15, are this engine's own: the Bank of Russia
-advises against long sentences but sets no number. They are hypotheses to
-calibrate on real replies. Sentences end at a full stop, question or
+The word limits, 25 words a sentence at most and 15 on average, are the
+values this project sets: the Bank of Russia advises against long
+sentences but gives no number. They are set, not measured, and remain
+hypotheses to calibrate on real replies. Sentences end at a full stop, question or
 exclamation mark or ellipsis followed by a capital, so "п. 11 ст. 7" does
 not split, and at a line break, for lists.
 
