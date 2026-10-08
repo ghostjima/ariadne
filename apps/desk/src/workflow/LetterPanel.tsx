@@ -4,7 +4,7 @@
 // decision record, then the signed letter, frozen, with the signatory named
 // on it). Approve and return are the case's transitions, in the work above.
 import { useRef, useState } from "react";
-import { Button, ChoiceGroup, Dialog, Letter, Panel, Select, TextDiff, TextField, useFormatters } from "@ghostjima/stoa-react";
+import { Button, Dialog, Letter, Panel, RadioGroup, Select, TextArea as StoaTextArea, TextDiff, useFormatters } from "@ghostjima/stoa-react";
 import { GROUND_COUNT, Stage, rowId, type ColumnStore, type Role } from "@ariadne/grid";
 import type { CaseFacts } from "@ariadne/rules";
 import { strings as agentStrings } from "../agent/i18n";
@@ -13,7 +13,7 @@ import type { Text } from "../agent/text";
 import { ReplyCheck } from "../agent/ui/ReplyCheck";
 import { POOLS } from "../data/query";
 import { LOCALES, type Lang, type Strings } from "../i18n";
-import { LETTER_MAX, RECORD_MIN, SIGN_DECISIONS, type CaseFiles, type DecisionRecord, type LetterError, type SignDecision, type SignError } from "./caseFile";
+import { LETTER_MAX, RECORD_MAX, RECORD_MIN, SIGN_DECISIONS, type CaseFiles, type DecisionRecord, type LetterError, type SignDecision, type SignError } from "./caseFile";
 import { workflowStrings } from "./i18n";
 import { actorText, personName } from "./Journal";
 import { assistantDraft, currentLetter, draftText } from "./letter";
@@ -196,15 +196,31 @@ export function LetterPanel(props: LetterPanelProps) {
               </div>
             ) : signer ? (
               <div className="letter-form">
-                <ChoiceGroup<SignDecision>
+                {/* Each decision with what it means under it; the record
+                    in fields of several lines, the one a refusal names
+                    marked invalid while the refusal stands. */}
+                <RadioGroup<SignDecision>
                   label={w.signature.decision}
                   value={decision}
                   onChange={setDecision}
-                  choices={SIGN_DECISIONS.map((d) => ({ id: d, label: w.signature.decisions[d] }))}
-                  description={w.signature.decisionHelp[decision]}
+                  options={SIGN_DECISIONS.map((d) => ({ value: d, label: w.signature.decisions[d], description: w.signature.decisionHelp[d] }))}
                 />
-                <TextField label={w.signature.concerns} value={concerns} onChange={setConcerns} description={w.signature.concernsHelp(String(RECORD_MIN))} />
-                <TextField label={w.signature.wrong} value={wrong} onChange={setWrong} description={w.signature.wrongHelp(String(RECORD_MIN))} />
+                <StoaTextArea
+                  label={w.signature.concerns}
+                  value={concerns}
+                  onChange={setConcerns}
+                  description={w.signature.concernsHelp(String(RECORD_MIN))}
+                  rows={2}
+                  isInvalid={signError?.code === "concerns-required" || (signError?.code === "record-too-long" && concerns.trim().length > RECORD_MAX)}
+                />
+                <StoaTextArea
+                  label={w.signature.wrong}
+                  value={wrong}
+                  onChange={setWrong}
+                  description={w.signature.wrongHelp(String(RECORD_MIN))}
+                  rows={2}
+                  isInvalid={signError?.code === "wrong-required" || (signError?.code === "record-too-long" && wrong.trim().length > RECORD_MAX)}
+                />
                 {signError && (
                   <p className="field-error" role="alert">
                     {signErrorText(signError)}

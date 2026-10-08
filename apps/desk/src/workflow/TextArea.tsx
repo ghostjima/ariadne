@@ -1,5 +1,7 @@
-// A text field of several lines, as Stoa draws a field: the desk's own
-// until Stoa has one. React Aria's TextField with a textarea.
+// The letter's editor: a text field of several lines, as Stoa draws a
+// field, on React Aria's TextField with a textarea. The desk's own, not
+// Stoa's TextArea: the letter is often in the other language than the
+// page, and Stoa's TextArea takes no lang for its text.
 import { FieldError, Label, Text, TextArea as AriaTextArea, TextField as AriaTextField } from "react-aria-components";
 
 export type TextAreaProps = {
