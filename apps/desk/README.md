@@ -77,8 +77,11 @@ it that proposes and stops for a person at every risky step. In Russian
   under a StatBar of the register's counts, and a table per operator.
   A letter signed in the page counts from its own texts; an answered case
   of the register has its signed letter worked out from its draft with
-  edits drawn from the case. The view says it is computed from the
-  synthetic register, and how each measure is counted.
+  edits drawn from the case. The view opens with the case card's header
+  (Back with Q, the title, which takes the focus, and the synthetic
+  register with its day) and says it is computed from the synthetic
+  register, and how each measure is counted; Back and Q return to the
+  grid's row.
 
 Loading, a partial load failure (`?failChunk=1` fails one 400-row chunk
 once, with a retry), no matches, and running without a worker
@@ -303,8 +306,8 @@ The interface is React and TypeScript on the
 its tones and drawn cells (DeadlineCell for the time left),
 DataGridColumnChooser, DataGridSelectionBar, FilterBar, Countdown,
 DerivationTable, Table, Tabs, Timeline (the card's flags and channel
-timeline, and the case's journal), DetailHeader (the open case's header,
-with `focusWhenReady` for Back and Q), Letter (the assistant's draft, the
+timeline, and the case's journal), DetailHeader (the open case's and
+the metrics' header, with `focusWhenReady` for Back and Q), Letter (the assistant's draft, the
 letter under review and the signed letter), FindingsList (the rubric's
 findings), TextDiff (the review's changes), RadioGroup and TextArea (the
 signatory's decision record), StepList, and the preferences, formatter
