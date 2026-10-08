@@ -166,8 +166,9 @@ export const GROUNDS: readonly (GroundSpec | null)[] = [
   /* 161-FZ art. 9 part 11.6: the client's card or online banking
      suspended for the client's own data in the Bank of Russia's database,
      which the operator may do without the Ministry of Internal Affairs'
-     information; the ground of a reply about removing the data
-     (Path.DatabaseRemoval) */
+     information; the ground of a reply to a case about the client's own
+     data in the database (Database.ClientData), whether or not the client
+     applied to remove it */
   { id: "payment_9_11_6", act: "payment_system", article: "9", part: "11.6", streams: [Stream.Antifraud] },
   /* Part 11.7: the same with the Ministry of Internal Affairs'
      information on unlawful acts, where the suspension is a duty */
@@ -221,11 +222,11 @@ export const Path = {
      `pathOn`, and the Bank of Russia's database answered after it: the
      second step of part 3.10, and part 3.11 two days on */
   SecondStep: 1,
-  /* 161-FZ art. 9: the client's own card or online banking suspended for
-     their data in the Bank of Russia's database (part 11.6) on the day of
-     the operation, and their application to remove the data received by
-     the bank on `pathOn` (Directive No. 6748-U item 1.2); received by the
-     Bank of Russia on `pathThen` once forwarded, -1 before */
+  /* 161-FZ art. 9: for a case about the client's own data in the Bank of
+     Russia's database (Database.ClientData), the client's application to
+     remove the data received by the bank on `pathOn` (Directive No.
+     6748-U item 1.2); received by the Bank of Russia on `pathThen` once
+     forwarded, -1 before */
   DatabaseRemoval: 2,
   /* 115-FZ art. 7: after the refusal, the client applied to the
      interagency commission on `pathOn`, and the commission's request for
@@ -235,6 +236,21 @@ export const Path = {
   CommissionRequest: 3,
 } as const;
 export const PATH_COUNT = 4;
+
+/* The client's own data in the Bank of Russia's database of transfers
+   without consent (161-FZ art. 27 part 5), as the bank receives it (part
+   7): a code of the `database` column. The database holds the recipients
+   of such transfers; a client is in it as a recipient, never because a
+   transfer of theirs matched an OD-2506 sign (sign 1.1 is about the
+   recipient of the client's transfer). A case about the client's data
+   carries no sign and no blocked operation: the client's card or online
+   banking was suspended under art. 9 part 11.6 on `opOn`, and the client
+   may apply to remove the data (part 11.8; Path.DatabaseRemoval). */
+export const Database = {
+  None: 0,
+  ClientData: 1,
+} as const;
+export const DATABASE_COUNT = 2;
 
 /* The 115-FZ categories, in ariadne-rules' order */
 export const AML_REASON_CODES = [

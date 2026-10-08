@@ -11,6 +11,7 @@ import { dayNumber, isoDay } from "./days.js";
 import {
   AML_REASON_CODES,
   Applicant,
+  Database,
   ELECTRONIC_CHANNELS,
   EXTENSION_WORKING_DAYS,
   Operation,
@@ -186,11 +187,12 @@ const AML_DECISION: Partial<Record<(typeof AML_REASON_CODES)[number], "refuse_op
 /* Everything a stored row knows, as ariadne-rules takes it: the reply's
    facts, the extension as it stands, the operation an antifraud block
    stopped (refused for a card, Faster Payments or e-money, suspended for a
-   transfer by bank details), and the 115-FZ decision or measures; and the
-   row's path beyond them (Path): the second step after a confirmation or
-   a repeat, the client's application to remove their data from the
-   database, the commission's request. The case card asks the module for
-   its whole clock with these. */
+   transfer by bank details) or the client's card or online banking
+   suspended for the client's own data in the Bank of Russia's database,
+   and the 115-FZ decision or measures; and the row's path beyond them
+   (Path): the second step after a confirmation or a repeat, the client's
+   application to remove their data from the database, the commission's
+   request. The case card asks the module for its whole clock with these. */
 export function caseFacts(store: ColumnStore, i: number): CaseFacts {
   const facts = replyFacts(rowReplyFacts(store, i), isExtended(store, i));
   const stream = store.stream[i] ?? 0;
@@ -206,12 +208,15 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
       facts.blocked.confirmedOn = isoDay(pathOn);
       facts.blocked.databaseMatchAfterConfirmation = true;
     }
-    /* The client's own data in the database: the card or online banking
-       suspended on the day of the operation, the application to remove
-       the data through the bank, and its receipt by the Bank of Russia
-       once forwarded */
+  }
+  /* The client's own data in the database: no operation was blocked; the
+     card or online banking was suspended on `opOn`; then, if the client
+     applied, the application to remove the data through the bank, and its
+     receipt by the Bank of Russia once forwarded */
+  if (stream === Stream.Antifraud && (store.database[i] ?? Database.None) !== Database.None) {
+    facts.database = { instrumentSuspendedOn: on };
     if (path === Path.DatabaseRemoval && pathOn >= 0) {
-      facts.database = { instrumentSuspendedOn: on, exclusionReceivedByOperatorOn: isoDay(pathOn) };
+      facts.database.exclusionReceivedByOperatorOn = isoDay(pathOn);
       if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);
     }
   }

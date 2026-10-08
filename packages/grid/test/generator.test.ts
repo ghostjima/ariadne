@@ -184,15 +184,24 @@ describe("generator", () => {
        or a repeat, an application to remove the client's data from the
        database through the bank, the interagency commission's request):
        four new columns, drawn from a stream of their own; every other
-       column is as it was, which the next test checks against the
-       previous pin. */
+       column is as it was.
+       Re-pinned when the complaints about the client's own data in the
+       Bank of Russia's database were told apart from the blocks on
+       OD-2506 sign 1.1, which is about the recipient of the client's
+       transfer: half of the rows that drew sign 1.1's share, by a draw of
+       their own, carry no sign and no operation, a new `database` column,
+       161-FZ art. 9 part 11.6 as a refusal's ground, and alone the
+       application to remove the data; the other half keep sign 1.1 with
+       the complaint texts of a blocked operation and may have a second
+       step. Every other column is as it was, which the next test checks
+       against the previous pin. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
-  it("leaves every column but the paths as it was before the paths were drawn", () => {
-    const paths = new Set<string>(["path", "pathOn", "pathThen", "pathTerm"]);
-    const before = COLUMN_KEYS.filter((key) => !paths.has(key));
-    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_PATHS);
+  it("leaves every column but those that tell the client's own data from sign 1.1 as it was before", () => {
+    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database"]);
+    const before = COLUMN_KEYS.filter((key) => !told.has(key));
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_CLIENT_DATA);
   });
 
   it("splits a total into chunk bounds", () => {
@@ -214,6 +223,7 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "7f0ba479";
-/* The pin before the paths' columns were added, over every other column */
-const DIGEST_BEFORE_PATHS = "9659766b";
+const GOLDEN_DIGEST = "722e7330";
+/* The pin before the client's own data were told apart from sign 1.1
+   ("7f0ba479"), over the columns that did not change */
+const DIGEST_BEFORE_CLIENT_DATA = "7acd7001";
