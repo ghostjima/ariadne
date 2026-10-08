@@ -111,9 +111,10 @@ assistant's).
   the assistant drafts it. The reviewer edits the letter and states the
   decision and the ground; a letter that still leaves the decision open
   is not approved. At signature the signatory records a decision
-  (approve, modify, override or defer) with their concerns and what
-  would make it wrong (always asked for; the concerns unless approved as
-  proposed); a modification or an override is their own edit first. The
+  (approve, modify, override or defer, as one radio group with what each
+  means under it) with their concerns and what would make it wrong, in
+  fields of several lines (always asked for; the concerns unless approved
+  as proposed); a modification or an override is their own edit first. The
   signed letter is frozen and names the signatory, and only a signed
   reply is sent, from the case or from the queue. Every edit, signature
   and deferral is in the journal.
@@ -298,12 +299,13 @@ DerivationTable, Table, Tabs, Timeline (the card's flags and channel
 timeline, and the case's journal), DetailHeader (the open case's header,
 with `focusWhenReady` for Back and Q), Letter (the assistant's draft, the
 letter under review and the signed letter), FindingsList (the rubric's
-findings), TextDiff (the review's changes), StepList, and the
-preferences, formatter and breakpoint helpers. The desk keeps its own
-count of changed characters for the measure of light edits
-(`workflow/textDiff.ts`: per changed passage, the longer side, over the
-draft), which is not TextDiff's share, and a text field of several lines
-(`workflow/TextArea.tsx`).
+findings), TextDiff (the review's changes), RadioGroup and TextArea (the
+signatory's decision record), StepList, and the preferences, formatter
+and breakpoint helpers. The desk keeps its own count of changed
+characters for the measure of light edits (`workflow/textDiff.ts`: per
+changed passage, the longer side, over the draft), which is not
+TextDiff's share, and the letter's editor (`workflow/TextArea.tsx`),
+which marks the letter's language, which Stoa's TextArea does not take.
 
 ## Accessibility, as far as the tests go
 
@@ -327,7 +329,8 @@ dark, and the adversarial case in both languages.
 
 They also check: the main tasks by keyboard (grid moves, sorting from a
 header, editing and the rules' refusals, selecting rows, undo, opening a
-case and going back, the app shortcuts; in the assistant, editing the
+case and going back, the app shortcuts, the signatory's decision and
+its record; in the assistant, editing the
 plan, running, confirming and skipping, retrying a failed step, stopping
 from a confirmation, pausing and resuming) and editing with the mouse;
 where the focus goes after a bulk change, a Retry, the conflict dialog,

@@ -34,6 +34,14 @@ async function openAs(page: Page, id: string, role: string, query = "") {
   await expect(letterPanel(page)).toBeVisible({ timeout: 15_000 });
 }
 
+/** Chooses a decision as a person does, by its label: the radio button
+ * itself is drawn under its circle. */
+async function chooseDecision(page: Page, decision: keyof typeof w.signature.decisions) {
+  const group = letterPanel(page).getByRole("radiogroup", { name: w.signature.decision });
+  await group.getByText(w.signature.decisions[decision], { exact: true }).click();
+  await expect(group.getByRole("radio", { name: w.signature.decisions[decision] })).toBeChecked();
+}
+
 /** Opens the editor, puts `edit(text)` in it and saves. */
 async function editLetter(page: Page, edit: (text: string) => string, words = w) {
   await letterPanel(page).getByRole("button", { name: words.review.edit }).click();
@@ -98,7 +106,7 @@ test("the signatory signs with a decision record: what would make this wrong is 
   await form.getByRole("button", { name: w.signature.sign }).click();
   await expect(form.getByRole("alert")).toHaveText(w.signature.errors["wrong-required"]("10"));
   // A modification needs the signatory's own edit first.
-  await form.getByRole("radio", { name: w.signature.decisions.modify }).click();
+  await chooseDecision(page, "modify");
   await form.getByLabel(w.signature.concerns).fill("The tone is too formal for this client.");
   await form.getByLabel(w.signature.wrong).fill("The client has already been answered by phone.");
   await form.getByRole("button", { name: w.signature.sign }).click();
@@ -128,7 +136,7 @@ test("the signatory signs with a decision record: what would make this wrong is 
 test("a deferred signature keeps the case at signature, with the concerns in the journal", async ({ page }) => {
   await openAs(page, SIGN_CASE, "signatory");
   const form = letterPanel(page);
-  await form.getByRole("radio", { name: w.signature.decisions.defer }).click();
+  await chooseDecision(page, "defer");
   await form.getByLabel(w.signature.wrong).fill("The facts from operations would show a fee was due.");
   await form.getByRole("button", { name: w.signature.defer }).click();
   await expect(form.getByRole("alert")).toHaveText(w.signature.errors["concerns-required"]("10"));
@@ -139,6 +147,53 @@ test("a deferred signature keeps the case at signature, with the concerns in the
   await expect(form).toContainText("Concerns: The facts from operations are not in yet.");
   await expect(page.locator(".stoa-detail-header__status")).toContainText("Awaiting signature");
   await expect(lastEntry(page)).toContainText(w.action.defer);
+});
+
+test("the decision is one radio group, each option with what it means; the record takes several lines; all by keyboard", async ({ page }) => {
+  await openAs(page, SIGN_CASE, "signatory");
+  const form = letterPanel(page);
+  const group = form.getByRole("radiogroup", { name: w.signature.decision });
+  for (const d of ["approve", "modify", "override", "defer"] as const)
+    await expect(group.getByRole("radio", { name: w.signature.decisions[d] })).toHaveAccessibleDescription(w.signature.decisionHelp[d]);
+  const concerns = form.getByRole("textbox", { name: w.signature.concerns });
+  const wrong = form.getByRole("textbox", { name: w.signature.wrong });
+  expect(await concerns.evaluate((el) => el.tagName)).toBe("TEXTAREA");
+  expect(await wrong.evaluate((el) => el.tagName)).toBe("TEXTAREA");
+  await expect(concerns).toHaveAccessibleDescription(w.signature.concernsHelp("10"));
+  await expect(wrong).toHaveAccessibleDescription(w.signature.wrongHelp("10"));
+  // Signing with nothing said: refused, and the field it names is marked.
+  await form.getByRole("button", { name: w.signature.sign }).click();
+  await expect(form.getByRole("alert")).toHaveText(w.signature.errors["wrong-required"]("10"));
+  await expect(wrong).toHaveAttribute("aria-invalid", "true");
+  await expect(concerns).not.toHaveAttribute("aria-invalid", "true");
+  // One tab stop, on the chosen option; the arrows move and choose.
+  await group.getByRole("radio", { name: w.signature.decisions.approve }).focus();
+  for (const d of ["modify", "override", "defer"] as const) {
+    await page.keyboard.press("ArrowDown");
+    await expect(group.getByRole("radio", { name: w.signature.decisions[d] })).toBeFocused();
+    await expect(group.getByRole("radio", { name: w.signature.decisions[d] })).toBeChecked();
+  }
+  await expect(form.getByRole("button", { name: w.signature.defer })).toBeVisible();
+  // Tab goes on to the concerns, where Enter starts a new line, then to
+  // what would make this wrong, then to the button.
+  await page.keyboard.press("Tab");
+  await expect(concerns).toBeFocused();
+  await page.keyboard.type("The facts from operations are not in yet.");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Antifraud has not answered either.");
+  await expect(concerns).toHaveValue("The facts from operations are not in yet.\nAntifraud has not answered either.");
+  await page.keyboard.press("Tab");
+  await expect(wrong).toBeFocused();
+  await page.keyboard.type("Operations confirm the fee was due.");
+  await page.keyboard.press("Tab");
+  await expect(form.getByRole("button", { name: w.signature.defer })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(form.getByRole("heading", { name: w.letter.panel })).toBeFocused();
+  // The journal keeps the record on its three lines, the break as a space.
+  await expect(lastEntry(page)).toContainText(w.action.defer);
+  await expect(lastEntry(page)).toContainText("Concerns: The facts from operations are not in yet. Antifraud has not answered either.");
+  await expect(lastEntry(page)).toContainText("What would make this wrong: Operations confirm the fee was due.");
+  expect(await bodyHasFocus(page)).toBe(false);
 });
 
 test("in the queue a reply is not sent before it is signed", async ({ page }) => {
