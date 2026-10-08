@@ -100,9 +100,28 @@ export const Outcome = { Pending: 0, Upheld: 1, PartlyUpheld: 2, Refused: 3 } as
 export const OUTCOME_COUNT = 4;
 
 /* The legal ground a reply names. Each cites an act, an article and a
-   part as ariadne-rules' rubric takes them; the 115-FZ ones are the
-   crate's reason categories, and a test checks they cite what the crate
-   cites. Code 0 is no ground. */
+   part as ariadne-rules' rubric takes them; the 161-FZ ones are the
+   crate's payment grounds and the 115-FZ ones its reason categories, and
+   tests check they cite what the crate cites. Code 0 is no ground.
+
+   The code is the index in this list, and the register stores it. Codes
+   are never renumbered: a new ground is added at the end, so a code keeps
+   its meaning in every row, test and export made before it.
+   GROUND_ORDER says the order a person is offered them in.
+
+     0  none
+     1  payment_8_3_4                        161-FZ art. 8 part 3.4
+     2  payment_8_3_10                       161-FZ art. 8 part 3.10
+     3  aml_operation_refused                115-FZ art. 7 item 11
+     4  aml_account_refused                  115-FZ art. 7 item 5.2, paragraph 2
+     5  aml_account_terminated               115-FZ art. 7 item 5.2, paragraph 3
+     6  aml_operation_suspended              115-FZ art. 7 item 10
+     7  aml_operation_suspended_by_decision  115-FZ art. 7 item 10.1
+     8  aml_funds_frozen                     115-FZ art. 7 item 1, subitem 6
+     9  aml_high_risk_measures               115-FZ art. 7.7 item 5
+    10  contract                             the contract with the client
+    11  payment_9_11_6                       161-FZ art. 9 part 11.6
+    12  payment_9_11_7                       161-FZ art. 9 part 11.7 */
 export type GroundSpec = {
   id: string;
   act: "payment_system" | "anti_money_laundering" | "contract";
@@ -144,11 +163,26 @@ export const GROUNDS: readonly (GroundSpec | null)[] = [
     part: "",
     streams: [Stream.General, Stream.MoneyClaim, Stream.Antifraud, Stream.Aml],
   },
+  /* 161-FZ art. 9 part 11.6: the client's card or online banking
+     suspended for the client's own data in the Bank of Russia's database,
+     which the operator may do without the Ministry of Internal Affairs'
+     information; the ground of a reply about removing the data
+     (Path.DatabaseRemoval) */
+  { id: "payment_9_11_6", act: "payment_system", article: "9", part: "11.6", streams: [Stream.Antifraud] },
+  /* Part 11.7: the same with the Ministry of Internal Affairs'
+     information on unlawful acts, where the suspension is a duty */
+  { id: "payment_9_11_7", act: "payment_system", article: "9", part: "11.7", streams: [Stream.Antifraud] },
 ];
 export const GROUND_COUNT = GROUNDS.length;
-export const Ground = { None: 0, Contract: GROUND_COUNT - 1 } as const;
+export const Ground = { None: 0, Contract: 10 } as const;
 /* The ground of each 115-FZ category: the categories in order, from code 3 */
 export const AML_GROUND_OFFSET = 3;
+/* The 161-FZ grounds in ariadne-rules' order (payment_8_3_4,
+   payment_8_3_10, payment_9_11_6, payment_9_11_7), by their codes here */
+export const PAYMENT_GROUND_CODES: readonly number[] = [1, 2, 11, 12];
+/* The codes in the order a person is offered them: none, 161-FZ by
+   article and part, 115-FZ, the contract */
+export const GROUND_ORDER: readonly number[] = [0, 1, 2, 11, 12, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /* The extension of the reply term by ten working days, only to request
    documents (Banking Law art. 30.1 part 8); refused by ariadne-rules for a

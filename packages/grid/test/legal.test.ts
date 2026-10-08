@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amlReasons, clock, isWorkingDay, nextWorkingDay, od2506Signs, workingDaysBetween } from "@ariadne/rules";
+import { amlReasons, clock, isWorkingDay, nextWorkingDay, od2506Signs, paymentGrounds, workingDaysBetween } from "@ariadne/rules";
 import { generateAll } from "../src/generator.js";
 import { dayNumber, isoDay } from "../src/days.js";
 import { caseFacts, replyFacts, rowReplyFacts } from "../src/legal.js";
@@ -12,8 +12,10 @@ import {
   DEFAULT_SEED,
   Extension,
   GROUNDS,
+  GROUND_ORDER,
   Ground,
   Outcome,
+  PAYMENT_GROUND_CODES,
   Path,
   SIGN_COUNT,
   Source,
@@ -175,6 +177,57 @@ describe("codes and labels follow ariadne-rules' lists", () => {
       expect([ground.act, ground.article, ground.part]).toEqual(["anti_money_laundering", r.article, r.part]);
       expect(en.ground[AML_GROUND_OFFSET + k]).toContain(`art. ${r.article}`);
     });
+  });
+});
+
+describe("ground codes", () => {
+  it("the 161-FZ grounds cite what the crate cites, art. 9 parts 11.6 and 11.7 among them", () => {
+    const list = paymentGrounds();
+    expect(list.map((g) => g.code)).toEqual(["payment_8_3_4", "payment_8_3_10", "payment_9_11_6", "payment_9_11_7"]);
+    list.forEach((g, k) => {
+      const code = PAYMENT_GROUND_CODES[k]!;
+      const ground = GROUNDS[code]!;
+      expect(ground.id).toBe(g.code);
+      expect([ground.act, ground.article, ground.part]).toEqual(["payment_system", g.article, g.part]);
+      expect(ground.streams).toEqual([Stream.Antifraud]);
+      expect(en.ground[code]).toBe(`161-FZ, art. ${g.article}, part ${g.part}`);
+      expect(ru.ground[code]).toBe(`161-ФЗ, ст. ${g.article}, ч. ${g.part}`);
+    });
+  });
+
+  it("are never renumbered: the earlier codes keep their meaning, new grounds are at the end, and a person is offered them in reading order", () => {
+    expect(GROUNDS.map((g) => g?.id ?? null)).toEqual([
+      null,
+      "payment_8_3_4",
+      "payment_8_3_10",
+      "aml_operation_refused",
+      "aml_account_refused",
+      "aml_account_terminated",
+      "aml_operation_suspended",
+      "aml_operation_suspended_by_decision",
+      "aml_funds_frozen",
+      "aml_high_risk_measures",
+      "contract",
+      "payment_9_11_6",
+      "payment_9_11_7",
+    ]);
+    expect([Ground.None, Ground.Contract, AML_GROUND_OFFSET]).toEqual([0, 10, 3]);
+    expect([...GROUND_ORDER].sort((a, b) => a - b)).toEqual(GROUNDS.map((_, k) => k));
+    expect(GROUND_ORDER.map((k) => en.ground[k])).toEqual([
+      "None",
+      "161-FZ, art. 8, part 3.4",
+      "161-FZ, art. 8, part 3.10",
+      "161-FZ, art. 9, part 11.6",
+      "161-FZ, art. 9, part 11.7",
+      "115-FZ, art. 7, item 11",
+      "115-FZ, art. 7, item 5.2, paragraph 2",
+      "115-FZ, art. 7, item 5.2, paragraph 3",
+      "115-FZ, art. 7, item 10",
+      "115-FZ, art. 7, item 10.1",
+      "115-FZ, art. 7, item 1, subitem 6",
+      "115-FZ, art. 7.7, item 5",
+      "Contract",
+    ]);
   });
 });
 
