@@ -12,6 +12,7 @@ import {
   DUE_SOON_WORKING_DAYS,
   Channel,
   Copy,
+  Database,
   ELECTRONIC_CHANNELS,
   Extension,
   FIRST_NAME_COUNT,
@@ -98,9 +99,20 @@ function weighted(r: number, weights: readonly number[]): number {
 
 const STREAM_WEIGHTS = [0.36, 0.12, 0.32, 0.2];
 /* OD-2506 signs in the order's order: 1.6 (an atypical operation) and 1.1
-   (a database match) lead; the digital-ruble signs (2.1, 2.2) are not
-   drawn, since the register has no digital-ruble operations. */
+   (the recipient in the database) lead; the digital-ruble signs (2.1,
+   2.2) are not drawn, since the register has no digital-ruble operations.
+   The first share also holds the complaints about the client's own data
+   in the database, which carry no sign (CLIENT_DATA_SHARE). */
 const SIGN_WEIGHTS = [0.14, 0.06, 0.01, 0.06, 0.05, 0.35, 0.05, 0.01, 0.08, 0.12, 0.01, 0.06, 0, 0];
+/* Of the antifraud complaints whose draw fell on sign 1.1's share, the
+   share about the client's own data in the Bank of Russia's database: the
+   client's card or online banking suspended (161-FZ art. 9 part 11.6),
+   no operation blocked. The rest are blocks on sign 1.1: the client's
+   transfer to a recipient in the database. Drawn from a stream of its
+   own (DATABASE_SALT), so every other draw of the row is what it was
+   when the two were not told apart. The share is this generator's own. */
+const CLIENT_DATA_SHARE = 0.5;
+const DATABASE_SALT = 0xdb5a1e;
 /* 115-FZ categories in ariadne-rules' order */
 const AML_WEIGHTS = [0.42, 0.08, 0.16, 0.12, 0.04, 0.04, 0.14];
 const AML_OPERATION = [
@@ -140,6 +152,10 @@ const OUTCOME_WEIGHTS: readonly (readonly number[])[] = [
 /* The ground of a first antifraud action, whatever the operation: 161-FZ
    art. 8 part 3.4 (see GROUNDS) */
 const PAYMENT_FIRST_ACTION = 1;
+/* The ground of a refusal to lift the suspension of the client's card or
+   online banking while the client's own data stay in the database: 161-FZ
+   art. 9 part 11.6 (see GROUNDS). No art. 8 action was taken. */
+const INSTRUMENT_SUSPENSION = 11;
 
 /* The side draws (organisation, breach, copies) come from a stream of
    their own */
@@ -157,13 +173,12 @@ const TODAY_UNSENT_SHARE = 0.6;
 /* The paths beyond the first action or decision are drawn from a stream of
    their own, for open cases only, so every other column, and every
    answered case, is what it was before they were drawn. The shares are
-   this generator's own: of the open blocks with a sign other than 1.1, a
-   second step after the client confirmed or repeated; of the open blocks
-   with sign 1.1 (the client's own data in the database, the complaint
-   that asks how to have it removed), an application to remove it through
-   the bank; of the open refusals of an operation or an account, a
-   commission's request, where the time since the decision leaves room for
-   it. */
+   this generator's own: of the open blocks, whatever their sign, a second
+   step after the client confirmed or repeated; of the open complaints
+   about the client's own data in the database (the complaint that asks
+   how to have it removed), an application to remove it through the bank;
+   of the open refusals of an operation or an account, a commission's
+   request, where the time since the decision leaves room for it. */
 const PATH_SALT = 0x9a7b51;
 const SECOND_STEP_SHARE = 0.3;
 const DATABASE_REMOVAL_SHARE = 0.6;
@@ -257,6 +272,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     let claimForm = 0;
     let opRef = mixSeed(seed, r + 0x51);
     let template = 0;
+    let database: number = Database.None;
 
     if (stream === Stream.Antifraud) {
       applicant = rng() < 0.97 ? Applicant.Individual : Applicant.LegalEntity;
@@ -271,16 +287,17 @@ export function generateChunk(seed: number, start: number, count: number, total:
       operation = op < 0.35 ? Operation.CardPayment : op < 0.75 ? Operation.FasterPayment : Operation.BankTransfer;
       opAmount = amount(rng, 1_500, 900_000);
       /* The complaint the client writes follows what happened */
-      template =
-        sign === 0
-          ? 3
-          : sign === 9
-            ? 2
-            : operation === Operation.FasterPayment
-              ? 0
-              : operation === Operation.CardPayment
-                ? 1
-                : 4;
+      template = sign === 9 ? 2 : operation === Operation.FasterPayment ? 0 : operation === Operation.CardPayment ? 1 : 4;
+      if (sign === 0 && makeRng(mixSeed(seed ^ DATABASE_SALT, r))() < CLIENT_DATA_SHARE) {
+        /* The client's own data in the database: the card or online
+           banking suspended on `opOn`, no sign, no operation; the client
+           asks how to have the data removed */
+        database = Database.ClientData;
+        reason = 0;
+        operation = Operation.None;
+        opAmount = 0;
+        template = 3;
+      }
     } else if (stream === Stream.Aml) {
       const category = weighted(rng(), AML_WEIGHTS);
       reason = category + 1;
@@ -326,6 +343,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
       claim = c.claim[j] ?? 0;
       claimForm = c.claimForm[j] ?? 0;
       template = c.template[j] ?? 0;
+      database = c.database[j] ?? Database.None;
     }
 
     /* The organisation of the group, from a draw of its own so the rest of
@@ -404,7 +422,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
       outcome = 1 + weighted(rng(), OUTCOME_WEIGHTS[stream] ?? OUTCOME_WEIGHTS[0]!);
       const gr = rng();
       if (outcome === Outcome.Refused && (stage >= Stage.LegalReview || gr < 0.6)) {
-        if (stream === Stream.Antifraud) ground = gr < 0.85 ? PAYMENT_FIRST_ACTION : Ground.Contract;
+        if (stream === Stream.Antifraud) ground = database !== Database.None ? INSTRUMENT_SUSPENSION : gr < 0.85 ? PAYMENT_FIRST_ACTION : Ground.Contract;
         else if (stream === Stream.Aml) ground = gr < 0.9 ? AML_GROUND_OFFSET + (reason - 1) : Ground.Contract;
         else ground = Ground.Contract;
       }
@@ -488,8 +506,8 @@ export function generateChunk(seed: number, start: number, count: number, total:
     let pathOn = -1;
     let pathThen = -1;
     let pathTerm = 0;
-    if (!answered && stream === Stream.Antifraud && operation !== Operation.None) {
-      if (reason === 1) {
+    if (!answered && stream === Stream.Antifraud) {
+      if (database !== Database.None) {
         if (wr < DATABASE_REMOVAL_SHARE) {
           /* The application comes with the complaint or after it */
           path = Path.DatabaseRemoval;
@@ -521,6 +539,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.pathOn[i] = pathOn;
     c.pathThen[i] = pathThen;
     c.pathTerm[i] = pathTerm;
+    c.database[i] = database;
   }
   return c;
 }

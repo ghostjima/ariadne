@@ -114,11 +114,11 @@ assistant's).
   assistant did not hand over in this page has its draft worked out as
   the assistant drafts it. The reviewer edits the letter and states the
   decision and the ground; a letter that still leaves the decision open
-  is not approved. A reply about removing the client's data from the
-  Bank of Russia's database cites 161-FZ art. 9 part 11.6 after part 3.4,
-  as the rules engine gives it; a reviewer who names part 11.7 (with the
-  Ministry of Internal Affairs' information) in its place is followed,
-  the two parts excluding each other. At signature the signatory records
+  is not approved. A reply about the client's own data in the Bank of
+  Russia's database cites 161-FZ art. 9 part 11.6, with no art. 8 action
+  before it, as the rules engine gives it; a reviewer who names part
+  11.7 (with the Ministry of Internal Affairs' information) in its place
+  is followed, the two parts excluding each other. At signature the signatory records
   a decision (approve, modify, override or defer, as one radio group with
   what each means under it) with their concerns and what would make it
   wrong, in fields of several lines (always asked for; the concerns unless
@@ -193,9 +193,9 @@ decisions. The panel says so. For the open case it proposes five steps:
    facts, the agent asks to take them from there instead.
 3. **Draft the reply** from templates over the case's facts: the
    operation, the measure and the sign or category behind it, the legal
-   ground with its act, article and part (from the rules engine; for an
-   application to remove the client's data, 161-FZ art. 9 part 11.6, or
-   11.7 with the Ministry of Internal Affairs' information), the
+   ground with its act, article and part (from the rules engine; for a
+   case about the client's own data in the database, 161-FZ art. 9 part
+   11.6, or 11.7 with the Ministry of Internal Affairs' information), the
    options and the deadlines the law gives the client, and the next
    steps. The decision on the complaint is the register's; when nobody
    has decided, the draft leaves it for the reviewer. Drafting is high

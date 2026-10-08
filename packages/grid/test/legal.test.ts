@@ -10,10 +10,12 @@ import {
   CORPUS_CHUNK,
   CORPUS_ROWS,
   DEFAULT_SEED,
+  Database,
   Extension,
   GROUNDS,
   GROUND_ORDER,
   Ground,
+  Operation,
   Outcome,
   PAYMENT_GROUND_CODES,
   Path,
@@ -127,12 +129,16 @@ describe("the register is consistent", () => {
     expect(rows((i) => store.stage[i] === Stage.Drafting && store.outcome[i] === Outcome.Refused && store.ground[i] === 0).length).toBeGreaterThan(0);
   });
 
-  it("a 161-FZ case carries a sign in force on the day of its operation, a 115-FZ case a category", () => {
+  it("a 161-FZ block carries a sign in force on the day of its operation, a case about the client's own data in the database none, a 115-FZ case a category", () => {
     const signs = od2506Signs();
     for (let i = 0; i < store.size; i++) {
       const reason = store.reason[i]!;
-      if (store.stream[i] === Stream.Antifraud) {
+      if (store.stream[i] !== Stream.Antifraud) expect(store.database[i], `row ${i}`).toBe(Database.None);
+      if (store.stream[i] === Stream.Antifraud && store.database[i] !== Database.None) {
+        expect([reason, store.operation[i], store.opAmount[i]], `row ${i}`).toEqual([0, Operation.None, 0]);
+      } else if (store.stream[i] === Stream.Antifraud) {
         expect(reason).toBeGreaterThan(0);
+        expect(store.operation[i]).not.toBe(Operation.None);
         expect(signs[reason - 1]!.appliesFrom <= isoDay(store.opOn[i]!)).toBe(true);
       } else if (store.stream[i] === Stream.Aml) {
         expect(reason).toBeGreaterThan(0);
@@ -252,7 +258,7 @@ describe("a case's whole clock", () => {
     const first = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
     const second = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
     expect([GROUNDS[first]?.part, GROUNDS[second]?.part]).toEqual(["3.4", "3.10"]);
-    const blocked = rows((i) => store.stream[i] === Stream.Antifraud && store.ground[i] !== Ground.None);
+    const blocked = rows((i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None && store.ground[i] !== Ground.None);
     expect(blocked.some((i) => store.operation[i] !== 3)).toBe(true);
     /* The register's ground is never part 3.10: a second action (a
        database answer after a confirmation or a repeat, Path.SecondStep)
@@ -310,7 +316,7 @@ describe("the paths beyond the first action or decision", () => {
   it("an application to remove the client's data, through the bank: the card suspended under 161-FZ art. 9, forwarded by the next working day, decided in 15 working days from the Bank of Russia's receipt", () => {
     const removal = withPath(Path.DatabaseRemoval);
     for (const i of removal) {
-      expect([store.stream[i], store.reason[i]]).toEqual([Stream.Antifraud, 1]);
+      expect([store.stream[i], store.database[i], store.reason[i]]).toEqual([Stream.Antifraud, Database.ClientData, 0]);
       expect(store.pathOn[i]).toBeGreaterThanOrEqual(store.received[i]!);
       const c = clock(caseFacts(store, i));
       expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6" });
@@ -322,6 +328,35 @@ describe("the paths beyond the first action or decision", () => {
         expect(c.deadlines.find((d) => d.kind === "exclusion_decision")?.from).toBe(isoDay(store.pathThen[i]!));
       } else expect(kinds(i)).not.toContain("exclusion_decision");
     }
+  });
+
+  it("the client's own data in the database is a case of its own, not a block on sign 1.1: no operation blocked, the card or online banking suspended under 161-FZ art. 9 part 11.6, a refusal resting on it, and only there an application to remove the data", () => {
+    const clientData = rows((i) => store.database[i] === Database.ClientData);
+    const signOne = rows((i) => store.stream[i] === Stream.Antifraud && store.reason[i] === 1);
+    expect(clientData.length).toBeGreaterThan(10);
+    expect(signOne.length).toBeGreaterThan(10);
+    for (const i of clientData) {
+      const facts = caseFacts(store, i);
+      expect(facts.blocked, `row ${i}`).toBeUndefined();
+      expect(facts.database?.instrumentSuspendedOn, `row ${i}`).toBe(isoDay(store.opOn[i]!));
+      expect(measures(i), `row ${i}`).toEqual(["suspend_instrument"]);
+      expect(clock(facts).measures[0]?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6" });
+      expect(kinds(i), `row ${i}`).toContain("instrument_suspension_notice");
+      if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None) expect(GROUNDS[store.ground[i]!]?.id, `row ${i}`).toBe("payment_9_11_6");
+    }
+    expect(clientData.some((i) => store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)).toBe(true);
+    /* Sign 1.1 is about the recipient of the client's transfer: the client
+       confirms or repeats, and the database may answer again (part 3.10);
+       the recipient's data are not the client's to have removed */
+    for (const i of signOne) {
+      expect(store.database[i], `row ${i}`).toBe(Database.None);
+      expect(store.path[i], `row ${i}`).not.toBe(Path.DatabaseRemoval);
+      expect(caseFacts(store, i).database, `row ${i}`).toBeUndefined();
+      expect(store.template[i], `row ${i}`).not.toBe(3);
+    }
+    expect(signOne.some((i) => store.path[i] === Path.SecondStep)).toBe(true);
+    /* The complaint that asks how to be removed is the client's own */
+    expect(rows((i) => store.stream[i] === Stream.Antifraud && store.template[i] === 3)).toEqual(clientData);
   });
 
   it("the commission's request: the bank's answer in the term it gives, at least 3 working days, 3 when it gives none", () => {
