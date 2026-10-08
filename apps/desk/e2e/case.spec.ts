@@ -117,7 +117,10 @@ test("an application to remove the client's data through the bank: no operation 
   await expect(flags).not.toContainText("Order No. OD-2506");
   await expect(flags).not.toContainText("art. 8");
   await expect(flags).toContainText("The client's card or online banking suspended: the client's own data are in the Bank of Russia's database");
-  await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.6");
+  // The register holds the Ministry of Internal Affairs' information: the
+  // suspension is a duty under part 11.7.
+  await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.7");
+  await expect(flags).not.toContainText("part 11.6");
   await expect(flags).toContainText("The client is told of the suspension and its reason");
   await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 9.2");
   await expect(flags).toContainText("The application goes to the Bank of Russia, with the bank's view");
@@ -131,7 +134,19 @@ test("an application to remove the client's data through the bank: no operation 
   const ru = page.getByRole("region", { name: "Признаки и решения" });
   await expect(ru).toContainText("Основание: Указание Банка России № 6748-У, п. 1.5");
   await expect(ru).toContainText("Основание: Указание Банка России № 6748-У, пп. 2.1, 2.3, 2.4");
-  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 9, ч. 11.6");
+  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 9, ч. 11.7");
+});
+
+test("the register shows the client's own data in the Bank of Russia's database, with the Ministry of Internal Affairs' information or without, and nothing for a block", async ({ page }) => {
+  const columns = ["id", "client", "database"];
+  await open(page, `view=${viewParam({ search: "C-001115", columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("The client's data and the police information");
+  await open(page, `view=${viewParam({ search: "C-001140", columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("The client's data");
+  await open(page, `view=${viewParam({ search: "C-001196", columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("");
+  await open(page, `lang=ru&view=${viewParam({ search: "C-001115", columns })}`, "");
+  await expect(cell(page, 0, 3)).toHaveText("Сведения о клиенте и сведения МВД", { timeout: 15_000 });
 });
 
 test("the commission's request: the bank's answer by its term under Regulation No. 842-P, or 3 working days when it gives none, with the rules' note", async ({ page }) => {

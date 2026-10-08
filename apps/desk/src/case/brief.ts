@@ -84,9 +84,10 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
   if (stream === Stream.Antifraud && !clientData) add(FIRST_ACTION);
   if (stream === Stream.Antifraud && store.path[row] === Path.SecondStep) add(SECOND_ACTION);
   if (clientData) {
-    // Parts 11.6 and 11.7 exclude each other: one a person named in the
-    // register (who knows of the Ministry's information when the register
-    // does not) stands instead of the engine's.
+    // Parts 11.6 and 11.7 exclude each other. The engine's part follows
+    // the register's copy of the database record, with or without the
+    // Ministry's information; one a person named in the register (who has
+    // seen the record change since) stands instead.
     const held = GROUNDS[store.ground[row] ?? Ground.None]?.id;
     const ground = held === "payment_9_11_6" || held === "payment_9_11_7" ? held : instrumentGround(caseFacts(store, row));
     if (ground) add(GROUNDS.findIndex((g) => g?.id === ground));
