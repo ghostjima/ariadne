@@ -4,7 +4,7 @@
 // the crate's. One sentence a line, so the rubric reads each as one.
 import { GROUNDS, opRefText } from "@ariadne/grid";
 import { AML_REASON_CODES, OPERATIONS, type AmlReasonCode, type ReplyDraft } from "@ariadne/runner";
-import { od2506Signs, type Basis } from "@ariadne/rules";
+import { od2506Signs, paymentGrounds, type Basis } from "@ariadne/rules";
 import { basisName } from "../case/sources";
 import { caseId, type Text } from "./text";
 
@@ -15,7 +15,9 @@ const isAml = (code: string): code is AmlReasonCode => (AML_REASON_CODES as read
 export function groundCitation(x: Text, code: string): string | null {
   const spec = GROUNDS.find((g) => g?.id === code);
   if (!spec || spec.act === "contract") return null;
-  const source = spec.act === "payment_system" ? "payment_law_8" : spec.article === "7.7" ? "aml_law_7_7" : "aml_law_7";
+  // The source of a 161-FZ ground is the crate's: art. 8 or art. 9.
+  const source =
+    spec.act === "payment_system" ? (paymentGrounds().find((g) => g.code === code)?.source ?? "payment_law_8") : spec.article === "7.7" ? "aml_law_7_7" : "aml_law_7";
   const basis: Basis = { source, act: "", article: spec.article, part: spec.part, revision: "", url: "", reading: "text" };
   return basisName(basis, x.lang);
 }

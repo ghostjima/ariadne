@@ -5,7 +5,7 @@
 // on it). Approve and return are the case's transitions, in the work above.
 import { useRef, useState } from "react";
 import { Button, Dialog, Letter, Panel, RadioGroup, Select, TextArea as StoaTextArea, TextDiff, useFormatters } from "@ghostjima/stoa-react";
-import { GROUND_COUNT, Stage, rowId, type ColumnStore, type Role } from "@ariadne/grid";
+import { GROUND_ORDER, Stage, rowId, type ColumnStore, type Role } from "@ariadne/grid";
 import type { CaseFacts } from "@ariadne/rules";
 import { strings as agentStrings } from "../agent/i18n";
 import { makeFmt } from "../agent/format";
@@ -155,7 +155,7 @@ export function LetterPanel(props: LetterPanelProps) {
                 label={labels.columns.ground ?? "ground"}
                 value={store.ground[row] ?? 0}
                 onChange={(v) => setField("ground", v)}
-                options={labels.ground.slice(0, GROUND_COUNT).map((label, code) => ({ id: code, label }))}
+                options={GROUND_ORDER.map((code) => ({ id: code, label: labels.ground[code] ?? "" }))}
               />
             </div>
             {fieldError && (

@@ -132,6 +132,32 @@ test("a header sorts through the worker, ascending then descending", async ({ pa
   await expect(cell(page, 0, 2)).toHaveText("Alexei Belozyorov");
 });
 
+test("the ground's editor offers the grounds in reading order, 161-FZ art. 9 parts 11.6 and 11.7 among the 161-FZ ones", async ({ page }) => {
+  await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [], copy: [] } })}`, "");
+  await expect(grid(page)).not.toHaveAttribute("aria-busy");
+  await focusCell(page, 0, 6);
+  await page.keyboard.press("Enter");
+  const list = grid(page).getByRole("listbox");
+  await expect(list).toBeFocused();
+  await expect(list.getByRole("option")).toHaveText([
+    "None",
+    "161-FZ, art. 8, part 3.4",
+    "161-FZ, art. 8, part 3.10",
+    "161-FZ, art. 9, part 11.6",
+    "161-FZ, art. 9, part 11.7",
+    "115-FZ, art. 7, item 11",
+    "115-FZ, art. 7, item 5.2, paragraph 2",
+    "115-FZ, art. 7, item 5.2, paragraph 3",
+    "115-FZ, art. 7, item 10",
+    "115-FZ, art. 7, item 10.1",
+    "115-FZ, art. 7, item 1, subitem 6",
+    "115-FZ, art. 7.7, item 5",
+    "Contract",
+  ]);
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 0, 6)).toBeFocused();
+});
+
 test("a refusal needs a legal ground of its own stream; the reviewer sends a reply to signature only decided, and never returns it from a cell", async ({ page }) => {
   // 161-FZ replies under legal review, as the reviewer sees them.
   await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [], copy: [] } })}`, "");
