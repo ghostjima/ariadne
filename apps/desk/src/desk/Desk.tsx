@@ -341,7 +341,6 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
   const gridBox = useRef<HTMLDivElement>(null);
   const gridCell = () => gridBox.current?.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]') ?? null;
   const focusGrid = () => gridCell()?.focus();
-  const returnToGrid = useRef(false);
   const openCaseOf = (row: number | undefined) => {
     if (row === undefined) return;
     setOpenCase(row);
@@ -358,19 +357,12 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     setMetricsOpen(true);
     setParam("metrics", "1");
   };
+  // Back from the metrics: their header's Back and Q put the focus on the
+  // grid's active cell themselves, as a case's do.
   const closeMetrics = () => {
-    returnToGrid.current = true;
     setMetricsOpen(false);
     setParam("metrics", null);
   };
-  // Back in the queue from the metrics, the focus goes to the grid's active
-  // cell.
-  useEffect(() => {
-    if (openCase !== null || metricsOpen || !returnToGrid.current) return;
-    returnToGrid.current = false;
-    const frame = requestAnimationFrame(focusGrid);
-    return () => cancelAnimationFrame(frame);
-  }, [openCase, metricsOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edits. An edit session (the value the editor started from) runs from
   // the grid's edit start to its save or cancel.
@@ -866,7 +858,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
         load.loading ? (
           <ProgressBar label={t.generating} value={load.loadedRows} maxValue={store.size} formatValue={integer} />
         ) : (
-          <Metrics store={store} lang={lang} files={files.current} version={version} onBack={closeMetrics} />
+          <Metrics store={store} lang={lang} files={files.current} version={version} onBack={closeMetrics} backFocus={gridCell} />
         )
       ) : openCase !== null && openCase >= 0 && openCase < store.size && store.loaded[openCase] === 1 ? (
         <CaseView

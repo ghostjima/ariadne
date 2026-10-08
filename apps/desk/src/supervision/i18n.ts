@@ -5,6 +5,9 @@ export type SupervisionStrings = {
   title: string;
   open: string;
   back: string;
+  /** The header's meta: what the figures are computed from, and the day. */
+  synthetic: string;
+  asOf: (day: string) => string;
   note: (day: string) => string;
   overall: string;
   counts: { cases: string; open: string; reviewed: string; signed: string };
@@ -49,6 +52,8 @@ const en: SupervisionStrings = {
   title: "Supervisor metrics",
   open: "Metrics",
   back: "Back to the queue",
+  synthetic: "Synthetic register",
+  asOf: (day) => `As of ${day}`,
   note: (day) =>
     `Computed in this page from the synthetic register, as of ${day}, with the changes made here: a demonstration of the measures, not any bank's figures. Each is a hypothesis to test with people who do this work.`,
   overall: "The register",
@@ -105,7 +110,9 @@ const en: SupervisionStrings = {
 const ru: SupervisionStrings = {
   title: "Показатели руководителя",
   open: "Показатели",
-  back: "Назад к очереди",
+  back: "К очереди",
+  synthetic: "Синтетический реестр",
+  asOf: (day) => `На ${day}`,
   note: (day) =>
     `Посчитано в этой вкладке по синтетическому реестру на ${day}, с изменениями, сделанными здесь: демонстрация показателей, а не данные какого-либо банка. Каждый показатель является гипотезой для проверки с людьми, которые делают эту работу.`,
   overall: "Реестр",
