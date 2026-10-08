@@ -104,6 +104,9 @@ export type Columns = {
   pathOn: Int32Array;
   pathThen: Int32Array;
   pathTerm: Uint8Array;
+  /* Database code: the client's own data in the Bank of Russia's
+     database */
+  database: Uint8Array;
 };
 
 export type ColumnStore = Columns & {
@@ -180,6 +183,7 @@ export function allocColumns(size: number): Columns {
     pathOn: new Int32Array(size),
     pathThen: new Int32Array(size),
     pathTerm: new Uint8Array(size),
+    database: new Uint8Array(size),
   };
 }
 

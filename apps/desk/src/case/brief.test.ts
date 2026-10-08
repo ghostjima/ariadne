@@ -4,7 +4,7 @@
 // assistant) gives the same brief as the same rows without them, and no
 // string of the brief is anything but a code of the engine or a date.
 import { describe, expect, it } from "vitest";
-import { AML_REASON_CODES as GRID_AML, AS_OF, GROUNDS, Path, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
+import { AML_REASON_CODES as GRID_AML, AS_OF, Database, GROUNDS, Path, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
 import {
   ALL_CODES,
   AML_REASON_CODES,
@@ -45,7 +45,7 @@ describe("caseBrief", () => {
   it("decodes as a valid brief for every case of the corpus", () => {
     for (const row of rows) {
       const brief = caseBrief(store, row);
-      const payload = { v: 2 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
+      const payload = { v: 3 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
       expect(decodePlanPayload(encodePlanPayload(payload)), `row ${row}`).toEqual({ ok: true, payload });
     }
   });
@@ -111,7 +111,7 @@ describe("caseBrief", () => {
   });
 
   it("a block rests on 161-FZ art. 8 part 3.4 whatever the operation; part 3.10 follows only for the second action, after a confirmation or a repeat", () => {
-    const blocks = rows.filter((i) => store.stream[i] === Stream.Antifraud);
+    const blocks = rows.filter((i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None);
     expect(new Set(blocks.map((i) => store.operation[i])).size).toBeGreaterThan(2);
     const second = blocks.filter((i) => store.path[i] === Path.SecondStep);
     expect(second.length).toBeGreaterThan(0);
@@ -123,15 +123,20 @@ describe("caseBrief", () => {
     }
   });
 
-  it("a reply about removing the client's data from the database names 161-FZ art. 9 part 11.6 after part 3.4, or 11.7 with the Ministry of Internal Affairs' information", () => {
-    const removal = rows.filter((i) => store.path[i] === Path.DatabaseRemoval);
+  it("a reply about the client's own data in the database names 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information, and no art. 8 action, with or without an application to remove the data", () => {
+    const clientData = rows.filter((i) => store.database[i] !== Database.None);
+    const removal = clientData.filter((i) => store.path[i] === Path.DatabaseRemoval);
     expect(removal.length).toBeGreaterThan(0);
-    for (const row of removal) {
+    expect(clientData.length).toBeGreaterThan(removal.length);
+    // The part follows the register's copy of the database record.
+    const police = (row: number) => store.database[row] === Database.ClientDataWithPoliceInformation;
+    expect(clientData.some(police) && !clientData.every(police)).toBe(true);
+    for (const row of clientData) {
       const grounds = caseBrief(store, row).grounds;
-      expect(grounds.slice(0, 2), `row ${row}`).toEqual(["payment_8_3_4", "payment_9_11_6"]);
-      expect(grounds, `row ${row}`).not.toContain("payment_9_11_7");
+      expect(grounds, `row ${row}`).toEqual([police(row) ? "payment_9_11_7" : "payment_9_11_6"]);
+      expect(caseBrief(store, row).reason, `row ${row}`).toBeNull();
     }
-    for (const row of rows.filter((i) => store.stream[i] === Stream.Antifraud && store.path[i] !== Path.DatabaseRemoval))
+    for (const row of rows.filter((i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None))
       expect(caseBrief(store, row).grounds.filter((g) => g.startsWith("payment_9_")), `row ${row}`).toEqual([]);
     // The part is the rules engine's: with the Ministry's information the
     // suspension is a duty, under part 11.7.
@@ -145,7 +150,7 @@ describe("caseBrief", () => {
     const held = store.ground[row]!;
     try {
       store.ground[row] = GROUNDS.findIndex((g) => g?.id === "payment_9_11_7");
-      expect(caseBrief(store, row).grounds.slice(0, 2)).toEqual(["payment_8_3_4", "payment_9_11_7"]);
+      expect(caseBrief(store, row).grounds).toEqual(["payment_9_11_7"]);
       expect(caseBrief(store, row).grounds).not.toContain("payment_9_11_6");
     } finally {
       store.ground[row] = held;

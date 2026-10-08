@@ -42,9 +42,11 @@ async function chooseDecision(page: Page, decision: keyof typeof w.signature.dec
   await expect(group.getByRole("radio", { name: w.signature.decisions[decision] })).toBeChecked();
 }
 
-/** A block whose client applied through the bank to remove their data
- * from the Bank of Russia's database, their card suspended for it: under
- * legal review, refused on 161-FZ art. 8 part 3.4. */
+/** A case about the client's own data in the Bank of Russia's database,
+ * whose record came with the Ministry of Internal Affairs' information:
+ * no operation blocked, the card suspended for the data as a duty, the
+ * client's application to remove them through the bank; under legal
+ * review, refused on 161-FZ art. 9 part 11.7. */
 const REMOVAL_CASE = "C-001115";
 /** The grounds as a person is offered them, in English. */
 const GROUNDS_IN_ORDER = [
@@ -238,21 +240,22 @@ test("the decision is one radio group, each option with what it means; the recor
   expect(await bodyHasFocus(page)).toBe(false);
 });
 
-test("a reply about removing the client's data rests on 161-FZ art. 9: the letter cites part 11.6, the reviewer may name part 11.7 instead", async ({ page }) => {
+test("a reply about removing the client's data rests on 161-FZ art. 9: with the Ministry's information in the register the letter cites part 11.7 and no art. 8 action, the reviewer may name part 11.6 instead", async ({ page }) => {
   await openAs(page, REMOVAL_CASE, "reviewer");
-  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 8, part 3.4.");
-  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.7.");
+  await expect(letter(page)).not.toContainText("part 11.6");
+  await expect(letter(page)).not.toContainText("art. 8");
   // The grounds in reading order: 161-FZ by article and part, then 115-FZ,
   // then the contract.
   const select = letterPanel(page).locator(".stoa-select").filter({ has: page.locator(".stoa-field__label", { hasText: "Ground" }) }).locator(".stoa-select__button");
   await select.click();
   const list = page.getByRole("listbox");
   await expect(list.getByRole("option")).toHaveText(GROUNDS_IN_ORDER);
-  await list.getByRole("option", { name: "161-FZ, art. 9, part 11.7" }).click();
-  await expect(select).toContainText("161-FZ, art. 9, part 11.7");
+  await list.getByRole("option", { name: "161-FZ, art. 9, part 11.6" }).click();
+  await expect(select).toContainText("161-FZ, art. 9, part 11.6");
   // The two parts exclude each other: the one the reviewer named stands.
-  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.7.");
-  await expect(letter(page)).not.toContainText("part 11.6");
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  await expect(letter(page)).not.toContainText("part 11.7");
 });
 
 test("in the queue a reply is not sent before it is signed", async ({ page }) => {

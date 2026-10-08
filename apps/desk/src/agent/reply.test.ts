@@ -5,7 +5,7 @@
 // the law gives the client, and keeps its sentences short. A finding here
 // would be the draft's fault, not the reviewer's to catch.
 import { describe, expect, it } from "vitest";
-import { Path, Stage, caseFacts, generateAll } from "@ariadne/grid";
+import { Database, Path, Stage, caseFacts, generateAll } from "@ariadne/grid";
 import { generatePlan, type ReplyDraft } from "@ariadne/runner";
 import { POOLS } from "../data/query";
 import { caseBrief } from "../case/brief";
@@ -44,13 +44,16 @@ describe("the drafted reply", () => {
     expect(codes).toContain("client_option_missing");
   });
 
-  it("about removing the client's data from the database, cites 161-FZ art. 9 part 11.6, or 11.7 when the reply names it", () => {
+  it("about removing the client's data from the database, cites 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information", () => {
     const removal = open.filter((i) => store.path[i] === Path.DatabaseRemoval);
     expect(removal.length).toBeGreaterThan(0);
     for (const row of removal) {
-      expect(replyLines(text("en"), draftOf(row)), `row ${row}`).toContain("The ground is 161-FZ, art. 9, part 11.6.");
-      expect(replyLines(text("ru"), draftOf(row)), `row ${row}`).toContain("Основание: 161-ФЗ, ст. 9, ч. 11.6.");
+      const part = store.database[row] === Database.ClientDataWithPoliceInformation ? "11.7" : "11.6";
+      expect(replyLines(text("en"), draftOf(row)), `row ${row}`).toContain(`The ground is 161-FZ, art. 9, part ${part}.`);
+      expect(replyLines(text("ru"), draftOf(row)), `row ${row}`).toContain(`Основание: 161-ФЗ, ст. 9, ч. ${part}.`);
     }
+    for (const part of ["11.6", "11.7"])
+      expect(removal.some((row) => replyLines(text("en"), draftOf(row)).includes(`The ground is 161-FZ, art. 9, part ${part}.`)), part).toBe(true);
     expect(groundCitation(text("en"), "payment_9_11_7")).toBe("161-FZ, art. 9, part 11.7");
     expect(groundCitation(text("ru"), "payment_9_11_7")).toBe("161-ФЗ, ст. 9, ч. 11.7");
   });

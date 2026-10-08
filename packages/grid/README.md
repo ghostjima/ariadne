@@ -106,19 +106,37 @@ they are taken again with `pnpm measure`.
   end of the client's six months to apply to the commission (art. 7.8
   item 1), a conservative reading. Together these give the register open
   cases whose reply has deadlines still running to state.
+- **The client's own data in the Bank of Russia's database** (`Database`,
+  the column `database`). The database holds the recipients of
+  transfers reported as made without consent (161-FZ art. 27 part 5);
+  a client is in it as such a recipient, not because a transfer of the
+  client's matched a sign. OD-2506 sign 1.1 is about the recipient of the
+  client's transfer, so a block on sign 1.1 is a block like any other.
+  A complaint about the client's own data is a case of its own in the
+  161-FZ stream: no sign, no blocked operation, the client's card or
+  online banking suspended under art. 9 part 11.6 on the operation day
+  column. Half of the rows whose draw fell on sign 1.1's share are such
+  cases, by a draw of their own, so every other draw of the row is what
+  it was when the two were not told apart. The database also holds the
+  Ministry of Internal Affairs' information on unlawful acts (art. 27
+  parts 5 and 8), which the bank receives with the record (part 7):
+  about a third of these cases have it, by the next draw of the same
+  stream. Without it the suspension is the bank's choice (art. 9 part
+  11.6), with it a duty (part 11.7); `caseFacts` passes it to
+  ariadne-rules, which gives the part. The register shows the code in
+  its own column, blank for the other cases. The shares are the
+  generator's own.
 - **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
   `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
   their own so every other column, and every answered case, is what it
   was without them. A 161-FZ block may have its second step: the client
   confirmed the suspended transfer, or repeated the refused operation, on
   the day of the block or the next, and the Bank of Russia's database
-  answered after it (art. 8 parts 3.10 and 3.11). A block for sign 1.1
-  (the client's own data in the database) may have the client's
-  application to remove the data received by the bank (Directive
-  No. 6748-U item 1.2), with the client's card or online banking
-  suspended under art. 9 part 11.6 on the day of the operation, and its
-  receipt by the Bank of Russia the next working day once that day has
-  come. A refused operation or account under 115-FZ may have the
+  answered after it (art. 8 parts 3.10 and 3.11). A case about the
+  client's own data in the database may have the client's application to
+  remove the data received by the bank (Directive No. 6748-U item 1.2),
+  and its receipt by the Bank of Russia the next working day once that
+  day has come. A refused operation or account under 115-FZ may have the
   client's application to the interagency commission and the
   commission's request for the bank's justification, with the working
   days it gives, or none (115-FZ art. 7 items 13.5, 13.6; Regulation
@@ -128,7 +146,10 @@ they are taken again with `pnpm measure`.
 - **Consistency.** Cases are registered by the next working day (a few
   late, and flagged), answered no earlier than registered, decided before
   legal review, and a refusal past drafting names a ground of its own
-  stream (for a 161-FZ block, art. 8 part 3.4, the first action);
+  stream (for a 161-FZ block, art. 8 part 3.4, the first action; for a
+  case about the client's own data in the database, art. 9 part 11.6, or
+  11.7 with the Ministry's information, the suspension the bank keeps
+  while the data stay there);
   linked cases share the client and the operation.
 - **Ground codes** (`GROUNDS`, the column `ground`) are never
   renumbered: a code is its index in the list, and a new ground is added
@@ -140,10 +161,12 @@ they are taken again with `pnpm measure`.
   art. 9 parts 11.6 and 11.7 (codes 11 and 12), the suspension of the
   client's card or online banking for the client's own data in the Bank
   of Russia's database, without and with the Ministry of Internal
-  Affairs' information, the ground of a reply about removing the data.
-  Like part 3.10, the generator never draws them as a row's ground; the
-  reply of a case with an application to remove the data names the one
-  ariadne-rules gives, and a person may name either.
+  Affairs' information, the ground of a reply about the client's own
+  data in the database. The generator draws part 11.6 as the ground of a
+  refused case about the client's data, part 11.7 when the register
+  holds the Ministry's information, and never part 3.10;
+  the reply of such a case names the part ariadne-rules gives, and a
+  person may name either.
 
 ## Data model
 

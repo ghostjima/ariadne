@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AS_OF, Operation, Path, Sector, Stage, Stream, caseFacts, effectiveDue, generateAll, isoDay, retentionOf } from "@ariadne/grid";
+import { AS_OF, Database, Operation, Path, Sector, Stage, Stream, caseFacts, effectiveDue, generateAll, isoDay, retentionOf } from "@ariadne/grid";
 import { clock, od2506Signs, workingDaysBetween, type CaseFacts } from "@ariadne/rules";
 import { strings } from "../i18n";
 import { REPLY_TERMS, caseDetails, termDays } from "./details";
@@ -131,7 +131,8 @@ describe("the paths beyond the first step, on the card", () => {
     for (const row of withPath(Path.DatabaseRemoval)) {
       const d = caseDetails(store, row);
       const suspended = d.flags.find((f) => f.kind === "measure" && f.measure.kind === "suspend_instrument");
-      expect(suspended?.kind === "measure" && basisName(suspended.measure.basis, "en")).toBe("161-FZ, art. 9, part 11.6");
+      const part = store.database[row] === Database.ClientDataWithPoliceInformation ? "11.7" : "11.6";
+      expect(suspended?.kind === "measure" && basisName(suspended.measure.basis, "en")).toBe(`161-FZ, art. 9, part ${part}`);
       expect(flagKinds(row)).toEqual(expect.arrayContaining(["instrument_suspension_notice", "exclusion_forwarding"]));
       expect(d.duties.map((x) => x.kind)).toContain("notify_client_of_right_to_apply");
       const forwarding = d.flags.find((f) => f.kind === "deadline" && f.deadline.kind === "exclusion_forwarding");

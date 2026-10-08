@@ -72,6 +72,9 @@ export function cellText(store: ColumnStore, row: number, spec: ColumnSpec, opti
       return code(labels.stream, store.stream[row]);
     case "reason":
       return reasonText(store.stream[row] ?? 0, store.reason[row] ?? 0, labels);
+    case "database":
+      /* Blank for a case with no data of the client's in the database */
+      return (store.database[row] ?? 0) === 0 ? "" : code(labels.database, store.database[row]);
     case "subject":
       return subjectText(store, row, pools);
     case "source":

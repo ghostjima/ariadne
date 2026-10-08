@@ -33,9 +33,9 @@ import { pools as ru } from "../src/pools/ru.js";
 import { storeDigest } from "./digest.js";
 
 describe("generator", () => {
-  it("has a 25-column catalogue with unique ids", () => {
-    expect(COLUMNS).toHaveLength(25);
-    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(25);
+  it("has a 26-column catalogue with unique ids", () => {
+    expect(COLUMNS).toHaveLength(26);
+    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(26);
   });
 
   it("is deterministic for the same seed", () => {
@@ -184,15 +184,34 @@ describe("generator", () => {
        or a repeat, an application to remove the client's data from the
        database through the bank, the interagency commission's request):
        four new columns, drawn from a stream of their own; every other
-       column is as it was, which the next test checks against the
-       previous pin. */
+       column is as it was.
+       Re-pinned when the complaints about the client's own data in the
+       Bank of Russia's database were told apart from the blocks on
+       OD-2506 sign 1.1, which is about the recipient of the client's
+       transfer: half of the rows that drew sign 1.1's share, by a draw of
+       their own, carry no sign and no operation, a new `database` column,
+       161-FZ art. 9 part 11.6 as a refusal's ground, and alone the
+       application to remove the data; the other half keep sign 1.1 with
+       the complaint texts of a blocked operation and may have a second
+       step. Every other column is as it was, which a test below checks
+       against the previous pin.
+       Re-pinned when the Ministry of Internal Affairs' information was
+       drawn for some of the cases about the client's data (the next draw
+       of their own stream): their `database` code and the ground of their
+       refusals, 161-FZ art. 9 part 11.7, changed; every other column is
+       as it was, which the next test checks. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
-  it("leaves every column but the paths as it was before the paths were drawn", () => {
-    const paths = new Set<string>(["path", "pathOn", "pathThen", "pathTerm"]);
-    const before = COLUMN_KEYS.filter((key) => !paths.has(key));
-    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_PATHS);
+  it("leaves every column but the database code and the ground as it was before the Ministry's information was drawn", () => {
+    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground");
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_POLICE_INFORMATION);
+  });
+
+  it("leaves every column but those that tell the client's own data from sign 1.1 as it was before", () => {
+    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database"]);
+    const before = COLUMN_KEYS.filter((key) => !told.has(key));
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_CLIENT_DATA);
   });
 
   it("splits a total into chunk bounds", () => {
@@ -214,6 +233,10 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "7f0ba479";
-/* The pin before the paths' columns were added, over every other column */
-const DIGEST_BEFORE_PATHS = "9659766b";
+const GOLDEN_DIGEST = "6d000bb1";
+/* The pin before the Ministry's information was drawn ("722e7330"), over
+   every column but `database` and `ground` */
+const DIGEST_BEFORE_POLICE_INFORMATION = "bf6ecaa8";
+/* The pin before the client's own data were told apart from sign 1.1
+   ("7f0ba479"), over the columns that did not change */
+const DIGEST_BEFORE_CLIENT_DATA = "7acd7001";

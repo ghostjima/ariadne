@@ -54,18 +54,18 @@ export const AML: CaseBrief = {
   deadlines: [{ kind: "aml_documents_answer", due: "2026-10-09" }],
 };
 
-/* A refused card payment whose client's own card was then suspended for
-   their data in the Bank of Russia's database, and who applied through
-   the bank to remove the data: the reply names art. 8 part 3.4 and
-   art. 9 part 11.6, and the Bank of Russia's decision still to come */
+/* A client whose own card was suspended for their data in the Bank of
+   Russia's database, with no operation blocked and no sign, and who
+   applied through the bank to remove the data: the reply names art. 9
+   part 11.6, and the Bank of Russia's decision still to come */
 export const REMOVAL: CaseBrief = {
   ...BRIEF,
   caseNo: 1150,
-  reason: "od2506_1_1",
-  operation: "card_payment",
+  reason: null,
+  operation: "none",
   forwarded: false,
   linkedCase: null,
-  grounds: ["payment_8_3_4", "payment_9_11_6"],
-  clientOptions: ["repeat_operation"],
+  grounds: ["payment_9_11_6"],
+  clientOptions: [],
   deadlines: [{ kind: "exclusion_decision", due: "2026-10-23" }],
 };
