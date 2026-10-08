@@ -288,6 +288,19 @@ paragraph 2), `aml_account_terminated` (item 5.2, paragraph 3),
 `aml_high_risk_measures` (art. 7.7 item 5). A sign is a 161-FZ reason, a
 category a 115-FZ one.
 
+The 161-FZ provisions a reply names as the ground of what the operator
+did (`reasons::PaymentGround`), each with a stable code:
+`payment_8_3_4` (art. 8 part 3.4, the first action on an operation that
+matched a sign), `payment_8_3_10` (part 3.10, the second action after a
+confirmation or a repeat), `payment_9_11_6` (art. 9 part 11.6, the
+client's card or online banking suspended for the client's own data in
+the Bank of Russia's database, the ground of a reply about removing the
+data) and `payment_9_11_7` (part 11.7, the same with the Ministry of
+Internal Affairs' information, where the suspension is a duty). The
+codes keep this order and a new ground is added at the end; the
+`suspend_instrument` measure of the clock rests on the third or the
+fourth.
+
 ### Reply rubric
 
 `rubric(reply, case, clock)` checks a structured reply (the legal grounds
@@ -351,6 +364,8 @@ the code:
   and `wording`.
 - `amlReasons()`: the 115-FZ categories, each with `code`, `source`,
   `article`, `part` and `revision`.
+- `paymentGrounds()`: the 161-FZ grounds in the order of their codes,
+  each with `code`, `source`, `article`, `part` and `revision`.
 - `rubric(reply, input)`: `reply` is a `ReplyInput`, made with
   `new ReplyInput(repliedOn, text)` and filled with `grounds`
   (`GroundInput`s of an act code, article and part), `reasons`,
@@ -363,7 +378,7 @@ the code:
 
 Each rule cites its source from `src/sources.rs`; every source is listed
 here with the revision its text was checked against, read on 2026-10-06
-or, where `sources.rs` says so, on 2026-10-07.
+or, where `sources.rs` says so, on 2026-10-07 or 2026-10-08.
 A test fails when this list and the code disagree.
 
 | Source | Revision | Text read at |

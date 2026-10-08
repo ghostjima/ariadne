@@ -4,6 +4,7 @@
 import {
   COLUMN_BY_ID,
   GROUND_COUNT,
+  GROUND_ORDER,
   PINNED_COLUMNS,
   canEditColumn,
   checkField,
@@ -188,7 +189,9 @@ export function buildColumns(ids: readonly string[], { store, lang, t, stoa, for
       editor: canEditColumn(role, field)
         ? {
             kind: "enum",
-            options: list.map((text, value) => ({ id: String(value), label: text })),
+            // In the order a person reads them; the grounds by act, article
+            // and part, whatever their codes.
+            options: (field === "ground" ? GROUND_ORDER : list.map((_, value) => value)).map((value) => ({ id: String(value), label: list[value] ?? "" })),
             validate: (value, i) => {
               const refused = check?.(i, field, Number(value)) ?? null;
               if (refused) return refused;

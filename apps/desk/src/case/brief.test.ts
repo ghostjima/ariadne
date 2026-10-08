@@ -18,7 +18,7 @@ import {
 } from "@ariadne/runner";
 import { amlReasons, clock, factRequestDue, od2506Signs, rubric } from "@ariadne/rules";
 import { POOLS } from "../data/query";
-import { caseBrief, factsDueOf } from "./brief";
+import { caseBrief, factsDueOf, instrumentGround } from "./brief";
 
 const store = generateAll(20261006, 1_200, 400);
 const rows = Array.from({ length: store.size }, (_, i) => i);
@@ -120,6 +120,35 @@ describe("caseBrief", () => {
       expect(grounds[0], `row ${row}`).toBe("payment_8_3_4");
       if (second.includes(row)) expect(grounds[1], `row ${row}`).toBe("payment_8_3_10");
       else expect(grounds, `row ${row}`).not.toContain("payment_8_3_10");
+    }
+  });
+
+  it("a reply about removing the client's data from the database names 161-FZ art. 9 part 11.6 after part 3.4, or 11.7 with the Ministry of Internal Affairs' information", () => {
+    const removal = rows.filter((i) => store.path[i] === Path.DatabaseRemoval);
+    expect(removal.length).toBeGreaterThan(0);
+    for (const row of removal) {
+      const grounds = caseBrief(store, row).grounds;
+      expect(grounds.slice(0, 2), `row ${row}`).toEqual(["payment_8_3_4", "payment_9_11_6"]);
+      expect(grounds, `row ${row}`).not.toContain("payment_9_11_7");
+    }
+    for (const row of rows.filter((i) => store.stream[i] === Stream.Antifraud && store.path[i] !== Path.DatabaseRemoval))
+      expect(caseBrief(store, row).grounds.filter((g) => g.startsWith("payment_9_")), `row ${row}`).toEqual([]);
+    // The part is the rules engine's: with the Ministry's information the
+    // suspension is a duty, under part 11.7.
+    const facts = caseFacts(store, removal[0]!);
+    expect(instrumentGround(facts)).toBe("payment_9_11_6");
+    expect(instrumentGround({ ...facts, database: { ...facts.database, policeInformation: true } })).toBe("payment_9_11_7");
+    expect(instrumentGround({ ...facts, database: undefined })).toBeNull();
+    // A person who names the other part in the register is followed: the
+    // two parts exclude each other.
+    const row = removal[0]!;
+    const held = store.ground[row]!;
+    try {
+      store.ground[row] = GROUNDS.findIndex((g) => g?.id === "payment_9_11_7");
+      expect(caseBrief(store, row).grounds.slice(0, 2)).toEqual(["payment_8_3_4", "payment_9_11_7"]);
+      expect(caseBrief(store, row).grounds).not.toContain("payment_9_11_6");
+    } finally {
+      store.ground[row] = held;
     }
   });
 

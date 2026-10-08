@@ -130,6 +130,20 @@ they are taken again with `pnpm measure`.
   legal review, and a refusal past drafting names a ground of its own
   stream (for a 161-FZ block, art. 8 part 3.4, the first action);
   linked cases share the client and the operation.
+- **Ground codes** (`GROUNDS`, the column `ground`) are never
+  renumbered: a code is its index in the list, and a new ground is added
+  at the end, so a code keeps its meaning in every row, test and export
+  made before it; `schema.ts` tables them. `GROUND_ORDER` is the order a
+  person is offered them in (161-FZ by article and part, then 115-FZ,
+  then the contract). The 161-FZ ones are ariadne-rules' payment grounds
+  (`PAYMENT_GROUND_CODES`): art. 8 parts 3.4 and 3.10 (codes 1 and 2) and
+  art. 9 parts 11.6 and 11.7 (codes 11 and 12), the suspension of the
+  client's card or online banking for the client's own data in the Bank
+  of Russia's database, without and with the Ministry of Internal
+  Affairs' information, the ground of a reply about removing the data.
+  Like part 3.10, the generator never draws them as a row's ground; the
+  reply of a case with an application to remove the data names the one
+  ariadne-rules gives, and a person may name either.
 
 ## Data model
 

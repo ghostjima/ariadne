@@ -54,6 +54,7 @@
 //! capped by the external terms that bind the unit that answers.
 
 use crate::calendar;
+use crate::reasons::PaymentGround;
 use crate::sources::{self, Source};
 use crate::{Date, Error};
 
@@ -1426,10 +1427,15 @@ fn database(f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
     let law = sources::PAYMENT_LAW_9;
     let directive = sources::DIRECTIVE_6748_U;
     if let Some(on) = f.instrument_suspended_on {
+        // "вправе приостановить" without the Ministry of Internal Affairs'
+        // information (part 11.6), "обязан приостановить" with it (part
+        // 11.7): the ground a reply about removing the data names.
+        let (source, article, part) =
+            PaymentGround::of_instrument_suspension(f.police_information).basis();
         c.measures.push(Measure {
             kind: MeasureKind::SuspendInstrument,
             on,
-            basis: text(law, "9", if f.police_information { "11.7" } else { "11.6" }),
+            basis: text(source, article, part),
         });
         // "обязан в день такого приостановления ... предоставить клиенту
         // информацию о приостановлении ... с указанием причины": a card

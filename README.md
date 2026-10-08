@@ -150,8 +150,11 @@ The workflows the desk is built around, and what exists of each today:
   production calendar for 2025 to 2027, counting in working days, and
   the legal clocks of 442-FZ, 123-FZ, 161-FZ and 115-FZ, each deadline
   with its act, article, part and revision; the signs of Bank of Russia
-  Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; and a
-  rubric that returns coded findings on a structured reply.
+  Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; the
+  161-FZ grounds a reply names, among them art. 9 parts 11.6 and 11.7 for
+  a reply about removing the client's data from the Bank of Russia's
+  database; and a rubric that returns coded findings on a structured
+  reply.
 
 The desk is built on the [Stoa](https://github.com/ghostjima/stoa)
 design system and is tested with axe in Russian and English, light and

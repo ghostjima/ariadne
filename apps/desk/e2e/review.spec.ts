@@ -42,6 +42,27 @@ async function chooseDecision(page: Page, decision: keyof typeof w.signature.dec
   await expect(group.getByRole("radio", { name: w.signature.decisions[decision] })).toBeChecked();
 }
 
+/** A block whose client applied through the bank to remove their data
+ * from the Bank of Russia's database, their card suspended for it: under
+ * legal review, refused on 161-FZ art. 8 part 3.4. */
+const REMOVAL_CASE = "C-001115";
+/** The grounds as a person is offered them, in English. */
+const GROUNDS_IN_ORDER = [
+  "None",
+  "161-FZ, art. 8, part 3.4",
+  "161-FZ, art. 8, part 3.10",
+  "161-FZ, art. 9, part 11.6",
+  "161-FZ, art. 9, part 11.7",
+  "115-FZ, art. 7, item 11",
+  "115-FZ, art. 7, item 5.2, paragraph 2",
+  "115-FZ, art. 7, item 5.2, paragraph 3",
+  "115-FZ, art. 7, item 10",
+  "115-FZ, art. 7, item 10.1",
+  "115-FZ, art. 7, item 1, subitem 6",
+  "115-FZ, art. 7.7, item 5",
+  "Contract",
+];
+
 /** Opens the editor, puts `edit(text)` in it and saves. */
 async function editLetter(page: Page, edit: (text: string) => string, words = w) {
   await letterPanel(page).getByRole("button", { name: words.review.edit }).click();
@@ -196,6 +217,23 @@ test("the decision is one radio group, each option with what it means; the recor
   expect(await bodyHasFocus(page)).toBe(false);
 });
 
+test("a reply about removing the client's data rests on 161-FZ art. 9: the letter cites part 11.6, the reviewer may name part 11.7 instead", async ({ page }) => {
+  await openAs(page, REMOVAL_CASE, "reviewer");
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 8, part 3.4.");
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  // The grounds in reading order: 161-FZ by article and part, then 115-FZ,
+  // then the contract.
+  const select = letterPanel(page).locator(".stoa-select").filter({ has: page.locator(".stoa-field__label", { hasText: "Ground" }) }).locator(".stoa-select__button");
+  await select.click();
+  const list = page.getByRole("listbox");
+  await expect(list.getByRole("option")).toHaveText(GROUNDS_IN_ORDER);
+  await list.getByRole("option", { name: "161-FZ, art. 9, part 11.7" }).click();
+  await expect(select).toContainText("161-FZ, art. 9, part 11.7");
+  // The two parts exclude each other: the one the reviewer named stands.
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.7.");
+  await expect(letter(page)).not.toContainText("part 11.6");
+});
+
 test("in the queue a reply is not sent before it is signed", async ({ page }) => {
   await open(page, `role=signatory&view=${viewParam({ search: SIGN_CASE, columns: ["id", "client", "stage"] })}`, "1 of 1,200 cases");
   await pick(page, 0, 3, "Reply sent");
@@ -216,6 +254,24 @@ for (const lang of ["ru", "en"] as const)
       await letterPanel(page).getByRole("button", { name: words.signature.sign }).click();
       await expect(letterPanel(page).getByRole("alert")).toBeVisible();
       await expectNoSeriousViolations(page, "signature", { lang, theme });
+    });
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: the review of a reply about removing the client's data, its grounds offered and 161-FZ art. 9 part 11.7 named (${lang}, ${theme})`, async ({ page }) => {
+      const words = workflowStrings[lang];
+      await openAs(page, REMOVAL_CASE, "reviewer", `lang=${lang}&theme=${theme}`);
+      const select = letterPanel(page)
+        .locator(".stoa-select")
+        .filter({ has: page.locator(".stoa-field__label", { hasText: lang === "en" ? "Ground" : "Основание" }) })
+        .locator(".stoa-select__button");
+      await select.click();
+      await expect(page.getByRole("listbox")).toBeVisible();
+      await expectNoSeriousViolations(page, "review-ground-list", { lang, theme });
+      await page.getByRole("option", { name: lang === "en" ? "161-FZ, art. 9, part 11.7" : "161-ФЗ, ст. 9, ч. 11.7" }).click();
+      await expect(letter(page)).toContainText(lang === "en" ? "161-FZ, art. 9, part 11.7" : "161-ФЗ, ст. 9, ч. 11.7");
+      await expect(letterPanel(page).getByRole("heading", { name: words.review.findings })).toBeVisible();
+      await expectNoSeriousViolations(page, "review-database-ground", { lang, theme });
     });
 
 test("on a phone the review and the signature fit without sideways scroll", async ({ page }) => {

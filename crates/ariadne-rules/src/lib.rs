@@ -17,7 +17,8 @@
 //! - [`clock`]: the legal clocks of a complaint and of the antifraud and
 //!   anti-money-laundering facts around it, each deadline with its basis.
 //! - [`reasons`]: the signs of Bank of Russia Order No. OD-2506 and the
-//!   115-FZ refusal grounds, as reason codes.
+//!   115-FZ refusal grounds, as reason codes, and the 161-FZ grounds a
+//!   reply names.
 //! - [`rubric`]: coded findings on a structured reply.
 //!
 //! ```

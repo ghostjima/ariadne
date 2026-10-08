@@ -4,7 +4,8 @@
   every answer comes from the WebAssembly module. The adapter loads the
   module once, turns plain objects into the module's inputs, turns its
   outputs into plain objects (and frees the module's copies), and caches
-  the two fixed lists (the ОД-2506 signs and the 115-FZ categories).
+  the three fixed lists (the ОД-2506 signs, the 115-FZ categories and the
+  161-FZ grounds).
 
   Dates are `YYYY-MM-DD` strings, as the module takes them. Errors are
   thrown as `RulesError` with the module's code (`invalid_date`,
@@ -357,8 +358,13 @@ export type Sign = {
 /* A 115-FZ reason category, with the article and item it rests on */
 export type AmlReason = { code: string; source: string; article: string; part: string; revision: string };
 
+/* A 161-FZ ground a reply names, with its stable code and the article
+   and part it is */
+export type PaymentGround = { code: string; source: string; article: string; part: string; revision: string };
+
 let signs: readonly Sign[] | null = null;
 let amlList: readonly AmlReason[] | null = null;
+let paymentList: readonly PaymentGround[] | null = null;
 
 /* The signs of Order No. OD-2506, in the order's order. */
 export function od2506Signs(): readonly Sign[] {
@@ -394,6 +400,19 @@ export function amlReasons(): readonly AmlReason[] {
     }),
   );
   return amlList;
+}
+
+/* The 161-FZ grounds, in the order of their codes: art. 8 parts 3.4 and
+   3.10, art. 9 parts 11.6 and 11.7. */
+export function paymentGrounds(): readonly PaymentGround[] {
+  paymentList ??= call(() =>
+    wasm.paymentGrounds().map((g) => {
+      const ground: PaymentGround = { code: g.code, source: g.source, article: g.article, part: g.part, revision: g.revision };
+      g.free();
+      return ground;
+    }),
+  );
+  return paymentList;
 }
 
 /* Rubric */

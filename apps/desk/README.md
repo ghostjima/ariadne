@@ -43,7 +43,8 @@ it that proposes and stops for a person at every risky step. In Russian
 - **Inline edits** of the stage, the decision, the ground, the extension,
   the assignee and the note (Enter, F2 or a double click), checked by the
   engine before they are saved: a refusal needs a legal ground of its own
-  stream (161-FZ and 115-FZ are not mixed), a stage changes only by a
+  stream (161-FZ and 115-FZ are not mixed; the grounds are offered by act,
+  article and part), a stage changes only by a
   transition of the role's (a return for rework, which needs a reason,
   only from the case's page), a reply goes to signature only decided and
   out only after signature, a money claim under
@@ -113,14 +114,18 @@ assistant's).
   assistant did not hand over in this page has its draft worked out as
   the assistant drafts it. The reviewer edits the letter and states the
   decision and the ground; a letter that still leaves the decision open
-  is not approved. At signature the signatory records a decision
-  (approve, modify, override or defer, as one radio group with what each
-  means under it) with their concerns and what would make it wrong, in
-  fields of several lines (always asked for; the concerns unless approved
-  as proposed); a modification or an override is their own edit first. The
-  signed letter is frozen and names the signatory, and only a signed
-  reply is sent, from the case or from the queue. Every edit, signature
-  and deferral is in the journal.
+  is not approved. A reply about removing the client's data from the
+  Bank of Russia's database cites 161-FZ art. 9 part 11.6 after part 3.4,
+  as the rules engine gives it; a reviewer who names part 11.7 (with the
+  Ministry of Internal Affairs' information) in its place is followed,
+  the two parts excluding each other. At signature the signatory records
+  a decision (approve, modify, override or defer, as one radio group with
+  what each means under it) with their concerns and what would make it
+  wrong, in fields of several lines (always asked for; the concerns unless
+  approved as proposed); a modification or an override is their own edit
+  first. The signed letter is frozen and names the signatory, and only a
+  signed reply is sent, from the case or from the queue. Every edit,
+  signature and deferral is in the journal.
 - **Dispatch and copies**: the signed reply is dispatched by the
   signatory once they confirm it (a high-risk step: the confirmation
   names the channel and the copies it will owe, with the focus on Do not
@@ -188,7 +193,9 @@ decisions. The panel says so. For the open case it proposes five steps:
    facts, the agent asks to take them from there instead.
 3. **Draft the reply** from templates over the case's facts: the
    operation, the measure and the sign or category behind it, the legal
-   ground with its act, article and part (from the rules engine), the
+   ground with its act, article and part (from the rules engine; for an
+   application to remove the client's data, 161-FZ art. 9 part 11.6, or
+   11.7 with the Ministry of Internal Affairs' information), the
    options and the deadlines the law gives the client, and the next
    steps. The decision on the complaint is the register's; when nobody
    has decided, the draft leaves it for the reviewer. Drafting is high
@@ -320,7 +327,9 @@ dialogs, no matches, loading, a partial load failure with the operator
 role, the open case with its card and assistant, the work on a case
 with its journal, the return for rework with its refusal, the review
 of a letter with its findings and changes, the signature with a refused
-decision record, the dispatch's confirmation and its send delay, the
+decision record, the review of a reply about removing the client's data
+with the grounds offered and with 161-FZ art. 9 part 11.7 named, the
+dispatch's confirmation and its send delay, the
 supervisor's refused extension, the supervisor's metrics, and, in the
 assistant,
 the plan, the agent's request to change a step, a failed step, the

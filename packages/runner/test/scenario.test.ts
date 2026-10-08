@@ -8,9 +8,10 @@ import {
   requiresConfirmation,
   RISK_BY_TYPE,
   taskOf,
+  validateBrief,
   type Autonomy,
 } from "../src/index.js";
-import { AML, BRIEF, PLAIN } from "./briefs.js";
+import { AML, BRIEF, PLAIN, REMOVAL } from "./briefs.js";
 
 const AUTONOMIES: readonly Autonomy[] = ["ask_all", "high_only", "ask_none"];
 
@@ -93,6 +94,13 @@ describe("scenario generation", () => {
     expect(request(PLAIN).draft).toMatchObject({ team: "operations" });
     expect(request().undoWindowSec).toBe(60);
     expect(request().undo).toEqual({ code: "recall_fact_request", caseNo: 867, team: "antifraud" });
+  });
+
+  it("takes a reply about removing the client's data on 161-FZ art. 9 part 11.6 or 11.7, and drafts it with that ground", () => {
+    expect(validateBrief(REMOVAL)).toEqual(REMOVAL);
+    expect(validateBrief({ ...REMOVAL, grounds: ["payment_8_3_4", "payment_9_11_7"] })).not.toBeNull();
+    expect(validateBrief({ ...REMOVAL, grounds: ["payment_9_11_8"] })).toBeNull();
+    expect(generatePlan(8, REMOVAL)[2]!.draft).toMatchObject({ grounds: ["payment_8_3_4", "payment_9_11_6"], deadlines: [{ kind: "exclusion_decision", due: "2026-10-23" }] });
   });
 
   it("drafts the reply from the case's facts: grounds, reasons, options, deadlines, next steps", () => {

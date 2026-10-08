@@ -10,6 +10,7 @@ import {
   isWorkingDay,
   nextWorkingDay,
   od2506Signs,
+  paymentGrounds,
   rubric,
   rulesLoaded,
   rulesVersion,
@@ -166,7 +167,7 @@ describe("through the WebAssembly build", () => {
     expect(due(c, "high_risk_rating_review")).toBe("2026-06-23");
   });
 
-  it("lists the 14 signs of OD-2506 and the 115-FZ categories, once", () => {
+  it("lists the 14 signs of OD-2506, the 115-FZ categories and the 161-FZ grounds, once", () => {
     const signs = od2506Signs();
     expect(signs).toHaveLength(14);
     expect(signs[9]).toMatchObject({ number: "1.10", code: "od2506_1_10", group: "transfers" });
@@ -183,6 +184,14 @@ describe("through the WebAssembly build", () => {
       "aml_high_risk_measures",
     ]);
     expect(aml[0]).toMatchObject({ article: "7", part: "11" });
+    const grounds = paymentGrounds();
+    expect(grounds.map((g) => [g.code, g.source, g.article, g.part])).toEqual([
+      ["payment_8_3_4", "payment_law_8", "8", "3.4"],
+      ["payment_8_3_10", "payment_law_8", "8", "3.10"],
+      ["payment_9_11_6", "payment_law_9", "9", "11.6"],
+      ["payment_9_11_7", "payment_law_9", "9", "11.7"],
+    ]);
+    expect(paymentGrounds()).toBe(grounds);
   });
 
   it("the rubric finds a missing ground and mixed grounds", () => {

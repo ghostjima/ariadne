@@ -708,6 +708,36 @@ pub fn aml_reasons() -> Vec<AmlReasonOutput> {
         .collect()
 }
 
+/// A 161-FZ ground a reply names.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct PaymentGroundOutput {
+    /// The stable code ("payment_9_11_6").
+    pub code: String,
+    pub source: String,
+    pub article: String,
+    pub part: String,
+    pub revision: String,
+}
+
+/// The 161-FZ grounds, in the order of their codes.
+#[wasm_bindgen(js_name = paymentGrounds)]
+pub fn payment_grounds() -> Vec<PaymentGroundOutput> {
+    reasons::PAYMENT_GROUNDS
+        .iter()
+        .map(|g| {
+            let (source, article, part) = g.basis();
+            PaymentGroundOutput {
+                code: g.code().into(),
+                source: source.id.into(),
+                article: article.into(),
+                part: part.into(),
+                revision: source.revision.into(),
+            }
+        })
+        .collect()
+}
+
 /// The act a reply names.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1055,6 +1085,26 @@ mod tests {
             ("roubles", "more_than")
         );
         assert_eq!(aml_reasons().len(), 7);
+        let grounds = payment_grounds();
+        assert_eq!(
+            grounds.iter().map(|g| g.code.as_str()).collect::<Vec<_>>(),
+            [
+                "payment_8_3_4",
+                "payment_8_3_10",
+                "payment_9_11_6",
+                "payment_9_11_7"
+            ]
+        );
+        let g = &grounds[3];
+        assert_eq!(
+            (
+                g.source.as_str(),
+                g.article.as_str(),
+                g.part.as_str(),
+                g.revision.as_str()
+            ),
+            ("payment_law_9", "9", "11.7", "2026-08-04")
+        );
     }
 
     #[test]

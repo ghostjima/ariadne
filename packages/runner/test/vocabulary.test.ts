@@ -35,10 +35,10 @@ import {
   type Decision,
   type RunEvent,
 } from "../src/index.js";
-import { AML, BRIEF, PLAIN } from "./briefs.js";
+import { AML, BRIEF, PLAIN, REMOVAL } from "./briefs.js";
 import { decide, payloadFor, run, runToEnd } from "./helpers.js";
 
-const BRIEFS = [BRIEF, PLAIN, AML];
+const BRIEFS = [BRIEF, PLAIN, AML, REMOVAL];
 import { parseEventStream } from "./sse-parse.js";
 
 const LETTER = /\p{L}/u;
@@ -163,7 +163,7 @@ function collectRuns(): { events: RunEvent[]; notices: unknown[] } {
 }
 
 describe("emitted data has no human language", () => {
-  it("run events and waiting notices over 40 seeds, three cases, every autonomy and branch", () => {
+  it("run events and waiting notices over 40 seeds, four cases, every autonomy and branch", () => {
     const { events, notices } = collectRuns();
     const types = new Set(events.map((e) => e.type));
     /* The sweep reaches every event kind, so the check covers all of them */

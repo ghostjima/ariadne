@@ -390,6 +390,8 @@ export const labels: Labels = {
     "115-FZ, art. 7, item 1, subitem 6",
     "115-FZ, art. 7.7, item 5",
     "Contract",
+    "161-FZ, art. 9, part 11.6",
+    "161-FZ, art. 9, part 11.7",
   ],
   extension: ["None", "Extended by 10 working days"],
   deadline: ["Overdue", "Due within 3 working days", "Due later", "Answered"],

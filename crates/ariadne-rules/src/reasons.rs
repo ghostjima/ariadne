@@ -1,6 +1,8 @@
 //! Reason codes: the signs of a transfer without the client's voluntary
 //! consent set by the Bank of Russia's Order No. OD-2506, and the
-//! grounds of a refusal or restriction under 115-FZ as reason categories.
+//! grounds of a refusal or restriction under 115-FZ as reason categories;
+//! and the 161-FZ provisions a reply names as the ground of what the
+//! operator did.
 //!
 //! The signs are transcribed from the order's text as the Bank of Russia
 //! publishes it (`sources::OD_2506`), each with its number, wording and
@@ -344,6 +346,83 @@ impl AmlReason {
             AmlReason::OperationSuspendedByDecision => (art7, "7", "10.1"),
             AmlReason::FundsFrozen => (art7, "7", "1, subitem 6"),
             AmlReason::HighRiskMeasures => (sources::AML_LAW_7_7, "7.7", "5"),
+        }
+    }
+}
+
+/// A provision of 161-FZ a reply names as the ground of what the operator
+/// did, with a stable code. The codes are kept in this order and a new
+/// ground is added at the end, so a code once given never changes its
+/// meaning; the desk keeps a number of its own for each that never
+/// changes either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PaymentGround {
+    /// The first action on an operation that matched a sign, for every
+    /// kind of operation: a transfer order suspended for two days, or a
+    /// card, e-money or Faster Payments operation refused (art. 8
+    /// part 3.4).
+    FirstAction,
+    /// The second action, after the client confirmed the order or
+    /// repeated the operation and the Bank of Russia's database then
+    /// answered (art. 8 part 3.10).
+    SecondAction,
+    /// The client's card or online banking suspended because the Bank of
+    /// Russia's database holds the client's data and the Ministry of
+    /// Internal Affairs has reported no unlawful acts: the operator may
+    /// suspend it (art. 9 part 11.6). The ground of a reply about removing
+    /// the data from the database.
+    InstrumentSuspended,
+    /// The same with the Ministry of Internal Affairs' information on
+    /// unlawful acts: the operator must suspend it (art. 9 part 11.7).
+    InstrumentSuspendedOnPoliceInformation,
+}
+
+/// Every 161-FZ ground, in the order of their codes.
+pub const PAYMENT_GROUNDS: [PaymentGround; 4] = [
+    PaymentGround::FirstAction,
+    PaymentGround::SecondAction,
+    PaymentGround::InstrumentSuspended,
+    PaymentGround::InstrumentSuspendedOnPoliceInformation,
+];
+
+impl PaymentGround {
+    /// The ground with a code, or [`Error::UnknownCode`].
+    pub fn parse(code: &str) -> Result<PaymentGround, Error> {
+        PAYMENT_GROUNDS
+            .into_iter()
+            .find(|g| g.code() == code)
+            .ok_or(Error::UnknownCode)
+    }
+
+    /// The stable code: the act, the article and the part.
+    pub fn code(self) -> &'static str {
+        match self {
+            PaymentGround::FirstAction => "payment_8_3_4",
+            PaymentGround::SecondAction => "payment_8_3_10",
+            PaymentGround::InstrumentSuspended => "payment_9_11_6",
+            PaymentGround::InstrumentSuspendedOnPoliceInformation => "payment_9_11_7",
+        }
+    }
+
+    /// The source, article and part the ground is.
+    pub fn basis(self) -> (Source, &'static str, &'static str) {
+        match self {
+            PaymentGround::FirstAction => (sources::PAYMENT_LAW_8, "8", "3.4"),
+            PaymentGround::SecondAction => (sources::PAYMENT_LAW_8, "8", "3.10"),
+            PaymentGround::InstrumentSuspended => (sources::PAYMENT_LAW_9, "9", "11.6"),
+            PaymentGround::InstrumentSuspendedOnPoliceInformation => {
+                (sources::PAYMENT_LAW_9, "9", "11.7")
+            }
+        }
+    }
+
+    /// The ground of a suspended card or online banking: part 11.7 with
+    /// the Ministry of Internal Affairs' information, part 11.6 without.
+    pub fn of_instrument_suspension(police_information: bool) -> PaymentGround {
+        if police_information {
+            PaymentGround::InstrumentSuspendedOnPoliceInformation
+        } else {
+            PaymentGround::InstrumentSuspended
         }
     }
 }
