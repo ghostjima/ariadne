@@ -1,12 +1,14 @@
-// The supervisor's metrics over the register: from the toolbar or M, the
-// heading has the focus, every measure says what it counts and that it is
-// computed from the synthetic register, a table per operator; a letter
-// signed in the page counts; Q goes back to the queue with the focus in
-// the grid. Only the supervisor has them.
+// The supervisor's metrics over the register: from the toolbar or M, under
+// the case card's header (Stoa's DetailHeader), whose heading has the
+// focus; every measure says what it counts and that it is computed from
+// the synthetic register, a table per operator; a letter signed in the
+// page counts; Back or Q goes back to the queue with the focus in the
+// grid. Only the supervisor has them.
 import { expect, test, type Page } from "@playwright/test";
+import { strings } from "../src/i18n";
 import { supervisionStrings } from "../src/supervision/i18n";
 import { workflowStrings } from "../src/workflow/i18n";
-import { expectNoSeriousViolations, focusCell, grid, open } from "./helpers";
+import { ALL, expectNoSeriousViolations, focusCell, grid, open } from "./helpers";
 
 const s = supervisionStrings.en;
 const heading = (page: Page) => page.getByRole("heading", { name: s.title });
@@ -32,6 +34,34 @@ test("the supervisor opens the metrics by keyboard; each measure says what it co
   await page.keyboard.press("q");
   await expect(grid(page).locator('[data-cell="0:1"]')).toBeFocused();
   expect(new URL(page.url()).searchParams.get("metrics")).toBeNull();
+});
+
+test("the metrics open with the case card's header: Back with Q, the title, and what the figures come from; Back returns to the grid", async ({ page }) => {
+  for (const lang of ["ru", "en"] as const) {
+    const words = supervisionStrings[lang];
+    await open(page, `lang=${lang}`, lang === "en" ? ALL : "");
+    await page.getByRole("grid").waitFor();
+    await focusCell(page, 2, 1);
+    await page.keyboard.press("m");
+    const header = page.locator(".metrics > .stoa-detail-header");
+    await expect(header.getByRole("heading", { level: 2, name: words.title })).toBeFocused();
+    // The case card's Back, in the same words.
+    const back = header.getByRole("button", { name: strings[lang].case.back, exact: true });
+    await expect(back).toHaveAttribute("aria-keyshortcuts", "Q");
+    await expect(header.locator(".stoa-detail-header__status")).toContainText(words.synthetic);
+    await expect(header.locator(".stoa-detail-header__status")).toContainText(words.asOf(lang === "en" ? "Oct 6, 2026" : "6 окт. 2026 г."));
+    await back.click();
+    await expect(grid(page).locator('[data-cell="2:1"]')).toBeFocused();
+    expect(new URL(page.url()).searchParams.get("metrics")).toBeNull();
+  }
+});
+
+test("on a phone the metrics' Back lists no key, as the case card's", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/?lang=en&colleague=off&metrics=1");
+  const back = page.locator(".metrics > .stoa-detail-header").getByRole("button", { name: s.back, exact: true });
+  await expect(back).toBeVisible({ timeout: 15_000 });
+  await expect(back).not.toHaveAttribute("aria-keyshortcuts", /./);
 });
 
 test("a letter signed in the page counts in the metrics, from its own texts", async ({ page }) => {

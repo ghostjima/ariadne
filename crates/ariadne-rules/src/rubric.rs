@@ -18,8 +18,8 @@
 //! - every deadline still running that concerns the client is stated,
 //!   with the date the clock computes;
 //! - sentences are not long (the Bank of Russia's recommendations on
-//!   replies advise against long sentences; the word limits are this
-//!   engine's own, see [`MAX_SENTENCE_WORDS`]).
+//!   replies advise against long sentences and give no number; the word
+//!   limits are the values this project sets, see [`MAX_SENTENCE_WORDS`]).
 //!
 //! It returns coded findings; no finding means nothing to flag, not that
 //! the reply is right. A person decides.
@@ -29,13 +29,15 @@ use crate::reasons::{Family, Reason};
 use crate::sources::{self, Source};
 use crate::{Date, Error};
 
-/// The most words a sentence may have before the rubric flags it. The
-/// engine's own number, not a source's: a hypothesis to calibrate on real
-/// replies.
+/// The most words a sentence may have before the rubric flags it. A value
+/// this project sets, not a source's: the Bank of Russia advises against
+/// long sentences and gives no number. Set, not measured: still a
+/// hypothesis to calibrate on real replies.
 pub const MAX_SENTENCE_WORDS: u32 = 25;
 
 /// The most words a sentence may have on average before the rubric flags
-/// the text. The engine's own number, like [`MAX_SENTENCE_WORDS`].
+/// the text. A value this project sets, like [`MAX_SENTENCE_WORDS`], and
+/// as much a hypothesis to calibrate.
 pub const MAX_MEAN_SENTENCE_WORDS: u32 = 15;
 
 /// The act a reply names as a ground.
