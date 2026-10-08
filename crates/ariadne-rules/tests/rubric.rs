@@ -380,15 +380,22 @@ fn every_finding_cites_a_listed_source() {
 fn the_word_limits_are_the_set_values_and_the_readme_says_so() {
     // 25 words a sentence at most and 15 on average: the values this
     // project sets, with no number in any source. The README states them
-    // as the code has them, as set values that remain hypotheses.
+    // as the code has them, as set values that remain hypotheses. Its
+    // line breaks (LF, or CRLF in a Windows checkout) read as spaces.
     assert_eq!((MAX_SENTENCE_WORDS, MAX_MEAN_SENTENCE_WORDS), (25, 15));
-    let readme = include_str!("../README.md");
-    let limits = format!(
-        "The word limits, {MAX_SENTENCE_WORDS} words a sentence at most and {MAX_MEAN_SENTENCE_WORDS} on average, are the\nvalues this project sets"
-    );
-    assert!(readme.contains(&limits), "{limits}");
-    assert!(readme.contains("remain\nhypotheses to calibrate on real replies"));
-    assert!(readme.contains(&format!(
-        "a sentence of more than {MAX_SENTENCE_WORDS} words; more than {MAX_MEAN_SENTENCE_WORDS} words a sentence on average"
-    )));
+    let readme = include_str!("../README.md")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for said in [
+        format!(
+            "The word limits, {MAX_SENTENCE_WORDS} words a sentence at most and {MAX_MEAN_SENTENCE_WORDS} on average, are the values this project sets"
+        ),
+        "remain hypotheses to calibrate on real replies".to_string(),
+        format!(
+            "a sentence of more than {MAX_SENTENCE_WORDS} words; more than {MAX_MEAN_SENTENCE_WORDS} words a sentence on average"
+        ),
+    ] {
+        assert!(readme.contains(&said), "{said}");
+    }
 }
