@@ -1,11 +1,12 @@
-//! The signs of Order No. OD-2506 as transcribed, and the 115-FZ reason
-//! categories.
+//! The signs of Order No. OD-2506 as transcribed, the 115-FZ reason
+//! categories, and the 161-FZ grounds a reply names.
 
+use ariadne_rules::clock::{clock, Case, DatabaseFacts, MeasureKind, Stream};
 use ariadne_rules::reasons::{
-    sign, AmlReason, Bound, Family, Reason, SignGroup, Unit, AML_REASONS, GROUP_WORDING, SIGNS,
-    SIGNS_SOURCE,
+    sign, AmlReason, Bound, Family, PaymentGround, Reason, SignGroup, Unit, AML_REASONS,
+    GROUP_WORDING, PAYMENT_GROUNDS, SIGNS, SIGNS_SOURCE,
 };
-use ariadne_rules::{sources, Error};
+use ariadne_rules::{sources, Date, Error};
 
 #[test]
 fn fourteen_signs_in_the_orders_order() {
@@ -185,4 +186,71 @@ fn aml_categories_cite_their_items() {
         item(AmlReason::HighRiskMeasures),
         ("aml_law_7_7", "7.7", "5")
     );
+}
+
+#[test]
+fn payment_grounds_keep_their_codes_in_order_and_cite_their_parts() {
+    // The codes are stable and in this order: the desk stores them as
+    // numbers in it, and a new ground goes at the end.
+    let cited: Vec<_> = PAYMENT_GROUNDS
+        .iter()
+        .map(|g| {
+            let (source, article, part) = g.basis();
+            (g.code(), source.id, article, part)
+        })
+        .collect();
+    assert_eq!(
+        cited,
+        [
+            ("payment_8_3_4", "payment_law_8", "8", "3.4"),
+            ("payment_8_3_10", "payment_law_8", "8", "3.10"),
+            ("payment_9_11_6", "payment_law_9", "9", "11.6"),
+            ("payment_9_11_7", "payment_law_9", "9", "11.7"),
+        ]
+    );
+    for g in PAYMENT_GROUNDS {
+        assert_eq!(PaymentGround::parse(g.code()), Ok(g));
+        // Never a reason code: a ground is the provision, a reason why.
+        assert_eq!(Reason::parse(g.code()), Err(Error::UnknownCode));
+    }
+    assert_eq!(
+        PaymentGround::parse("payment_9_11_8"),
+        Err(Error::UnknownCode)
+    );
+}
+
+#[test]
+fn a_suspended_card_rests_on_part_11_6_or_with_the_police_information_on_11_7() {
+    // The client's card suspended on Saturday 9 May 2026 for the client's
+    // own data in the Bank of Russia's database: the measure's ground is
+    // the one a reply about removing the data names.
+    for (police, ground) in [
+        (false, PaymentGround::InstrumentSuspended),
+        (true, PaymentGround::InstrumentSuspendedOnPoliceInformation),
+    ] {
+        assert_eq!(PaymentGround::of_instrument_suspension(police), ground);
+        let mut case = Case::new(Stream::Antifraud, Date::parse("2026-05-12").unwrap());
+        case.database = Some(DatabaseFacts {
+            instrument_suspended_on: Some(Date::parse("2026-05-09").unwrap()),
+            police_information: police,
+            data_removed_on: None,
+            exclusion_received_by_operator_on: None,
+            exclusion_data_missing: false,
+            exclusion_received_by_bank_of_russia_on: None,
+            exclusion_decision_received_on: None,
+            bank_of_russia_query_received_on: None,
+        });
+        let c = clock(&case).unwrap();
+        let m = c
+            .measures
+            .iter()
+            .find(|m| m.kind == MeasureKind::SuspendInstrument)
+            .unwrap();
+        let (source, article, part) = ground.basis();
+        assert_eq!(
+            (m.basis.source, m.basis.article, m.basis.part),
+            (source, article, part)
+        );
+        assert_eq!(source, sources::PAYMENT_LAW_9);
+    }
 }
