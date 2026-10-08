@@ -56,15 +56,8 @@ body { margin: 0; }
 
 /* The open case: Stoa's DetailHeader (the way back, which case, where it
    stands and how long is left); then the card and the assistant, side by
-   side on a wide screen. The metrics view keeps a bar of the same look. */
+   side on a wide screen. The metrics view opens with the same header. */
 .case { display: grid; gap: var(--stoa-space-4); min-inline-size: 0; }
-.case__bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--stoa-space-2) var(--stoa-space-4);
-  padding-block-end: var(--stoa-space-3); border-block-end: 1px solid var(--stoa-color-border);
-}
-.case__heading { margin: 0; font-size: var(--stoa-font-size-lg); font-weight: var(--stoa-font-weight-semibold); }
-.case__heading:focus { outline: none; }
-.case__heading:focus-visible { outline: var(--stoa-focus-width) solid var(--stoa-color-focus); outline-offset: 2px; }
 .case__body { display: grid; gap: var(--stoa-space-6); grid-template-columns: minmax(0, 1fr); align-items: start; }
 @media (min-width: 64rem) {
   .case__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
