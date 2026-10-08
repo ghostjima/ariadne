@@ -1,11 +1,29 @@
 // The supervisor's metrics over the register, as Stoa's Metrics in a
 // StatBar and a table per operator, labelled as computed from the
-// synthetic register. The heading takes the focus when the view opens; Q
-// or Back to the queue returns.
-import { useEffect, useMemo, useRef, useState } from "react";
+// synthetic register. Its header is the case card's (Stoa's
+// DetailHeader): Back, the title, which takes the focus when the view
+// opens, and what the figures are computed from. Back to the queue and Q
+// put the focus on the queue's row (focusWhenReady), once it is drawn.
+import { useEffect, useMemo, useState } from "react";
 import { loadRules, rulesLoaded } from "@ariadne/rules";
 import { AS_OF_DAY, type ColumnStore } from "@ariadne/grid";
-import { Button, Callout, Disclosure, Metric, ProgressBar, StatBar, Table, useShortcuts, useFormatters, type MetricProps, type TableColumn } from "@ghostjima/stoa-react";
+import {
+  Callout,
+  DetailHeader,
+  Disclosure,
+  Metric,
+  ProgressBar,
+  StatBar,
+  Table,
+  Tag,
+  focusWhenReady,
+  useBreakpoint,
+  useShortcuts,
+  useFormatters,
+  type FocusTarget,
+  type MetricProps,
+  type TableColumn,
+} from "@ghostjima/stoa-react";
 import { strings as agentStrings } from "../agent/i18n";
 import { makeFmt } from "../agent/format";
 import type { Text } from "../agent/text";
@@ -22,16 +40,19 @@ export type MetricsProps = {
   /** Bumped by every write to the store. */
   version: number;
   onBack: () => void;
+  /** Where the focus lands after Back or Q: the queue's active cell, drawn
+   * again once the metrics are closed. */
+  backFocus: FocusTarget;
 };
 
 type OperatorRow = { operator: number; group: Group };
 
-export function Metrics({ store, lang, files, version, onBack }: MetricsProps) {
+export function Metrics({ store, lang, files, version, onBack, backFocus }: MetricsProps) {
   const s = supervisionStrings[lang];
   const { pools, labels } = POOLS[lang];
   const fmt = useFormatters({ timeZone: "Europe/Moscow" });
+  const breakpoint = useBreakpoint();
   const [ready, setReady] = useState(rulesLoaded);
-  const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (ready) return;
     let live = true;
@@ -40,10 +61,13 @@ export function Metrics({ store, lang, files, version, onBack }: MetricsProps) {
       live = false;
     };
   }, [ready]);
-  useEffect(() => {
-    heading.current?.focus();
-  }, []);
-  useShortcuts([{ key: "q", description: s.keys.back, group: s.title, onTrigger: onBack }]);
+  // Q does what Back does: the focus goes to the queue's row once it is
+  // drawn, never to the page's body in between.
+  const back = () => {
+    focusWhenReady(backFocus);
+    onBack();
+  };
+  useShortcuts([{ key: "q", description: s.keys.back, group: s.title, onTrigger: back }]);
 
   const x: Text = useMemo(() => ({ t: agentStrings[lang], f: makeFmt(LOCALES[lang]), labels, lang }), [lang, labels]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,14 +78,19 @@ export function Metrics({ store, lang, files, version, onBack }: MetricsProps) {
 
   return (
     <section className="metrics" aria-labelledby="metrics-heading">
-      <div className="case__bar">
-        <Button variant="ghost" onPress={onBack} shortcut={{ key: "q" }}>
-          {s.back}
-        </Button>
-        <h2 id="metrics-heading" ref={heading} tabIndex={-1} className="case__heading">
-          {s.title}
-        </h2>
-      </div>
+      <DetailHeader
+        title={s.title}
+        titleId="metrics-heading"
+        focusOnOpen
+        // A phone has no keys to list, as on the case card.
+        back={{ onBack, focusAfter: backFocus, label: s.back, shortcut: breakpoint === "narrow" ? undefined : { key: "q" } }}
+        meta={
+          <>
+            <Tag size="small">{s.synthetic}</Tag>
+            <span className="muted">{s.asOf(fmt.date(AS_OF_DAY * 86_400_000))}</span>
+          </>
+        }
+      />
       <Callout tone="info" role="none">
         {s.note(fmt.date(AS_OF_DAY * 86_400_000))}
       </Callout>
