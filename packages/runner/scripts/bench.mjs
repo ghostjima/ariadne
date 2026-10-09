@@ -107,10 +107,11 @@ const BRIEF = {
   grounds: ["payment_8_3_4"],
   clientOptions: ["confirm_order"],
   deadlines: [],
+  measures: [],
 };
 
 const plan = resolvePlan({
-  v: 4,
+  v: 5,
   seed: 7,
   autonomy: "high_only",
   brief: BRIEF,
@@ -128,7 +129,7 @@ function wholeSession() {
 
 const handler = createAgentHandler({ sleep: async () => {}, now: () => 0 });
 const payload = encodePlanPayload({
-  v: 4,
+  v: 5,
   seed: 7,
   autonomy: "high_only",
   brief: BRIEF,

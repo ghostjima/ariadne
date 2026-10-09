@@ -34,6 +34,7 @@ import type {
   FactQuestion,
   GroundCode,
   LinkStatus,
+  MeasureCode,
   NextStep,
   OperationCode,
   OutcomeCode,
@@ -97,6 +98,10 @@ export type CaseBrief = {
   clientOptions: ClientOption[];
   /* The deadlines that concern the client and still run on asOf */
   deadlines: ClientDeadline[];
+  /* The restrictions that apply for the client's own data in the Bank of
+     Russia's database, which the reply states: the suspension or the
+     transfer cap, and the ATM cash cap; empty for any other case */
+  measures: MeasureCode[];
 };
 
 export type ClassificationObject = {
@@ -167,6 +172,7 @@ export type ReplyDraft = {
   reasons: ReasonCode[];
   clientOptions: ClientOption[];
   deadlines: ClientDeadline[];
+  measures: MeasureCode[];
   nextSteps: NextStep[];
 };
 
@@ -368,6 +374,7 @@ export function replyDraft(brief: CaseBrief): ReplyDraft {
     reasons: brief.reason === null ? [] : [brief.reason],
     clientOptions: [...brief.clientOptions],
     deadlines: brief.deadlines.map((d) => ({ ...d })),
+    measures: [...brief.measures],
     nextSteps: [...NEXT_STEPS],
   };
 }

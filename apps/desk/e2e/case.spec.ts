@@ -149,6 +149,44 @@ test("the register shows the client's own data in the Bank of Russia's database,
   await expect(cell(page, 0, 3)).toHaveText("Сведения о клиенте и сведения МВД", { timeout: 15_000 });
 });
 
+/** A case about the client's own data in the database, without the
+ * Ministry of Internal Affairs' information, where the bank chose not to
+ * suspend the card under 161-FZ art. 9 part 11.6 and capped the
+ * transfers instead; under legal review, refused on part 11.6. */
+const CAPPED_CASE = "C-001140";
+
+test("the bank's choice under 161-FZ art. 9 part 11.6: the transfers capped instead of the suspension, ATM cash capped either way, each on its ground, and the register's column", async ({ page }) => {
+  await openCase(page, CAPPED_CASE);
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText(
+    "Not suspended: the client's transfers to individuals capped at 100,000 roubles a month while the client's own data are in the Bank of Russia's database",
+  );
+  await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.6, sentence 2");
+  await expect(flags).toContainText("ATM cash capped at 100,000 roubles a month while the client's data are in the Bank of Russia's database");
+  await expect(flags).toContainText("Ground: Banking Law No. 395-1, art. 30, part 16");
+  // No suspension, so no same-day notice of one and no duty of part 11.8.
+  await expect(flags).not.toContainText("The client's card or online banking suspended");
+  await expect(flags).not.toContainText("part 9.2");
+  await expect(page.getByRole("region", { name: "Duties and storage" })).not.toContainText("Tell the client of the suspension");
+  // A suspended case has the suspension and the ATM cap.
+  await openCase(page, "C-001115");
+  await expect(page.getByRole("region", { name: "Flags" })).toContainText("Ground: Banking Law No. 395-1, art. 30, part 16");
+  await openCase(page, CAPPED_CASE, "lang=ru");
+  const ru = page.getByRole("region", { name: "Признаки и решения" });
+  await expect(ru).toContainText("Основание: 161-ФЗ, ст. 9, ч. 11.6, предл. 2");
+  await expect(ru).toContainText("Основание: Закон о банках № 395-1, ст. 30, ч. 16");
+  // The register's column: the suspension, the cap, nothing for a block.
+  const columns = ["id", "client", "restriction"];
+  await open(page, `view=${viewParam({ search: CAPPED_CASE, columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("Transfers to individuals up to RUB 100,000 a month");
+  await open(page, `view=${viewParam({ search: "C-001115", columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("Card and online banking suspended");
+  await open(page, `view=${viewParam({ search: "C-001196", columns })}`, "1 of 1,200 cases");
+  await expect(cell(page, 0, 3)).toHaveText("");
+  await open(page, `lang=ru&view=${viewParam({ search: CAPPED_CASE, columns })}`, "");
+  await expect(cell(page, 0, 3)).toHaveText("Переводы физлицам до 100 000 ₽ в месяц", { timeout: 15_000 });
+});
+
 test("the commission's request: the bank's answer by its term under Regulation No. 842-P, or 3 working days when it gives none, with the rules' note", async ({ page }) => {
   await openCase(page, "C-001088");
   const flags = page.getByRole("region", { name: "Flags" });
@@ -170,6 +208,7 @@ for (const lang of ["ru", "en"])
         ["C-001182", "case with a second antifraud step"],
         ["C-001115", "case with an application to remove the client's data"],
         ["C-001088", "case with the commission's request"],
+        [CAPPED_CASE, "case with the transfers capped instead of the suspension"],
       ] as const) {
         await openCase(page, id, `lang=${lang}&theme=${theme}`);
         await expect(page.getByRole("table").last()).toBeVisible();
@@ -180,7 +219,7 @@ for (const lang of ["ru", "en"])
 test("on a phone the cases on the paths fit without sideways scroll, in Russian and English", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   for (const lang of ["ru", "en"])
-    for (const id of ["C-001182", "C-001115", "C-001088"]) {
+    for (const id of ["C-001182", "C-001115", "C-001088", CAPPED_CASE]) {
       await openCase(page, id, `lang=${lang}`);
       await expect(page.getByRole("table").last()).toBeVisible();
       const sideways = await page.evaluate(() => {

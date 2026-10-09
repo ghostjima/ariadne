@@ -115,6 +115,7 @@ describe("scenario generation", () => {
       reasons: ["aml_operation_refused"],
       clientOptions: ["submit_documents", "apply_to_commission"],
       deadlines: [{ kind: "aml_documents_answer", due: "2026-10-09" }],
+      measures: [],
       nextSteps: ["contact_bank", "apply_to_bank_of_russia"],
     });
     /* A stream without a reason gives none */

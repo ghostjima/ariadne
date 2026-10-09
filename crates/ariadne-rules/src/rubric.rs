@@ -16,8 +16,14 @@
 //! - next steps are stated, and the options the law gives the client in
 //!   that case (the same letter; the provisions cited per option), among
 //!   them, for a card or online banking suspended for the client's own
-//!   data in the Bank of Russia's database, the right to apply for their
-//!   removal and how (161-FZ art. 9 part 11.8);
+//!   data in the Bank of Russia's database, or the client's transfers
+//!   capped instead, the right to apply for their removal and how (161-FZ
+//!   art. 9 part 11.8; the Bank of Russia's letter No. IN-03-59/11);
+//! - a reply about the client's own data in that database says which
+//!   restrictions apply: the suspension or, instead, the transfer cap of
+//!   161-FZ art. 9 part 11.6, and the ATM cash cap of the Banking Law
+//!   art. 30 part 16 (the letter No. IN-03-59/11: the kind of each
+//!   restriction and its legal ground);
 //! - every deadline still running that concerns the client is stated,
 //!   with the date the clock computes;
 //! - sentences are not long (the Bank of Russia's recommendations on
@@ -27,7 +33,9 @@
 //! It returns coded findings; no finding means nothing to flag, not that
 //! the reply is right. A person decides.
 
-use crate::clock::{AmlDecisionKind, Case, Clock, DeadlineKind, Operation, Regime, Stream};
+use crate::clock::{
+    AmlDecisionKind, Case, Clock, DeadlineKind, MeasureKind, Operation, Regime, Stream,
+};
 use crate::reasons::{Family, Reason};
 use crate::sources::{self, Source};
 use crate::{Date, Error};
@@ -88,7 +96,9 @@ pub enum ClientOption {
     /// Apply to the Bank of Russia to remove the client's data from its
     /// database, through the bank or through the Bank of Russia's
     /// Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U
-    /// item 1.2).
+    /// item 1.2), whether the card or online banking is suspended or the
+    /// transfers are capped instead (the Bank of Russia's letter
+    /// No. IN-03-59/11, for restrictions under parts 11.6 and 11.7).
     ApplyForRemoval,
 }
 
@@ -131,7 +141,7 @@ impl ClientOption {
         match self {
             ClientOption::ApplyForRemoval => Some((
                 sources::PAYMENT_LAW_9,
-                "art. 9 part 11.8; the channels: Directive No. 6748-U item 1.2 and the Bank of Russia's letter No. IN-03-59/11",
+                "art. 9 part 11.8 after a suspension; for the transfer cap instead, the Bank of Russia's letter No. IN-03-59/11; the channels: Directive No. 6748-U item 1.2 and the same letter",
             )),
             _ => None,
         }
@@ -158,6 +168,10 @@ pub struct Reply {
     pub next_steps: Vec<String>,
     pub client_options: Vec<ClientOption>,
     pub stated_deadlines: Vec<StatedDeadline>,
+    /// The measures it says apply to the client, as kinds of the clock's
+    /// measures; the rubric reads the ones about the client's own data in
+    /// the database ([`MeasureKind::DATABASE`]).
+    pub measures: Vec<MeasureKind>,
     /// The reply's text, for the reading-ease check.
     pub text: String,
 }
@@ -185,6 +199,14 @@ pub enum FindingCode {
     /// A deadline is stated with another date than the clock's; the
     /// subject names it.
     DeadlineMismatch,
+    /// A restriction that applies for the client's own data in the
+    /// database (the suspension, the transfer cap, the ATM cash cap) is not
+    /// stated; the subject names its measure.
+    MeasureMissing,
+    /// A restriction for the client's own data in the database is stated
+    /// that does not apply (the suspension where the transfers are capped
+    /// instead, or the other way round); the subject names its measure.
+    MeasureNotTaken,
     /// No text.
     TextEmpty,
     /// A sentence of more than [`MAX_SENTENCE_WORDS`] words.
@@ -207,6 +229,8 @@ impl FindingCode {
             ClientOptionMissing => "client_option_missing",
             DeadlineMissing => "deadline_missing",
             DeadlineMismatch => "deadline_mismatch",
+            MeasureMissing => "measure_missing",
+            MeasureNotTaken => "measure_not_taken",
             TextEmpty => "text_empty",
             SentenceTooLong => "sentence_too_long",
             SentencesLongOnAverage => "sentences_long_on_average",
@@ -231,6 +255,10 @@ impl FindingCode {
             DeadlineMissing | DeadlineMismatch => {
                 (sources::BANK_OF_RUSSIA_REPLY_PAGE, "concrete terms")
             }
+            MeasureMissing | MeasureNotTaken => (
+                sources::PROACTIVE_LETTER,
+                "the kind of each restriction and its legal ground",
+            ),
             TextEmpty | SentenceTooLong | SentencesLongOnAverage => (
                 sources::BANK_OF_RUSSIA_REPLY_PAGE,
                 "plain language, no long sentences",
@@ -341,8 +369,17 @@ fn required_options(case: &Case, clock: &Clock) -> Vec<ClientOption> {
         // о праве клиента подать ... заявление в Банк России, в том числе
         // через оператора по переводу денежных средств, об исключении
         // сведений" (161-FZ art. 9 part 11.8): owed after a suspension, as
-        // long as the data are in the database.
-        if f.instrument_suspended_on.is_some() && f.data_removed_on.is_none() {
+        // long as the data are in the database. For the transfer cap the
+        // bank chose instead, the Bank of Russia's letter No. IN-03-59/11
+        // asks the same "в случае введения ограничений согласно
+        // основаниям, предусмотренным частями 11.6 и 11.7".
+        let restricted = clock.measures.iter().any(|m| {
+            matches!(
+                m.kind,
+                MeasureKind::SuspendInstrument | MeasureKind::CapTransfers
+            )
+        });
+        if restricted && f.data_removed_on.is_none() {
             add(ClientOption::ApplyForRemoval);
         }
     }
@@ -453,6 +490,26 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
                 out.push(Finding::about(FindingCode::DeadlineMismatch, d.kind.code()))
             }
             Some(_) => {}
+        }
+    }
+
+    // The restrictions for the client's own data in the database, while
+    // the data are there: each one that applies is stated, none that does
+    // not.
+    if case.database.is_some_and(|f| f.data_removed_on.is_none()) {
+        let applies: Vec<MeasureKind> = clock
+            .measures
+            .iter()
+            .map(|m| m.kind)
+            .filter(|k| MeasureKind::DATABASE.contains(k))
+            .collect();
+        for k in MeasureKind::DATABASE {
+            let stated = reply.measures.contains(&k);
+            if applies.contains(&k) && !stated {
+                out.push(Finding::about(FindingCode::MeasureMissing, k.code()));
+            } else if stated && !applies.contains(&k) {
+                out.push(Finding::about(FindingCode::MeasureNotTaken, k.code()));
+            }
         }
     }
 

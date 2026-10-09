@@ -24,6 +24,7 @@ import {
   CASE_STAGES,
   CLIENT_DEADLINE_KINDS,
   CLIENT_OPTIONS,
+  MEASURE_CODES,
   OPERATIONS,
   OUTCOMES,
   STREAMS,
@@ -31,6 +32,7 @@ import {
   type ClientDeadline,
   type ClientOption,
   type GroundCode,
+  type MeasureCode,
   type ReasonCode,
 } from "@ariadne/runner";
 import { clock, factRequestDue, od2506Signs, rubric, type CaseFacts } from "@ariadne/rules";
@@ -65,11 +67,15 @@ const SECOND_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
 /** The ground of a suspended card or online banking, as ariadne-rules
  * gives it for the case's facts: the part its suspend_instrument measure
  * rests on (11.6, or 11.7 with the Ministry of Internal Affairs'
- * information); null when nothing was suspended. */
+ * information), or, where the bank capped the transfers instead, the part
+ * its cap_transfers measure rests on (11.6, its second sentence); null
+ * when the bank did neither. */
 export function instrumentGround(facts: CaseFacts): GroundCode | null {
-  const measure = clock(facts).measures.find((m) => m.kind === "suspend_instrument");
+  const measure = clock(facts).measures.find((m) => m.kind === "suspend_instrument" || m.kind === "cap_transfers");
   if (!measure) return null;
-  const spec = GROUNDS.find((g) => g?.act === "payment_system" && g.article === measure.basis.article && g.part === measure.basis.part);
+  // A ground is a part; the cap is a sentence of it.
+  const part = measure.basis.part.split(",")[0];
+  const spec = GROUNDS.find((g) => g?.act === "payment_system" && g.article === measure.basis.article && g.part === part);
   return spec ? (spec.id as GroundCode) : null;
 }
 
@@ -99,23 +105,27 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
   return out;
 }
 
-/** The client's options and the deadlines that concern the client, as
- * ariadne-rules' rubric asks for them in this case: the findings of an
- * empty reply name every option and deadline it lacks. */
-export function clientDuties(store: ColumnStore, row: number): { options: ClientOption[]; deadlines: ClientDeadline[] } {
+/** The client's options, the deadlines that concern the client and the
+ * restrictions that apply for the client's own data in the Bank of
+ * Russia's database, as ariadne-rules' rubric asks for them in this case:
+ * the findings of an empty reply name every option, deadline and
+ * restriction it lacks. */
+export function clientDuties(store: ColumnStore, row: number): { options: ClientOption[]; deadlines: ClientDeadline[]; measures: MeasureCode[] } {
   const facts = caseFacts(store, row);
   const findings = rubric({ repliedOn: AS_OF, text: "" }, facts);
   const due = new Map(clock(facts).deadlines.map((d) => [d.kind, d.due]));
   const options: ClientOption[] = [];
   const deadlines: ClientDeadline[] = [];
+  const measures: MeasureCode[] = [];
   for (const f of findings) {
+    if (f.code === "measure_missing" && f.subject && isCode(MEASURE_CODES, f.subject)) measures.push(f.subject);
     if (f.code === "client_option_missing" && f.subject && isCode(CLIENT_OPTIONS, f.subject)) options.push(f.subject);
     if (f.code === "deadline_missing" && f.subject && isCode(CLIENT_DEADLINE_KINDS, f.subject)) {
       const day = due.get(f.subject);
       if (day) deadlines.push({ kind: f.subject, due: day });
     }
   }
-  return { options, deadlines };
+  return { options, deadlines, measures };
 }
 
 /** The fact request's last day, sent on the day the data is taken:
@@ -134,7 +144,7 @@ export function caseBrief(store: ColumnStore, row: number): CaseBrief {
   const linked = store.linked[row] ?? -1;
   const replyDue = isoDay(effectiveDue(store, row));
   const facts = caseFacts(store, row);
-  const { options, deadlines } = clientDuties(store, row);
+  const { options, deadlines, measures } = clientDuties(store, row);
   return {
     caseNo: row + 1,
     stream,
@@ -156,5 +166,6 @@ export function caseBrief(store: ColumnStore, row: number): CaseBrief {
     grounds: groundsOf(store, row),
     clientOptions: options,
     deadlines,
+    measures,
   };
 }

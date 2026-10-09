@@ -25,4 +25,5 @@ export const SAMPLE_BRIEF: CaseBrief = {
   grounds: ["payment_8_3_4"],
   clientOptions: ["confirm_order"],
   deadlines: [{ kind: "antifraud_confirmation", due: "2026-10-07" }],
+  measures: [],
 };

@@ -126,12 +126,34 @@ describe("through the WebAssembly build", () => {
       ["refuse_operation", "2026-05-08", "3.4, sentence 2"],
       ["refuse_repeat", "2026-05-08", "3.10, sentence 1"],
       ["suspend_instrument", "2026-05-09", "11.6"],
+      ["cap_atm_cash", "2026-05-09", "16"],
     ]);
     expect(due(c, "antifraud_after_repeat_refusal")).toBe("2026-05-10");
     expect(due(c, "antifraud_repeat_suspension_ends")).toBeUndefined();
     expect(due(c, "instrument_suspension_notice")).toBe("2026-05-09");
     const decision = c.deadlines.find((d) => d.kind === "exclusion_decision")!;
     expect([decision.due, decision.from, decision.basis.source, decision.basis.article]).toEqual(["2026-06-02", "2026-05-12", "directive_6748_u", ""]);
+  });
+
+  it("caps the transfers instead of the suspension under part 11.6, and ATM cash either way; the rubric reads the restrictions a reply states", () => {
+    // Not suspended but capped on Saturday 9 May 2026 (161-FZ art. 9 part
+    // 11.6, sentence 2), and the ATM cash cap of the Banking Law art. 30
+    // part 16 from the same day.
+    const facts = { stream: "antifraud", receivedOn: "2026-05-12", database: { transfersCappedOn: "2026-05-09" } } as const;
+    const c = clock(facts);
+    expect(c.measures.map((m) => [m.kind, m.on, m.basis.source, m.basis.part])).toEqual([
+      ["cap_transfers", "2026-05-09", "payment_law_9", "11.6, sentence 2"],
+      ["cap_atm_cash", "2026-05-09", "banking_law_30", "16"],
+    ]);
+    expect(clock({ ...facts, database: { ...facts.database, policeInformation: true } }).refusals).toEqual(["transfer_cap_not_allowed"]);
+    const reply = { repliedOn: "2026-05-12", text: "Переводы ограничены.", measures: ["suspend_instrument"] };
+    expect(rubric(reply, facts).filter((f) => f.code.startsWith("measure_")).map((f) => [f.code, f.subject, f.source])).toEqual([
+      ["measure_not_taken", "suspend_instrument", "letter_in_03_59_11"],
+      ["measure_missing", "cap_transfers", "letter_in_03_59_11"],
+      ["measure_missing", "cap_atm_cash", "letter_in_03_59_11"],
+    ]);
+    expect(rubric({ ...reply, measures: ["cap_transfers", "cap_atm_cash"] }, facts).filter((f) => f.code.startsWith("measure_"))).toEqual([]);
+    expect(() => rubric({ ...reply, measures: ["cap_everything"] }, facts)).toThrow("unknown_code");
   });
 
   it("caps a fact request by the external terms that bind the answering unit", () => {

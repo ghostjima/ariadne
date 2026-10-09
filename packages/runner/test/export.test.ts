@@ -34,7 +34,7 @@ describe("exportLog", () => {
     expect(out).toMatchObject({
       format: "ariadne_runner.session_log",
       version: 2,
-      protocol: 4,
+      protocol: 5,
       task: { code: "answer_complaint", caseNo: 867 },
       brief: BRIEF,
       agent: "scripted",
