@@ -76,6 +76,27 @@ async function editLetter(page: Page, edit: (text: string) => string, words = w)
   await expect(box).toBeHidden();
 }
 
+test("the letter's editor is Stoa's TextArea: its text in the letter's language and spell-checked in it, the label in the page's", async ({ page }) => {
+  // The assistant drafts in the page's language and an edit keeps its own
+  // (letter.ts): the editor marks its text with the letter's, whichever it
+  // is, and its direction follows.
+  for (const lang of ["en", "ru"] as const) {
+    await openAs(page, REVIEW_CASE, "reviewer", `lang=${lang}`);
+    const letterLang = await letter(page).getAttribute("lang");
+    expect(letterLang).toBe(lang);
+    const words = workflowStrings[lang];
+    await letterPanel(page).getByRole("button", { name: words.review.edit }).click();
+    const field = page.getByRole("dialog").getByRole("textbox", { name: words.review.editLabel });
+    await expect(field).toHaveClass(/stoa-textarea__input/);
+    await expect(field).toHaveAttribute("lang", letterLang!);
+    await expect(field).toHaveAttribute("dir", "ltr");
+    await expect(field).not.toHaveAttribute("spellcheck", "false");
+    await expect(field).toHaveAttribute("rows", "12");
+    expect(await page.getByRole("dialog").getByText(words.review.editLabel).evaluate((el) => (el.closest("[lang]") as HTMLElement).lang)).toBe(lang);
+    await page.keyboard.press("Escape");
+  }
+});
+
 test("the reviewer reads the letter, what the rubric finds and the changes; edits it; the diff and the journal follow", async ({ page }) => {
   await openAs(page, REVIEW_CASE, "reviewer");
   await expect(letterPanel(page)).toContainText(w.letter.fromRegister);

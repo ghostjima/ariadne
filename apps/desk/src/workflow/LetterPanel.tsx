@@ -4,7 +4,7 @@
 // decision record, then the signed letter, frozen, with the signatory named
 // on it). Approve and return are the case's transitions, in the work above.
 import { useRef, useState } from "react";
-import { Button, Dialog, Letter, Panel, RadioGroup, Select, TextArea as StoaTextArea, TextDiff, useFormatters } from "@ghostjima/stoa-react";
+import { Button, Dialog, Letter, Panel, RadioGroup, Select, TextArea, TextDiff, useFormatters } from "@ghostjima/stoa-react";
 import { GROUND_ORDER, Stage, rowId, type ColumnStore, type Role } from "@ariadne/grid";
 import type { CaseFacts } from "@ariadne/rules";
 import { strings as agentStrings } from "../agent/i18n";
@@ -17,7 +17,6 @@ import { LETTER_MAX, RECORD_MAX, RECORD_MIN, SIGN_DECISIONS, type CaseFiles, typ
 import { workflowStrings } from "./i18n";
 import { actorText, personName } from "./Journal";
 import { assistantDraft, currentLetter, draftText } from "./letter";
-import { TextArea } from "./TextArea";
 import { changeStats, diffText } from "./textDiff";
 import { actsOn } from "./CaseWork";
 
@@ -205,7 +204,7 @@ export function LetterPanel(props: LetterPanelProps) {
                   onChange={setDecision}
                   options={SIGN_DECISIONS.map((d) => ({ value: d, label: w.signature.decisions[d], description: w.signature.decisionHelp[d] }))}
                 />
-                <StoaTextArea
+                <TextArea
                   label={w.signature.concerns}
                   value={concerns}
                   onChange={setConcerns}
@@ -213,7 +212,7 @@ export function LetterPanel(props: LetterPanelProps) {
                   rows={2}
                   isInvalid={signError?.code === "concerns-required" || (signError?.code === "record-too-long" && concerns.trim().length > RECORD_MAX)}
                 />
-                <StoaTextArea
+                <TextArea
                   label={w.signature.wrong}
                   value={wrong}
                   onChange={setWrong}
@@ -265,12 +264,16 @@ export function LetterPanel(props: LetterPanelProps) {
         }
       >
         <div className="letter-form">
+          {/* The letter is often in the other language than the page: its
+              text is marked with the letter's language, the label and the
+              help stay in the page's. */}
           <TextArea
             label={w.review.editLabel}
             value={draftEdit}
             onChange={setDraftEdit}
             description={w.review.editHelp(x.f.int(LETTER_MAX))}
             lang={letter.lang}
+            rows={12}
             autoFocus
             isInvalid={editError !== null}
           />
