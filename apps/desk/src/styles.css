@@ -17,6 +17,17 @@
 }
 body { margin: 0; }
 .muted { color: var(--stoa-color-text-muted); font-size: var(--stoa-font-size-sm); }
+/* Stoa sets its normal line height (1.45) on the root, and its one-line
+   labels and controls below set none of their own, so they take it too.
+   Here they take Stoa's tight line height, as Stoa's own dialog title and
+   small buttons do: headers, panel titles, tabs, badges, deadlines, field
+   labels, a disclosure's summary and buttons. Text keeps the normal one.
+   At normal, these lines push Run, or the reason a case has none, below a
+   phone's first screen when the case's name takes two lines. */
+.stoa-app-header__title, .stoa-detail-header__heading, .stoa-panel__title, .stoa-tabs__tab,
+.stoa-badge, .stoa-countdown, .stoa-field__label, .stoa-disclosure__summary, .stoa-button {
+  line-height: var(--stoa-font-line-height-tight);
+}
 
 .desk { display: grid; gap: var(--stoa-space-3); min-inline-size: 0; }
 .desk > * { min-inline-size: 0; }
