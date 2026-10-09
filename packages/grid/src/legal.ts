@@ -182,7 +182,24 @@ export function rowReplyFacts(store: ColumnStore, i: number): ReplyFacts {
    data from the Bank of Russia's database, from the case's journal
    (database.ts), or -1 when it has not applied */
 export function removalAppliedOn(store: ColumnStore, row: number): number {
-  const entry = (store.journal.get(row) ?? []).find((e) => e.action === "removal_applied");
+  return journalDay(store, row, "removal_applied");
+}
+
+/* The Moscow day the Bank of Russia's request about an application the
+   client filed with it directly reached the bank, from the case's journal
+   (database.ts), or -1 when none has */
+export function queryReceivedOn(store: ColumnStore, row: number): number {
+  return journalDay(store, row, "query_received");
+}
+
+/* The Moscow day of the bank's answer to that request, or -1 */
+export function queryAnsweredOn(store: ColumnStore, row: number): number {
+  return journalDay(store, row, "query_answered");
+}
+
+/* The Moscow day of the first entry of an action made in the page, or -1 */
+function journalDay(store: ColumnStore, row: number, action: string): number {
+  const entry = (store.journal.get(row) ?? []).find((e) => e.action === action);
   return entry ? Math.floor((entry.at + 3 * 3_600_000) / 86_400_000) : -1;
 }
 
@@ -239,6 +256,11 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
        journal (database.ts) */
     const applied = removalAppliedOn(store, i);
     if (applied >= 0) facts.database.operatorApplicationSentOn = isoDay(applied);
+    /* The Bank of Russia's request about the client's application filed
+       with it directly, from the journal (database.ts): the bank answers
+       in 3 working days */
+    const asked = queryReceivedOn(store, i);
+    if (asked >= 0) facts.database.bankOfRussiaQueryReceivedOn = isoDay(asked);
   }
   if (stream === Stream.Aml) {
     const category = AML_REASON_CODES[(store.reason[i] ?? 1) - 1];

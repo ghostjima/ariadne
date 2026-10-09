@@ -2,12 +2,24 @@ import { describe, expect, it } from "vitest";
 import { clock } from "@ariadne/rules";
 import { generateAll } from "../src/generator.js";
 import { isoDay } from "../src/days.js";
-import { caseFacts, removalAppliedOn } from "../src/legal.js";
+import { caseFacts, queryAnsweredOn, queryReceivedOn, removalAppliedOn } from "../src/legal.js";
 import { selfActor } from "../src/history.js";
 import { CORPUS_CHUNK, CORPUS_ROWS, DEFAULT_SEED, Database, Path, Stream } from "../src/schema.js";
 import { AS_OF_DAY } from "../src/store.js";
 import { caseJournal, deskNow } from "../src/workflow.js";
-import { REMOVAL_REASON_MAX, REMOVAL_REASON_MIN, applyForRemoval, checkRemoval, isClientDataCase } from "../src/database.js";
+import {
+  ANSWER_REASON_MIN,
+  REMOVAL_REASON_MAX,
+  REMOVAL_REASON_MIN,
+  answerQuery,
+  applyForRemoval,
+  checkQueryAnswer,
+  checkQueryIntake,
+  checkRemoval,
+  isClientDataCase,
+  queryAnswerOf,
+  recordQuery,
+} from "../src/database.js";
 
 /*
   The bank's own reasoned application to the Bank of Russia to remove the
@@ -71,3 +83,50 @@ describe("the bank's own application to remove the client's data", () => {
     expect(removalAppliedOn(store, row)).toBe(-1);
   });
 });
+
+describe("the Bank of Russia's request on an application the client filed with it directly", () => {
+  it("is recorded the day it arrives, gives the bank 3 working days from the rules engine, and is answered with the bank's view and reasons", () => {
+    const store = fresh();
+    const row = rows(store, (i) => isClientDataCase(store, i) && store.path[i] !== Path.DatabaseRemoval)[0]!;
+    const stage = store.stage[row];
+    expect(checkQueryAnswer(store, row, "reviewer", "unjustified", REASONS)).toEqual({ code: "query-not-received" });
+    expect(recordQuery(store, row, { role: "operator", actor: selfActor("operator"), at: NOW })).toBeNull();
+    expect(store.stage[row]).toBe(stage);
+    expect(caseJournal(store, row).at(-1)).toMatchObject({ action: "query_received", from: stage, to: stage });
+    expect(queryReceivedOn(store, row)).toBe(AS_OF_DAY);
+    const facts = caseFacts(store, row);
+    expect(facts.database?.bankOfRussiaQueryReceivedOn).toBe(isoDay(AS_OF_DAY));
+    // Tuesday 6 October 2026: 7, 8, 9 October (Directive No. 6748-U item
+    // 2.9). The client filed directly, so no relay and no forwarding.
+    const c = clock(facts);
+    const answer = c.deadlines.find((d) => d.kind === "bank_of_russia_query_answer")!;
+    expect([answer.due, answer.forOthers, answer.basis.part]).toEqual(["2026-10-09", false, "2.9"]);
+    expect(c.deadlines.map((d) => d.kind)).not.toEqual(expect.arrayContaining(["exclusion_decision_relay", "exclusion_forwarding"]));
+    expect(recordQuery(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW })).toEqual({ code: "query-already-received" });
+    // The answer: the view and the reasons, by the legal reviewer.
+    expect(checkQueryAnswer(store, row, "reviewer", null, REASONS)).toEqual({ code: "query-view-required" });
+    expect(checkQueryAnswer(store, row, "reviewer", "unjustified", "short")).toEqual({ code: "query-reason-required", min: ANSWER_REASON_MIN });
+    for (const role of ["operator", "signatory"] as const) expect(checkQueryAnswer(store, row, role, "unjustified", REASONS)).toEqual({ code: "query-role" });
+    expect(answerQuery(store, row, { role: "reviewer", actor: selfActor("reviewer"), at: NOW, view: "unjustified", reason: ` ${REASONS} ` })).toBeNull();
+    expect(caseJournal(store, row).at(-1)).toMatchObject({ action: "query_answered", view: "unjustified", comment: REASONS });
+    expect(queryAnsweredOn(store, row)).toBe(AS_OF_DAY);
+    expect(queryAnswerOf(store, row)).toEqual({ on: AS_OF_DAY, view: "unjustified" });
+    expect(answerQuery(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, view: "justified", reason: REASONS })).toEqual({
+      code: "query-already-answered",
+    });
+  });
+
+  it("is not recorded where the client applied through the bank, for any other case, or by the legal reviewer or the signatory", () => {
+    const store = fresh();
+    const through = rows(store, (i) => store.path[i] === Path.DatabaseRemoval)[0]!;
+    const block = rows(store, (i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None)[0]!;
+    const row = rows(store, (i) => isClientDataCase(store, i) && store.path[i] !== Path.DatabaseRemoval)[0]!;
+    expect(checkQueryIntake(store, through, "supervisor")).toEqual({ code: "query-through-bank" });
+    expect(checkQueryIntake(store, block, "supervisor")).toEqual({ code: "query-not-client-data" });
+    for (const role of ["reviewer", "signatory"] as const) expect(checkQueryIntake(store, row, role)).toEqual({ code: "query-role" });
+    expect(recordQuery(store, row, { role: "reviewer", actor: selfActor("reviewer"), at: NOW })).toEqual({ code: "query-role" });
+    expect(store.journal.get(row)).toBeUndefined();
+    expect(caseFacts(store, row).database?.bankOfRussiaQueryReceivedOn).toBeUndefined();
+  });
+});
+

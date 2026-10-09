@@ -1,13 +1,27 @@
 // The client's own data in the Bank of Russia's database, on the case: what
-// the bank's copy of the record holds, and the bank's own reasoned
-// application to remove the data (161-FZ art. 9 part 11.9). The legal
-// reviewer or the supervisor writes the bank's reasons and sends it after
-// a confirmation, since it is not recalled; it then shows when it went and
-// when the Bank of Russia decides, as ariadne-rules counts it. Shown only
-// for a case about the client's own data.
+// the bank's copy of the record holds; the bank's own reasoned application
+// to remove the data (161-FZ art. 9 part 11.9), which the legal reviewer or
+// the supervisor writes the bank's reasons for and sends after a
+// confirmation, since it is not recalled, then shows when it went and when
+// the Bank of Russia decides, as ariadne-rules counts it; and the Bank of
+// Russia's request about an application the client filed with it
+// directly (Directive No. 6748-U items 2.2, 2.9), recorded the day it
+// arrives with the bank's 3 working days from ariadne-rules, and answered
+// with the bank's view and reasons. Shown only for a case about the
+// client's own data.
 import { useEffect, useRef, useState } from "react";
-import { AlertDialog, Button, DescriptionList, Panel, TextArea, useFormatters } from "@ghostjima/stoa-react";
+import { AlertDialog, Button, DescriptionList, Panel, RadioGroup, TextArea, useFormatters } from "@ghostjima/stoa-react";
 import {
+  ANSWER_REASON_MIN,
+  Path,
+  QUERY_ANSWER_ROLES,
+  QUERY_INTAKE_ROLES,
+  QUERY_VIEWS,
+  checkQueryAnswer,
+  queryAnswerOf,
+  queryReceivedOn,
+  type QueryError,
+  type QueryView,
   REMOVAL_REASON_MAX,
   REMOVAL_REASON_MIN,
   REMOVAL_ROLES,
@@ -25,6 +39,7 @@ import { clock } from "@ariadne/rules";
 import { basisName } from "../case/sources";
 import { POOLS } from "../data/query";
 import type { Lang } from "../i18n";
+import { actsOn } from "./CaseWork";
 import { workflowStrings } from "./i18n";
 
 const DAY_MS = 86_400_000;
@@ -39,9 +54,14 @@ export type DatabasePanelProps = {
   /** Sends the bank's own application with its reasons; the refusal, or
    * null. */
   onApplyForRemoval: (reason: string) => RemovalError | null;
+  /** Records the Bank of Russia's request received today; the refusal,
+   * or null. */
+  onRecordQuery: () => QueryError | null;
+  /** Records the bank's answer to it; the refusal, or null. */
+  onAnswerQuery: (view: QueryView | null, reason: string) => QueryError | null;
 };
 
-export function DatabasePanel({ store, row, role, lang, version, onApplyForRemoval }: DatabasePanelProps) {
+export function DatabasePanel({ store, row, role, lang, version, onApplyForRemoval, onRecordQuery, onAnswerQuery }: DatabasePanelProps) {
   void version;
   const w = workflowStrings[lang];
   const b = w.database;
@@ -51,6 +71,9 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
   const [reason, setReason] = useState("");
   const [error, setError] = useState<RemovalError | null>(null);
   const [asking, setAsking] = useState(false);
+  const [queryError, setQueryError] = useState<QueryError | null>(null);
+  const [view, setView] = useState<QueryView | null>(null);
+  const [answerReason, setAnswerReason] = useState("");
   const refocus = useRef(false);
 
   const focusHeading = () => {
@@ -79,6 +102,33 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
       : e.code === "removal-reason-too-long"
         ? b.errors[e.code](String(e.max), String(e.length))
         : b.errors[e.code];
+  const received = queryReceivedOn(store, row);
+  const answer = queryAnswerOf(store, row);
+  const facts = caseFacts(store, row);
+  const answerDue = received >= 0 ? clock(facts).deadlines.find((d) => d.kind === "bank_of_russia_query_answer") : undefined;
+  const canRecord = QUERY_INTAKE_ROLES.includes(role) && (role !== "operator" || actsOn(store, row, role));
+  const queryErrorText = (e: QueryError) =>
+    e.code === "query-reason-required"
+      ? b.queryErrors[e.code](String(e.min))
+      : e.code === "query-reason-too-long"
+        ? b.queryErrors[e.code](String(e.max), String(e.length))
+        : b.queryErrors[e.code];
+  const record = () => {
+    const refused = onRecordQuery();
+    setQueryError(refused);
+    // The button goes with the request recorded: the heading takes the
+    // focus.
+    if (!refused) requestAnimationFrame(focusHeading);
+  };
+  const sendAnswer = () => {
+    const refused = checkQueryAnswer(store, row, role, view, answerReason) ?? onAnswerQuery(view, answerReason);
+    setQueryError(refused);
+    if (!refused) {
+      setAnswerReason("");
+      setView(null);
+      requestAnimationFrame(focusHeading);
+    }
+  };
   const ask = () => {
     const refused = checkRemoval(store, row, role, reason);
     setError(refused);
@@ -117,6 +167,61 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
           </div>
         ) : (
           <p className="muted">{b.whoMay}</p>
+        )}
+
+        <h4>{b.query}</h4>
+        <p className="muted">{b.queryHelp}</p>
+        {store.path[row] === Path.DatabaseRemoval ? (
+          <p className="muted">{b.queryThroughBank}</p>
+        ) : received < 0 ? (
+          canRecord ? (
+            <div className="letter-form__actions">
+              <Button onPress={record}>{b.recordQuery}</Button>
+            </div>
+          ) : (
+            <p className="muted">{b.queryWhoMay}</p>
+          )
+        ) : (
+          <>
+            <p>
+              {b.queryReceived(day(received))}
+              {answerDue && !answer && ` ${b.answerDue(day(dayNumber(answerDue.due)), basisName(answerDue.basis, lang))}`}
+            </p>
+            {answer ? (
+              <>
+                <p>{b.answered(day(answer.on), b.views[answer.view])}</p>
+                <p className="muted">{b.afterAnswer}</p>
+              </>
+            ) : QUERY_ANSWER_ROLES.includes(role) ? (
+              <div className="letter-form">
+                <RadioGroup<QueryView>
+                  label={b.view}
+                  value={view}
+                  onChange={setView}
+                  options={QUERY_VIEWS.map((v) => ({ value: v, label: b.views[v] }))}
+                  isInvalid={queryError?.code === "query-view-required"}
+                />
+                <TextArea
+                  label={b.answerReasons}
+                  value={answerReason}
+                  onChange={setAnswerReason}
+                  description={b.answerHelp(String(ANSWER_REASON_MIN))}
+                  rows={3}
+                  isInvalid={queryError?.code === "query-reason-required" || queryError?.code === "query-reason-too-long"}
+                />
+                <div className="letter-form__actions">
+                  <Button onPress={sendAnswer}>{b.answer}</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="muted">{b.answerWhoMay}</p>
+            )}
+          </>
+        )}
+        {queryError && (
+          <p className="field-error" role="alert">
+            {queryErrorText(queryError)}
+          </p>
         )}
       </Panel>
       <AlertDialog

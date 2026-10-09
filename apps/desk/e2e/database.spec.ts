@@ -3,6 +3,9 @@
 // 11.9), filed by the legal reviewer or the supervisor with the bank's
 // reasons after a confirmation, since it is not recalled; journaled; and
 // the Bank of Russia's 15 working days on the card, from the rules engine.
+// And the Bank of Russia's request about an application the client filed
+// with it directly: recorded the day it arrives, the bank's 3 working days
+// on the card, and the answer with the bank's view and reasons.
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { workflowStrings } from "../src/workflow/i18n";
@@ -18,6 +21,9 @@ const CLIENT_DATA = "C-001115";
 /** A suspended transfer, a block on a sign: no database panel. */
 const BLOCK = "C-001196";
 const REASONS = "The payer's bank confirmed the transfer was the client's own.";
+/** A case about the client's own data, with the Ministry's information,
+ * waiting for facts, with no application through the bank. */
+const DIRECT = "C-001183";
 
 const panel = (page: Page) => page.locator(".database-panel");
 const lastEntry = (page: Page) => page.locator(".case-work .stoa-timeline__entry").last();
@@ -116,15 +122,94 @@ for (const lang of ["ru", "en"] as const)
       await expectNoSeriousViolations(page, "bank's removal application sent", { lang, theme });
     });
 
-test("on a phone the database panel fits without sideways scroll", async ({ page }) => {
+test("on a phone the database panel fits without sideways scroll, with the application form and with the request's answer form", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  for (const lang of ["ru", "en"] as const) {
-    await openAs(page, CLIENT_DATA, "supervisor", `lang=${lang}`);
-    await expect(panel(page)).toBeVisible();
-    const sideways = await page.evaluate(() => {
-      const region = document.querySelector(".stoa-page-shell__scroll")!;
-      return [document.documentElement.scrollWidth - document.documentElement.clientWidth, region.scrollWidth - region.clientWidth];
-    });
-    expect(sideways, lang).toEqual([0, 0]);
-  }
+  for (const lang of ["ru", "en"] as const)
+    for (const id of [CLIENT_DATA, DIRECT]) {
+      await openAs(page, id, "supervisor", `lang=${lang}`);
+      await expect(panel(page)).toBeVisible();
+      if (id === DIRECT) {
+        await panel(page).getByRole("button", { name: workflowStrings[lang].database.recordQuery }).click();
+        await expect(panel(page).getByRole("button", { name: workflowStrings[lang].database.answer })).toBeVisible();
+      }
+      const sideways = await page.evaluate(() => {
+        const region = document.querySelector(".stoa-page-shell__scroll")!;
+        return [document.documentElement.scrollWidth - document.documentElement.clientWidth, region.scrollWidth - region.clientWidth];
+      });
+      expect(sideways, `${lang} ${id}`).toEqual([0, 0]);
+    }
 });
+
+test("the Bank of Russia's request on the client's own application: recorded the day it arrives, its 3 working days on the card, and the answer with the bank's view and reasons", async ({ page }) => {
+  await openAs(page, DIRECT, "supervisor");
+  await expect(panel(page)).toContainText(b.queryHelp);
+  await panel(page).getByRole("button", { name: b.recordQuery }).click();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.queryRecorded(DIRECT));
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  // Tuesday 6 October 2026: 7, 8, 9 October (Directive No. 6748-U item 2.9).
+  await expect(panel(page)).toContainText(b.queryReceived("Oct 6, 2026"));
+  await expect(panel(page)).toContainText(b.answerDue("Oct 9, 2026", "Bank of Russia Directive No. 6748-U, item 2.9"));
+  await expect(lastEntry(page)).toContainText(w.action.query_received);
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The answer to the Bank of Russia's request is due");
+  await expect(flags).toContainText("Ground: Bank of Russia Directive No. 6748-U, item 2.9");
+});
+
+test("the legal reviewer answers the request with the bank's view and reasons; without a view it does not go", async ({ page }) => {
+  await openAs(page, DIRECT, "supervisor");
+  await panel(page).getByRole("button", { name: b.recordQuery }).click();
+  await expect(panel(page).getByRole("button", { name: b.recordQuery })).toHaveCount(0);
+  await panel(page).getByRole("button", { name: b.answer }).click();
+  await expect(panel(page).getByRole("alert")).toHaveText(b.queryErrors["query-view-required"]);
+  await panel(page).getByRole("radiogroup", { name: b.view }).getByText(b.views.unjustified, { exact: true }).click();
+  await panel(page).getByLabel(b.answerReasons).fill(REASONS);
+  await panel(page).getByRole("button", { name: b.answer }).click();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.answeredToast(DIRECT));
+  await expect(panel(page)).toContainText(b.answered("Oct 6, 2026", b.views.unjustified));
+  await expect(panel(page)).toContainText(b.afterAnswer);
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  expect(await bodyHasFocus(page)).toBe(false);
+  await expect(lastEntry(page)).toContainText(w.action.query_answered);
+  await expect(lastEntry(page)).toContainText(b.viewSaid(b.views.unjustified));
+  await expect(lastEntry(page)).toContainText(`Comment: ${REASONS}`);
+  const download = page.waitForEvent("download");
+  await page.locator(".dispatch-panel").getByRole("button", { name: w.dispatch.exportText }).click();
+  const body = await readFile((await (await download).path())!, "utf8");
+  expect(body).toContain(w.action.query_received);
+  expect(body).toContain(b.viewSaid(b.views.unjustified));
+});
+
+test("the request is not recorded where the client applied through the bank, nor by the legal reviewer or another operator's hand", async ({ page }) => {
+  await openAs(page, CLIENT_DATA, "supervisor");
+  await expect(panel(page)).toContainText(b.queryThroughBank);
+  await expect(panel(page).getByRole("button", { name: b.recordQuery })).toHaveCount(0);
+  for (const role of ["reviewer", "operator", "signatory"]) {
+    await openAs(page, DIRECT, role);
+    await expect(panel(page)).toContainText(b.queryWhoMay);
+    await expect(panel(page).getByRole("button", { name: b.recordQuery })).toHaveCount(0);
+  }
+  const ru = workflowStrings.ru.database;
+  await openAs(page, DIRECT, "supervisor", "lang=ru");
+  await panel(page).getByRole("button", { name: ru.recordQuery }).click();
+  await expect(panel(page)).toContainText(ru.answerDue("9 окт. 2026 г.", "Указание Банка России № 6748-У, п. 2.9"));
+  await expect(lastEntry(page)).toContainText(workflowStrings.ru.action.query_received);
+});
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: the Bank of Russia's request recorded, its answer refused without a view, and answered (${lang}, ${theme})`, async ({ page }) => {
+      const words = workflowStrings[lang].database;
+      await openAs(page, DIRECT, "supervisor", `lang=${lang}&theme=${theme}`);
+      await panel(page).getByRole("button", { name: words.recordQuery }).click();
+      await expect(panel(page).getByRole("button", { name: words.answer })).toBeVisible();
+      await expectNoSeriousViolations(page, "Bank of Russia's request recorded", { lang, theme });
+      await panel(page).getByRole("button", { name: words.answer }).click();
+      await expect(panel(page).getByRole("alert")).toBeVisible();
+      await expectNoSeriousViolations(page, "answer to the request refused", { lang, theme });
+      await panel(page).getByRole("radiogroup", { name: words.view }).getByText(words.views.justified, { exact: true }).click();
+      await panel(page).getByLabel(words.answerReasons).fill(REASONS);
+      await panel(page).getByRole("button", { name: words.answer }).click();
+      await expect(panel(page)).toContainText(words.afterAnswer);
+      await expectNoSeriousViolations(page, "answer to the request recorded", { lang, theme });
+    });
+

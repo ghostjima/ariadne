@@ -32,6 +32,7 @@ export function inspectionOf(store: ColumnStore, row: number, lang: Lang, t: Str
       e.from !== e.to ? w.move(labels.stage[e.from] ?? "", labels.stage[e.to] ?? "") : "",
       e.reason ? w.why(w.reasons[e.reason]) : "",
       e.copy ? w.dispatch.copy[e.copy] : "",
+      e.view ? w.database.viewSaid(w.database.views[e.view]) : "",
       record
         ? [w.signature.record(w.signature.decisions[record.decision]), record.concerns ? w.signature.concernsSaid(record.concerns) : "", w.signature.wrongSaid(record.wrong)].filter(Boolean).join(" ")
         : e.comment

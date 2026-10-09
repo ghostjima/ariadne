@@ -63,6 +63,8 @@ import {
   dispatchReply,
   extendDeadline,
   applyForRemoval,
+  answerQuery,
+  recordQuery,
   markBreach,
   markCopySent,
   beginEdit,
@@ -88,6 +90,7 @@ import {
   visibleColumns,
   type CellValue,
   type CopyKind,
+  type QueryView,
   type Density,
   type EditColumn,
   type EditSession,
@@ -632,6 +635,28 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return null;
   };
 
+  // The Bank of Russia's request about the client's own application,
+  // recorded the day it arrives, and the bank's answer: journaled; the
+  // request's day goes to the rules with the case's facts.
+  const query = (row: number) => {
+    const refused = recordQuery(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()) });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].database.queryRecorded(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+  const answer = (row: number, view: QueryView | null, reason: string) => {
+    const refused = answerQuery(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()), view, reason });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].database.answeredToast(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+
   // The simulated colleague.
   const tick = useRef(0);
   const simulate = () => {
@@ -901,6 +926,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onBreach={(found) => breach(openCase, found)}
           onExtend={(reason) => extend(openCase, reason)}
           onApplyForRemoval={(reason) => removal(openCase, reason)}
+          onRecordQuery={() => query(openCase)}
+          onAnswerQuery={(view, reason) => answer(openCase, view, reason)}
           onExported={() => toasts.add({ tone: "positive", text: workflowStrings[lang].dispatch.exported, timeout: 5000 })}
         />
       ) : openCase !== null && load.loading ? (

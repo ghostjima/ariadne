@@ -3,7 +3,7 @@
 // and why, and the handover of the assistant's draft. Russian first,
 // English second; the stages' own names are the engine's language
 // modules'.
-import type { Action, CopyKind, ReturnReason, TransitionError } from "@ariadne/grid";
+import type { Action, CopyKind, QueryView, ReturnReason, TransitionError } from "@ariadne/grid";
 import type { SignDecision } from "./caseFile";
 import type { Lang } from "../i18n";
 
@@ -219,6 +219,37 @@ export type WorkflowStrings = {
       "removal-reason-required": (min: string) => string;
       "removal-reason-too-long": (max: string, length: string) => string;
     };
+    /** The Bank of Russia's request about an application the client filed
+     * with it directly, and the bank's answer. */
+    query: string;
+    queryHelp: string;
+    queryThroughBank: string;
+    recordQuery: string;
+    queryWhoMay: string;
+    queryRecorded: (id: string) => string;
+    queryReceived: (day: string) => string;
+    answerDue: (day: string, basis: string) => string;
+    view: string;
+    views: Record<QueryView, string>;
+    viewSaid: (view: string) => string;
+    answerReasons: string;
+    answerHelp: (min: string) => string;
+    answer: string;
+    answerWhoMay: string;
+    answeredToast: (id: string) => string;
+    answered: (day: string, view: string) => string;
+    afterAnswer: string;
+    queryErrors: {
+      "query-not-client-data": string;
+      "query-through-bank": string;
+      "query-role": string;
+      "query-already-received": string;
+      "query-not-received": string;
+      "query-already-answered": string;
+      "query-view-required": string;
+      "query-reason-required": (min: string) => string;
+      "query-reason-too-long": (max: string, length: string) => string;
+    };
   };
 };
 
@@ -301,6 +332,8 @@ const en: WorkflowStrings = {
     copy_sent: "Copy sent",
     dispatch_cancelled: "Dispatch cancelled before sending",
     removal_applied: "The bank applied to the Bank of Russia to remove the client's data",
+    query_received: "The Bank of Russia's request on the client's application reached the bank",
+    query_answered: "The bank answered the Bank of Russia's request",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Reason: ${reason}`,
@@ -497,6 +530,36 @@ const en: WorkflowStrings = {
       "removal-reason-required": (min) => `State the bank's reasons, at least ${min} characters.`,
       "removal-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
     },
+    query: "The Bank of Russia's request on the client's own application",
+    queryHelp:
+      "A client may apply to the Bank of Russia directly, through its internet reception. The bank learns of it from the Bank of Russia's request and answers within 3 working days with its view of whether the data were included with basis (Directive No. 6748-U items 2.2, 2.9). The Bank of Russia sends its decision to the client by email, so the bank passes nothing on; if the data are removed, the bank restores a suspended card at once (161-FZ art. 9 part 11.11).",
+    queryThroughBank: "The client applied through the bank, which forwarded its view with the application (Directive No. 6748-U item 1.5).",
+    recordQuery: "Record the request received today",
+    queryWhoMay: "The operator of the case or the supervisor records the request.",
+    queryRecorded: (id) => `Case ${id}: the Bank of Russia's request is on the case, and the answer is due in 3 working days.`,
+    queryReceived: (day) => `The request reached the bank on ${day}.`,
+    answerDue: (day, basis) => `The answer is due by ${day} (${basis}).`,
+    view: "The bank's view",
+    views: { justified: "Included with basis", unjustified: "Included without basis" },
+    viewSaid: (view) => `View: ${view}`,
+    answerReasons: "The reasons for the bank's view",
+    answerHelp: (min) => `What the bank's view rests on, as the answer states it; at least ${min} characters.`,
+    answer: "Record the answer",
+    answerWhoMay: "The legal reviewer or the supervisor answers the request.",
+    answeredToast: (id) => `Case ${id}: the bank's answer to the Bank of Russia's request is on the case.`,
+    answered: (day, view) => `Answered on ${day}: ${view}.`,
+    afterAnswer: "The Bank of Russia decides within 15 working days of receiving the client's application and tells the client by email.",
+    queryErrors: {
+      "query-not-client-data": "Only a case about the client's own data in the database has this request.",
+      "query-through-bank": "The client applied through the bank, which forwarded its view with the application.",
+      "query-role": "Another role records this step.",
+      "query-already-received": "The request is already on the case.",
+      "query-not-received": "No request from the Bank of Russia is on the case.",
+      "query-already-answered": "The bank has already answered the request.",
+      "query-view-required": "Choose the bank's view.",
+      "query-reason-required": (min) => `State the bank's reasons, at least ${min} characters.`,
+      "query-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
+    },
   },
 };
 
@@ -579,6 +642,8 @@ const ru: WorkflowStrings = {
     copy_sent: "Копия направлена",
     dispatch_cancelled: "Отправка отменена до ухода",
     removal_applied: "Банк подал в Банк России заявление об исключении сведений о клиенте",
+    query_received: "В банк поступил запрос Банка России по заявлению клиента",
+    query_answered: "Банк ответил на запрос Банка России",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Причина: ${reason}`,
@@ -774,6 +839,36 @@ const ru: WorkflowStrings = {
       "removal-already-sent": "Банк уже подал заявление по этому обращению.",
       "removal-reason-required": (min) => `Укажите основания банка, не короче ${min} знаков.`,
       "removal-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
+    },
+    query: "Запрос Банка России по заявлению самого клиента",
+    queryHelp:
+      "Клиент может подать заявление в Банк России сам, через интернет-приёмную. Банк узнаёт о нём из запроса Банка России и в течение 3 рабочих дней сообщает, обоснованно ли включены сведения (пп. 2.2, 2.9 Указания Банка России № 6748-У). Решение Банк России направляет клиенту по электронной почте, банку передавать нечего; если сведения исключены, банк сразу возобновляет приостановленную карту (ч. 11.11 ст. 9 161-ФЗ).",
+    queryThroughBank: "Клиент подал заявление через банк, и банк передал свою позицию вместе с ним (п. 1.5 Указания Банка России № 6748-У).",
+    recordQuery: "Отметить запрос, поступивший сегодня",
+    queryWhoMay: "Запрос отмечает исполнитель обращения или руководитель.",
+    queryRecorded: (id) => `Обращение ${id}: запрос Банка России отмечен, ответ нужен в течение 3 рабочих дней.`,
+    queryReceived: (day) => `Запрос поступил в банк ${day}.`,
+    answerDue: (day, basis) => `Ответить не позднее ${day} (${basis}).`,
+    view: "Позиция банка",
+    views: { justified: "Включены обоснованно", unjustified: "Включены необоснованно" },
+    viewSaid: (view) => `Позиция: ${view}`,
+    answerReasons: "Основания позиции банка",
+    answerHelp: (min) => `На чём основана позиция банка, как это будет сказано в ответе; не короче ${min} знаков.`,
+    answer: "Отметить ответ",
+    answerWhoMay: "На запрос отвечает юрист или руководитель.",
+    answeredToast: (id) => `Обращение ${id}: ответ банка на запрос Банка России отмечен.`,
+    answered: (day, view) => `Ответ направлен ${day}: ${view}.`,
+    afterAnswer: "Банк России решает в течение 15 рабочих дней со дня поступления заявления клиента и сообщает клиенту по электронной почте.",
+    queryErrors: {
+      "query-not-client-data": "Такой запрос бывает только в обращении о сведениях самого клиента в базе.",
+      "query-through-bank": "Клиент подал заявление через банк, и банк уже передал свою позицию.",
+      "query-role": "Этот шаг отмечает другая роль.",
+      "query-already-received": "Запрос уже отмечен в обращении.",
+      "query-not-received": "Запроса Банка России в обращении нет.",
+      "query-already-answered": "Банк уже ответил на запрос.",
+      "query-view-required": "Выберите позицию банка.",
+      "query-reason-required": (min) => `Укажите основания банка, не короче ${min} знаков.`,
+      "query-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
     },
   },
 };

@@ -159,7 +159,16 @@ assistant's).
   Russia's 15 working days from the rules engine (Directive No. 6748-U
   items 2.6 and 2.7, counted from the day it is sent; with the client's
   own application under review, one decision 15 working days from the
-  first, item 2.8).
+  first, item 2.8). A client may also apply to the Bank of Russia
+  directly, through its internet reception; the bank learns of it from
+  the Bank of Russia's request. The operator of the case or the
+  supervisor records the request the day it arrives, the card shows the
+  bank's 3 working days to answer (Directive No. 6748-U item 2.9), and
+  the legal reviewer or the supervisor records the answer: the bank's
+  view of whether the data were included with basis, with its reasons. The Bank of Russia sends
+  its decision to the client by email, so the bank owes no relay of it;
+  a case where the client applied through the bank has had the bank's
+  view forwarded with the application, and takes no request here.
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -354,6 +363,8 @@ instead of the suspension, the
 dispatch's confirmation and its send delay, the
 supervisor's refused extension, the bank's own application to remove the
 client's data refused without reasons, its confirmation and sent, the
+Bank of Russia's request on the client's own application recorded, its
+answer refused without a view and answered, the
 supervisor's metrics, and, in the
 assistant,
 the plan, the agent's request to change a step, a failed step, the
@@ -374,7 +385,8 @@ deleting a view, opening and closing a case, a transition taken from
 the case and the return dialog, the confirmed handover, the letter's
 editor, a signature and a deferral, the dispatch's confirmation and its
 cancel, a copy marked sent, the bank's own application to remove the
-client's data once sent, and after every
+client's data once sent, the Bank of Russia's request recorded and
+answered, and after every
 decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI
