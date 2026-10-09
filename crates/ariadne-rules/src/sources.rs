@@ -75,6 +75,17 @@ pub const BANKING_LAW_30_1: Source = Source {
     checked: "2026-10-06",
 };
 
+/// Banking Law, art. 30: the bank's relations with its clients; part 16
+/// caps ATM cash at 100,000 roubles a month for a client whose data are in
+/// the Bank of Russia's database of transfers without consent.
+pub const BANKING_LAW_30: Source = Source {
+    id: "banking_law_30",
+    title: "Федеральный закон от 02.12.1990 N 395-1 «О банках и банковской деятельности», статья 30",
+    url: "https://www.consultant.ru/document/cons_doc_LAW_5842/e452b6541ff9e2aad438b239b6e5ba38a28162da/",
+    revision: "2026-08-04",
+    checked: "2026-10-09",
+};
+
 /// Microfinance Law, art. 9.1: how a microfinance organisation handles
 /// complaints.
 pub const MICROFINANCE_LAW_9_1: Source = Source {
@@ -295,6 +306,7 @@ pub const ALL: &[Source] = &[
     DECREE_2026,
     DECREE_2027,
     BANKING_LAW_30_1,
+    BANKING_LAW_30,
     MICROFINANCE_LAW_9_1,
     INSURANCE_LAW_6_2,
     SECURITIES_LAW_15_11,

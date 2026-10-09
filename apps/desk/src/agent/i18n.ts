@@ -18,6 +18,7 @@ import type {
   DeviationReason,
   DraftKind,
   DraftStatus,
+  MeasureCode,
   ErrorCode,
   FactQuestion,
   LinkStatus,
@@ -280,9 +281,10 @@ export type Strings = {
     clean: string;
     count: (n: Count) => string;
     finding: Record<FindingCode, (subject: string, words: string) => string>;
-    /** The subjects of option and deadline findings. */
+    /** The subjects of option, deadline and restriction findings. */
     option: Record<ClientOption, string>;
     deadline: Record<ClientDeadlineKind, string>;
+    measure: Record<MeasureCode, string>;
     /** The draft as written, under a finished drafting step. */
     draftShown: string;
     /** The check ran with no draft written (skipped, undone, or later). */
@@ -298,6 +300,9 @@ export type Strings = {
     suspended: (sign: string) => string;
     refused: (sign: string) => string;
     aml: Record<AmlReasonCode, string>;
+    /** The restrictions for the client's own data in the Bank of
+     * Russia's database: which apply, each on its ground. */
+    measure: Record<MeasureCode, string>;
     ground: (citation: string) => string;
     contract: string;
     option: Record<ClientOption, string>;
@@ -651,6 +656,8 @@ const en: Strings = {
       client_option_missing: (subject) => `An option the law gives the client is not offered: ${subject}.`,
       deadline_missing: (subject) => `A running deadline is not stated: ${subject}.`,
       deadline_mismatch: (subject) => `A deadline is stated with another date: ${subject}.`,
+      measure_missing: (subject) => `A restriction that applies is not stated: ${subject}.`,
+      measure_not_taken: (subject) => `A restriction is stated that does not apply: ${subject}.`,
       text_empty: () => "The reply has no text.",
       sentence_too_long: (_subject, words) => `A sentence of ${words} words.`,
       sentences_long_on_average: (_subject, words) => `Sentences of ${words} words on average.`,
@@ -662,6 +669,11 @@ const en: Strings = {
       apply_to_commission: "applying to the interagency commission",
       apply_to_ombudsman: "applying to the financial ombudsman",
       apply_for_removal: "applying to the Bank of Russia to remove the client's data from its database",
+    },
+    measure: {
+      suspend_instrument: "the suspension of the card and online banking",
+      cap_transfers: "the cap on transfers to individuals instead of the suspension",
+      cap_atm_cash: "the cap on cash at ATMs",
     },
     deadline: {
       antifraud_suspension_ends: "the end of the suspension",
@@ -701,6 +713,12 @@ const en: Strings = {
       aml_operation_suspended_by_decision: "We suspended the operation by a decision under the anti-money-laundering law.",
       aml_funds_frozen: "We froze the funds under the anti-money-laundering law.",
       aml_high_risk_measures: "We applied the measures for a high-risk client under the anti-money-laundering law.",
+    },
+    measure: {
+      suspend_instrument: "We suspended your card and online banking while your data are in the Bank of Russia's database.",
+      cap_transfers:
+        "We did not suspend your card or online banking. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
+      cap_atm_cash: "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there, under the Banking Law, art. 30, part 16.",
     },
     ground: (citation) => `The ground is ${citation}.`,
     contract: "Our position rests on the terms of your contract with the bank.",
@@ -1080,6 +1098,8 @@ const ruStrings: Strings = {
       client_option_missing: (subject) => `Не предложена возможность, которую закон даёт клиенту: ${subject}.`,
       deadline_missing: (subject) => `Не указан текущий срок: ${subject}.`,
       deadline_mismatch: (subject) => `Срок указан с другой датой: ${subject}.`,
+      measure_missing: (subject) => `Не указано ограничение, которое действует: ${subject}.`,
+      measure_not_taken: (subject) => `Указано ограничение, которое не действует: ${subject}.`,
       text_empty: () => "В ответе нет текста.",
       sentence_too_long: (_subject, words) => `Предложение из ${words} слов.`,
       sentences_long_on_average: (_subject, words) => `В среднем ${words} слов в предложении.`,
@@ -1091,6 +1111,11 @@ const ruStrings: Strings = {
       apply_to_commission: "обратиться в межведомственную комиссию",
       apply_to_ombudsman: "обратиться к финансовому уполномоченному",
       apply_for_removal: "подать в Банк России заявление об исключении сведений о клиенте из его базы данных",
+    },
+    measure: {
+      suspend_instrument: "приостановление карты и онлайн-банка",
+      cap_transfers: "ограничение переводов физическим лицам вместо приостановления",
+      cap_atm_cash: "ограничение выдачи наличных в банкоматах",
     },
     deadline: {
       antifraud_suspension_ends: "окончание приостановления",
@@ -1130,6 +1155,12 @@ const ruStrings: Strings = {
       aml_operation_suspended_by_decision: "Мы приостановили операцию по решению на основании закона о противодействии отмыванию доходов.",
       aml_funds_frozen: "Мы заморозили средства по закону о противодействии отмыванию доходов.",
       aml_high_risk_measures: "Мы применили меры для клиента с высоким уровнем риска по закону о противодействии отмыванию доходов.",
+    },
+    measure: {
+      suspend_instrument: "Мы приостановили использование вашей карты и онлайн-банка, пока сведения о вас есть в базе данных Банка России.",
+      cap_transfers:
+        "Мы не приостанавливали вашу карту и онлайн-банк. Пока сведения о вас есть в базе данных Банка России, переводы физическим лицам ограничены суммой 100 000 ₽ в месяц.",
+      cap_atm_cash: "На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.",
     },
     ground: (citation) => `Основание: ${citation}.`,
     contract: "Наша позиция основана на условиях вашего договора с банком.",

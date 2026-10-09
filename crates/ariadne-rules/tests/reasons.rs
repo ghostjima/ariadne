@@ -232,6 +232,7 @@ fn a_suspended_card_rests_on_part_11_6_or_with_the_police_information_on_11_7() 
         let mut case = Case::new(Stream::Antifraud, Date::parse("2026-05-12").unwrap());
         case.database = Some(DatabaseFacts {
             instrument_suspended_on: Some(Date::parse("2026-05-09").unwrap()),
+            transfers_capped_on: None,
             police_information: police,
             data_removed_on: None,
             exclusion_received_by_operator_on: None,

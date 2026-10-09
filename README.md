@@ -153,8 +153,10 @@ The workflows the desk is built around, and what exists of each today:
   Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; the
   161-FZ grounds a reply names, among them art. 9 parts 11.6 and 11.7 for
   a reply about removing the client's data from the Bank of Russia's
-  database; and a rubric that returns coded findings on a structured
-  reply.
+  database, with the bank's choice under part 11.6 between suspending the
+  client's card and capping the client's transfers, and the ATM cash cap
+  of the Banking Law art. 30 part 16; and a rubric that returns coded
+  findings on a structured reply.
 
 The desk is built on the [Stoa](https://github.com/ghostjima/stoa)
 design system and is tested with axe in Russian and English, light and

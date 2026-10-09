@@ -19,9 +19,9 @@ const ctx = (lang: "en" | "ru", role: "operator" | "signatory" | "supervisor" = 
 const rows = (pred: (i: number) => boolean) => Array.from({ length: store.size }, (_, i) => i).filter(pred);
 
 describe("grid columns", () => {
-  it("cover the whole catalogue of 26 columns, case and applicant pinned first", () => {
+  it("cover the whole catalogue of 27 columns, case and applicant pinned first", () => {
     const columns = buildColumns(COLUMN_IDS, ctx("en"));
-    expect(columns).toHaveLength(26);
+    expect(columns).toHaveLength(27);
     expect(columns.filter((c) => c.pinned).map((c) => c.id)).toEqual(["id", "client"]);
     expect(columns.filter((c) => c.editor).map((c) => c.id)).toEqual(["extension", "stage", "outcome", "ground", "assignee", "note"]);
   });

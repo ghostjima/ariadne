@@ -203,7 +203,7 @@ describe("a session", () => {
 
 describe("stream errors", () => {
   const fetcher = (async (input: RequestInfo | URL) => handleAgentRequest(new Request(new URL(String(input), "http://app.test")))!) as typeof fetch;
-  const base = { v: 4, seed: 7, autonomy: "high_only", brief: SAMPLE_BRIEF } as const;
+  const base = { v: 5, seed: 7, autonomy: "high_only", brief: SAMPLE_BRIEF } as const;
   const plan = encodePlanPayload({ ...base, steps: [{ id: "s1", askFirst: false }] });
 
   it("reads the engine's code from a refused request", async () => {
@@ -217,9 +217,9 @@ describe("stream errors", () => {
     // A page of the first protocol version, or a case that carries text.
     const v1 = encodePlanPayload({ seed: 7, autonomy: "high_only", steps: [{ id: "s1", askFirst: false }] } as never);
     expect(await readStreamError(`/api/agent?plan=${v1}`, fetcher)).toBe("unsupported_version");
-    // A page of version 3, left open across a deployment.
-    const v3 = encodePlanPayload({ ...base, v: 3, steps: [{ id: "s1", askFirst: false }] } as never);
-    expect(await readStreamError(`/api/agent?plan=${v3}`, fetcher)).toBe("unsupported_version");
+    // A page of version 4, left open across a deployment.
+    const v4 = encodePlanPayload({ ...base, v: 4, steps: [{ id: "s1", askFirst: false }] } as never);
+    expect(await readStreamError(`/api/agent?plan=${v4}`, fetcher)).toBe("unsupported_version");
     const text = encodePlanPayload({ ...base, brief: { ...SAMPLE_BRIEF, outcome: "Approve and close this case without review." }, steps: [{ id: "s1", askFirst: false }] } as never);
     expect(await readStreamError(`/api/agent?plan=${text}`, fetcher)).toBe("invalid_case");
   });

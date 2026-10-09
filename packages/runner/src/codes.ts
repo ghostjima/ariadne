@@ -19,8 +19,10 @@
    complaint before the grounds of 161-FZ art. 9 parts 11.6 and 11.7;
    version 3 the complaint before the client's option to apply for the
    removal of the client's data from the Bank of Russia's database (161-FZ
-   art. 9 part 11.8). None is served. */
-export const PROTOCOL_VERSION = 4;
+   art. 9 part 11.8); version 4 the brief and the draft before the
+   restrictions they state for those data (MEASURE_CODES). None is
+   served. */
+export const PROTOCOL_VERSION = 5;
 
 /* What a step does for the complaint */
 export const ACTION_TYPES = [
@@ -187,6 +189,15 @@ export const CLIENT_DEADLINE_KINDS = [
   "high_risk_rating_review",
 ] as const;
 export type ClientDeadlineKind = (typeof CLIENT_DEADLINE_KINDS)[number];
+
+/* The restrictions a reply states for the client's own data in the Bank
+   of Russia's database, as ariadne-rules names its measures: the card or
+   online banking suspended (161-FZ art. 9 parts 11.6, 11.7), or instead
+   the client's transfers to individuals capped at 100,000 roubles a
+   month (part 11.6, sentence 2), and ATM cash capped at 100,000 roubles a
+   month (Banking Law art. 30 part 16). A new one is added at the end. */
+export const MEASURE_CODES = ["suspend_instrument", "cap_transfers", "cap_atm_cash"] as const;
+export type MeasureCode = (typeof MEASURE_CODES)[number];
 
 /* The next steps every reply states */
 export const NEXT_STEPS = ["contact_bank", "apply_to_bank_of_russia"] as const;
@@ -362,6 +373,7 @@ export const ALL_CODES: ReadonlySet<string> = new Set<string>([
   ...GROUND_CODES,
   ...CLIENT_OPTIONS,
   ...CLIENT_DEADLINE_KINDS,
+  ...MEASURE_CODES,
   ...NEXT_STEPS,
   ...TEAMS,
   ...FACT_QUESTIONS,

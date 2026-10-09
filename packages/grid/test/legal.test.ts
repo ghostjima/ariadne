@@ -10,6 +10,7 @@ import {
   CORPUS_CHUNK,
   CORPUS_ROWS,
   DEFAULT_SEED,
+  Applicant,
   Database,
   Extension,
   GROUNDS,
@@ -19,6 +20,7 @@ import {
   Outcome,
   PAYMENT_GROUND_CODES,
   Path,
+  Restriction,
   SIGN_COUNT,
   Source,
   Stage,
@@ -321,10 +323,15 @@ describe("the paths beyond the first action or decision", () => {
       expect(police || store.database[i] === Database.ClientData, `row ${i}`).toBe(true);
       expect(store.pathOn[i]).toBeGreaterThanOrEqual(store.received[i]!);
       const c = clock(caseFacts(store, i));
-      expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
+      if (store.restriction[i] === Restriction.TransfersCapped) {
+        expect(c.measures.find((m) => m.kind === "cap_transfers")?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: "11.6, sentence 2" });
+        expect(c.duties.map((d) => d.kind), `row ${i}`).not.toContain("notify_client_of_right_to_apply");
+      } else {
+        expect(c.measures.find((m) => m.kind === "suspend_instrument")?.basis).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
+        expect(c.duties.map((d) => d.kind)).toContain("notify_client_of_right_to_apply");
+      }
       const forwarding = c.deadlines.find((d) => d.kind === "exclusion_forwarding");
       expect(forwarding?.basis).toMatchObject({ source: "directive_6748_u", part: "1.5" });
-      expect(c.duties.map((d) => d.kind)).toContain("notify_client_of_right_to_apply");
       if (store.pathThen[i]! >= 0) {
         expect(store.pathThen[i]).toBe(dayNumber(nextWorkingDay(isoDay(store.pathOn[i]!))));
         expect(c.deadlines.find((d) => d.kind === "exclusion_decision")?.from).toBe(isoDay(store.pathThen[i]!));
@@ -332,19 +339,55 @@ describe("the paths beyond the first action or decision", () => {
     }
   });
 
+  it("the bank chose under part 11.6 between the suspension and the transfer cap, never the cap with the Ministry's information or for a legal entity, and ATM cash is capped either way", () => {
+    // 161-FZ art. 9 part 11.6: "вправе приостановить"; if not, an
+    // individual's transfers to individuals "на сумму не более 100 тысяч
+    // рублей в месяц". Part 11.7 leaves no choice. Banking Law art. 30
+    // part 16 caps ATM cash for every such client.
+    const clientData = rows((i) => store.database[i] !== Database.None);
+    const capped = clientData.filter((i) => store.restriction[i] === Restriction.TransfersCapped);
+    expect(capped.length).toBeGreaterThan(2);
+    expect(clientData.length - capped.length).toBeGreaterThan(2);
+    for (const i of rows((k) => store.database[k] === Database.None)) expect(store.restriction[i], `row ${i}`).toBe(Restriction.None);
+    for (const i of clientData) expect(store.restriction[i], `row ${i}`).not.toBe(Restriction.None);
+    for (const i of capped) {
+      expect(store.database[i], `row ${i}`).toBe(Database.ClientData);
+      expect(store.applicant[i], `row ${i}`).toBe(Applicant.Individual);
+      const facts = caseFacts(store, i);
+      expect(facts.database, `row ${i}`).toMatchObject({ transfersCappedOn: isoDay(store.opOn[i]!), policeInformation: false });
+      expect(facts.database?.instrumentSuspendedOn, `row ${i}`).toBeUndefined();
+      const c = clock(facts);
+      expect(c.measures.map((m) => [m.kind, m.on, m.basis.source, m.basis.part]), `row ${i}`).toEqual([
+        ["cap_transfers", isoDay(store.opOn[i]!), "payment_law_9", "11.6, sentence 2"],
+        ["cap_atm_cash", isoDay(store.opOn[i]!), "banking_law_30", "16"],
+      ]);
+      expect(kinds(i), `row ${i}`).not.toContain("instrument_suspension_notice");
+      expect(c.refusals, `row ${i}`).toEqual([]);
+    }
+    /* A linked case is the same client's: the same record and choice */
+    for (const i of clientData.filter((k) => store.linked[k]! >= 0)) expect(store.restriction[i], `row ${i}`).toBe(store.restriction[store.linked[i]!]);
+    /* Refused on part 11.6 whichever the bank chose */
+    expect(capped.some((i) => store.outcome[i] === Outcome.Refused && GROUNDS[store.ground[i]!]?.id === "payment_9_11_6")).toBe(true);
+  });
+
   it("the client's own data in the database is a case of its own, not a block on sign 1.1: no operation blocked, the card or online banking suspended under 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information, a refusal resting on it, and only there an application to remove the data", () => {
     const clientData = rows((i) => store.database[i] !== Database.None);
     const signOne = rows((i) => store.stream[i] === Stream.Antifraud && store.reason[i] === 1);
     expect(clientData.length).toBeGreaterThan(10);
     expect(signOne.length).toBeGreaterThan(10);
-    for (const i of clientData) {
+    for (const i of clientData.filter((k) => store.restriction[k] === Restriction.InstrumentSuspended)) {
       const facts = caseFacts(store, i);
       const police = store.database[i] === Database.ClientDataWithPoliceInformation;
       expect(facts.blocked, `row ${i}`).toBeUndefined();
       expect(facts.database, `row ${i}`).toMatchObject({ instrumentSuspendedOn: isoDay(store.opOn[i]!), policeInformation: police });
-      expect(measures(i), `row ${i}`).toEqual(["suspend_instrument"]);
+      expect(measures(i), `row ${i}`).toEqual(["suspend_instrument", "cap_atm_cash"]);
       expect(clock(facts).measures[0]?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
       expect(kinds(i), `row ${i}`).toContain("instrument_suspension_notice");
+      if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)
+        expect(GROUNDS[store.ground[i]!]?.id, `row ${i}`).toBe(police ? "payment_9_11_7" : "payment_9_11_6");
+    }
+    for (const i of clientData) {
+      const police = store.database[i] === Database.ClientDataWithPoliceInformation;
       if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)
         expect(GROUNDS[store.ground[i]!]?.id, `row ${i}`).toBe(police ? "payment_9_11_7" : "payment_9_11_6");
     }

@@ -118,7 +118,12 @@ assistant's).
   Russia's database cites 161-FZ art. 9 part 11.6, with no art. 8 action
   before it, as the rules engine gives it; a reviewer who names part
   11.7 (with the Ministry of Internal Affairs' information) in its place
-  is followed, the two parts excluding each other. At signature the signatory records
+  is followed, the two parts excluding each other. It says which
+  restriction applies: the card or online banking suspended, or, the
+  bank's choice under part 11.6, the transfers to individuals capped at
+  100,000 roubles a month instead; and ATM cash capped at 100,000
+  roubles a month either way (Banking Law art. 30 part 16). The rubric
+  flags a restriction left out or one that does not apply. At signature the signatory records
   a decision (approve, modify, override or defer, as one radio group with
   what each means under it) with their concerns and what would make it
   wrong, in fields of several lines (always asked for; the concerns unless
@@ -332,6 +337,8 @@ with its journal, the return for rework with its refusal, the review
 of a letter with its findings and changes, the signature with a refused
 decision record, the review of a reply about removing the client's data
 with the grounds offered and with 161-FZ art. 9 part 11.7 named, the
+card and the review of a reply where the bank capped the transfers
+instead of the suspension, the
 dispatch's confirmation and its send delay, the
 supervisor's refused extension, the supervisor's metrics, and, in the
 assistant,

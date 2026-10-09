@@ -107,6 +107,9 @@ export type Columns = {
   /* Database code: the client's own data in the Bank of Russia's
      database */
   database: Uint8Array;
+  /* Restriction code: the suspension, or the transfer cap the bank chose
+     instead, for the client's own data in the database */
+  restriction: Uint8Array;
 };
 
 export type ColumnStore = Columns & {
@@ -184,6 +187,7 @@ export function allocColumns(size: number): Columns {
     pathThen: new Int32Array(size),
     pathTerm: new Uint8Array(size),
     database: new Uint8Array(size),
+    restriction: new Uint8Array(size),
   };
 }
 

@@ -503,6 +503,8 @@ const en: Strings = {
       refuse_repeat: "The repeated operation refused: the Bank of Russia's database answered after the repeat",
       order_not_accepted: "The order counts as not accepted: it was confirmed after its window",
       suspend_instrument: "The client's card or online banking suspended: the client's own data are in the Bank of Russia's database",
+      cap_transfers: "Not suspended: the client's transfers to individuals capped at 100,000 roubles a month while the client's own data are in the Bank of Russia's database",
+      cap_atm_cash: "ATM cash capped at 100,000 roubles a month while the client's data are in the Bank of Russia's database",
     },
     basisLine: (basis) => `Ground: ${basis}`,
     duties: "Duties and storage",
@@ -541,6 +543,7 @@ const en: Strings = {
       storage_term_not_set: "190-FZ art. 6.2 sets no term for a credit cooperative to keep complaints, replies and notices.",
       commission_term_below_minimum: "The commission's request gives less than the 3 working days 115-FZ art. 7 item 13.6 guarantees: its own, earlier day is kept.",
       commission_term_assumed: "The commission's request gives no term: the least the law allows, 3 working days, is taken.",
+      transfer_cap_for_individuals_only: "The transfer cap of 161-FZ art. 9 part 11.6 is an individual's: a company whose card is not suspended has none.",
     },
     timeline: "Channel timeline",
     event: {
@@ -836,6 +839,8 @@ const ruStrings: Strings = {
       refuse_repeat: "В повторной операции отказано: база Банка России ответила после повтора",
       order_not_accepted: "Распоряжение считается не принятым к исполнению: подтверждено после срока",
       suspend_instrument: "Карта или онлайн-банк клиента приостановлены: данные самого клиента есть в базе Банка России",
+      cap_transfers: "Без приостановления: переводы клиента физическим лицам ограничены 100 000 ₽ в месяц, пока данные самого клиента в базе Банка России",
+      cap_atm_cash: "Выдача наличных в банкоматах ограничена 100 000 ₽ в месяц, пока данные клиента в базе Банка России",
     },
     basisLine: (basis) => `Основание: ${basis}`,
     duties: "Обязанности и хранение",
@@ -874,6 +879,7 @@ const ruStrings: Strings = {
       storage_term_not_set: "190-ФЗ, ст. 6.2, не устанавливает кредитному кооперативу срок хранения обращений, ответов и уведомлений.",
       commission_term_below_minimum: "Запрос комиссии даёт меньше трёх рабочих дней, гарантированных 115-ФЗ, ст. 7, п. 13.6: сохранён его собственный, более ранний срок.",
       commission_term_assumed: "В запросе комиссии нет срока: взят наименьший по закону, три рабочих дня.",
+      transfer_cap_for_individuals_only: "Ограничение переводов по ч. 11.6 ст. 9 161-ФЗ касается физических лиц: у компании без приостановления его нет.",
     },
     timeline: "Каналы и события",
     event: {

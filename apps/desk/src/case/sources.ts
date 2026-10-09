@@ -12,6 +12,7 @@ const NAMES: Record<string, Record<Lang, string>> = {
   decree_1466_2025: { ru: "Постановление Правительства № 1466", en: "Government Decree No. 1466" },
   decree_1187_2026: { ru: "Постановление Правительства № 1187", en: "Government Decree No. 1187" },
   banking_law_30_1: { ru: "Закон о банках № 395-1", en: "Banking Law No. 395-1" },
+  banking_law_30: { ru: "Закон о банках № 395-1", en: "Banking Law No. 395-1" },
   microfinance_law_9_1: { ru: "151-ФЗ", en: "151-FZ" },
   insurance_law_6_2: { ru: "Закон № 4015-1", en: "Law No. 4015-1" },
   securities_law_15_11: { ru: "39-ФЗ", en: "39-FZ" },
@@ -30,6 +31,7 @@ const NAMES: Record<string, Record<Lang, string>> = {
   regulation_842_p: { ru: "Положение Банка России № 842-П", en: "Bank of Russia Regulation No. 842-P" },
   order_od_2506: { ru: "Приказ Банка России № ОД-2506", en: "Bank of Russia Order No. OD-2506" },
   letter_in_01_59_98: { ru: "Письмо Банка России № ИН-01-59/98", en: "Bank of Russia letter No. IN-01-59/98" },
+  letter_in_03_59_11: { ru: "Письмо Банка России № ИН-03-59/11", en: "Bank of Russia letter No. IN-03-59/11" },
   cbr_reply_page: { ru: "Банк России, рассмотрение обращений", en: "Bank of Russia, replies to complaints" },
 };
 
