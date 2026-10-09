@@ -1275,3 +1275,56 @@ fn the_bank_of_russia_decides_the_banks_own_application_in_15_working_days() {
         d("2026-05-12")
     );
 }
+
+#[test]
+fn on_an_application_filed_with_the_bank_of_russia_directly_the_bank_answers_its_request_and_passes_nothing_on(
+) {
+    // The client applied through the Bank of Russia's Internet reception
+    // (Directive No. 6748-U item 1.2), not through the bank: the bank
+    // learns of it from the Bank of Russia's request, received on Friday 8
+    // May 2026, and answers "в течение 3 рабочих дней со дня поступления
+    // запроса" (item 2.9): 12, 13, 14 May (11 May is a day off). The
+    // decision goes to the client by email (items 2.1, 2.3, 2.4), so the
+    // bank has none to pass on, even if one reached it; the fact request
+    // to antifraud sent on 8 May is capped by the answer's day, not the
+    // policy's (12 and 13 May would be 13 May; the cap is 14 May, later,
+    // so the policy's day stands).
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-06"));
+    let mut f = no_database();
+    f.instrument_suspended_on = Some(d("2026-05-05"));
+    f.bank_of_russia_query_received_on = Some(d("2026-05-08"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::BankOfRussiaQueryAnswer), "2026-05-14");
+    assert!(!K::BankOfRussiaQueryAnswer.is_for_others());
+    assert!(c.deadline(K::ExclusionForwarding).is_none());
+    assert!(c.deadline(K::ExclusionDecision).is_none());
+    let early = fact_request_due(&c, d("2026-05-08")).unwrap();
+    assert_eq!((early.due, early.capped_by), (d("2026-05-13"), None));
+    // Sent on 13 May, the policy's two working days would end on 15 May:
+    // the request's answer, due on 14 May, caps it.
+    let late = fact_request_due(&c, d("2026-05-13")).unwrap();
+    assert_eq!(
+        (late.due, late.capped_by),
+        (d("2026-05-14"), Some(K::BankOfRussiaQueryAnswer))
+    );
+    f.exclusion_decision_received_on = Some(d("2026-05-29"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert!(c.deadline(K::ExclusionDecisionRelay).is_none());
+    // Through the bank, the same decision is passed on by Monday 1 June.
+    f.exclusion_received_by_operator_on = Some(d("2026-05-06"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(due(&c, K::ExclusionDecisionRelay), "2026-06-01");
+    // Removed from the database: the bank restores the card at once and
+    // tells the client (161-FZ art. 9 part 11.11), however it learned.
+    f.exclusion_received_by_operator_on = None;
+    f.data_removed_on = Some(d("2026-05-29"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert!(c
+        .duties
+        .iter()
+        .any(|x| x.kind == DutyKind::RestoreInstrument && x.basis.part == "11.11"));
+}

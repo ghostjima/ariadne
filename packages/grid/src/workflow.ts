@@ -56,6 +56,12 @@ export const ACTIONS = [
      to the Bank of Russia to remove the client's data from its database
      (161-FZ art. 9 part 11.9), with the bank's reasons (database.ts) */
   "removal_applied",
+  /* Recorded without a stage change: the Bank of Russia's request about
+     an application to remove the client's data that the client filed with
+     it directly, and the bank's answer with its view (Directive No.
+     6748-U items 2.2, 2.9; database.ts) */
+  "query_received",
+  "query_answered",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -127,6 +133,8 @@ export type JournalEntry = {
   comment?: string;
   /* The copy a "copy_sent" entry is about */
   copy?: CopyKind;
+  /* The bank's view a "query_answered" entry gave the Bank of Russia */
+  view?: QueryView;
   /* Worked out from the generated row, not made in this page */
   generated?: true;
 };
@@ -134,6 +142,13 @@ export type JournalEntry = {
 /* The copies a dispatch or an extension owes */
 export const COPY_KINDS = ["bank_of_russia", "sro", "notice"] as const;
 export type CopyKind = (typeof COPY_KINDS)[number];
+
+/* The bank's view of the client's data in the Bank of Russia's database,
+   in its answer to the Bank of Russia's request: included with basis, or
+   without (Directive No. 6748-U item 2.2, "информацию об обоснованности
+   (необоснованности) включения сведений") */
+export const QUERY_VIEWS = ["justified", "unjustified"] as const;
+export type QueryView = (typeof QUERY_VIEWS)[number];
 
 export type TransitionError =
   | { code: "transition-not-allowed" }

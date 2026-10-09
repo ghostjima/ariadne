@@ -35,7 +35,9 @@ the browser, in Russian (the default) and English:
   cases, and how the reply's last day was worked out, each step with its
   source; for a case about the client's own data in the Bank of Russia's
   database, the bank's own application to remove them, with its reasons
-  and the Bank of Russia's term.
+  and the Bank of Russia's term, and the Bank of Russia's request on an
+  application the client filed with it directly, with the bank's 3
+  working days and its answer.
 - **The assistant** beside the case: a run a person can stop. For the
   open case it proposes a plan: classify the complaint, request the facts
   from antifraud, AML compliance or operations with a deadline of their

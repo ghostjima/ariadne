@@ -39,8 +39,10 @@
 //!   Directive No. 6748-U): the notices of a suspended card or online
 //!   banking, the restoring of it, and an application to remove the data,
 //!   both the Bank of Russia's 15 working days from its receipt and the
-//!   operator's own terms when the client applies through it, and the
-//!   operator's own reasoned application to remove them (part 11.9);
+//!   operator's own terms when the client applies through it, its answer
+//!   to the Bank of Russia's request on an application the client filed
+//!   with the Bank of Russia directly, and the operator's own reasoned
+//!   application to remove them (part 11.9);
 //! - an anti-money-laundering refusal (115-FZ): the reasons in 5 working
 //!   days, the answer to the client's documents in 7, the interagency
 //!   commission's 20, its request to the organisation (at least 3 working
@@ -221,7 +223,10 @@ pub struct DatabaseFacts {
     pub exclusion_received_by_bank_of_russia_on: Option<Date>,
     /// The day the operator received the Bank of Russia's decision, or its
     /// notice that the database holds no data on the client, to pass on
-    /// to a client who applied through the operator.
+    /// to a client who applied through the operator. A client who applied
+    /// through the Bank of Russia's Internet reception gets it by email
+    /// from the Bank of Russia (items 2.1, 2.3, 2.4), and the operator
+    /// passes nothing on.
     pub exclusion_decision_received_on: Option<Date>,
     /// The day a request of the Bank of Russia about an application
     /// reached the operator (item 2.9).
@@ -1520,9 +1525,20 @@ fn database(f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
         if let Some(received) = f.exclusion_received_by_bank_of_russia_on {
             check_order(received, decided)?;
         }
-        // The decision, or the notice that the database holds no data on
-        // the client, goes on to the client "не позднее рабочего дня,
-        // следующего за днем получения".
+    }
+    // The decision, or the notice that the database holds no data on the
+    // client, goes on to the client "не позднее рабочего дня, следующего за
+    // днем получения" when the client applied through the operator: the
+    // Bank of Russia sends it "клиенту по адресу электронной почты,
+    // указанному при подаче заявления клиента, или оператору ... (в случае
+    // подачи заявления клиента через оператора ...)". On an application
+    // filed through the Internet reception the operator has nothing to
+    // pass on; it learns of a removal from the database (item 2.10) and
+    // restores the card at once (161-FZ art. 9 part 11.11).
+    if let (Some(decided), Some(_)) = (
+        f.exclusion_decision_received_on,
+        f.exclusion_received_by_operator_on,
+    ) {
         c.deadlines.push(Deadline {
             kind: DeadlineKind::ExclusionDecisionRelay,
             due: calendar::next_working_day(decided)?,

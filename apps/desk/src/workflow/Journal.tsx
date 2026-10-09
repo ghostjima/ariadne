@@ -49,6 +49,7 @@ export function Journal({ entries, w, t, pools, stages, time }: JournalProps) {
         {e.from !== e.to && <span className="muted">{w.move(stages[e.from] ?? "", stages[e.to] ?? "")}</span>}
         {e.reason && <span>{w.why(w.reasons[e.reason])}</span>}
         {e.copy && <span>{w.dispatch.copy[e.copy]}</span>}
+        {e.view && <span>{w.database.viewSaid(w.database.views[e.view])}</span>}
         {e.comment && (e.action === "sign" || e.action === "defer") ? (
           <DecisionLines w={w} comment={e.comment} />
         ) : (

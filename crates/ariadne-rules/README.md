@@ -98,8 +98,8 @@ item is the part.
 | Card or online banking suspended for the client's own data in the database | notice with the reason the same day; notice of the right to apply for removal at once; restored at once after removal | 161-FZ art. 9 parts 9.2, 11.8, 11.11 (the suspension under parts 11.6, 11.7) |
 | Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
-| The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it | Directive No. 6748-U items 2.1, 2.3, 2.4 |
-| Operator's answer to a Bank of Russia request on an application | 3 working days from the request | Directive No. 6748-U item 2.9 |
+| The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it, for an application filed through the operator; on one filed through the Bank of Russia's Internet reception the decision goes to the client by email and the operator passes nothing on | Directive No. 6748-U items 2.1, 2.3, 2.4 |
+| Operator's answer to a Bank of Russia request on an application, including one the client filed with the Bank of Russia directly | 3 working days from the request | Directive No. 6748-U items 2.2, 2.9 |
 | Bank of Russia on the operator's own reasoned application to remove the client's data | 15 working days from its receipt, taken as the day it is sent; with the client's application under review, one decision 15 working days from the first | 161-FZ art. 9 parts 11.9, 11.10; Directive No. 6748-U items 2.6 to 2.8 |
 | Refund to an individual | 30 days after the claim is received | 161-FZ art. 8 part 3.13 |
 | 115-FZ reasons notice | 5 working days from the decision | 115-FZ art. 7 item 13.1-1 (paragraph 1 for an account, 2 for an operation) |
