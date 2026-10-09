@@ -120,9 +120,9 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (3): the plan payload
+The protocol has a version, `PROTOCOL_VERSION` (4): the plan payload
 carries it as `v` and `plan.started` repeats it as `protocol`. A payload
-without `v: 3` is refused with `unsupported_version`. A brief that does
+without `v: 4` is refused with `unsupported_version`. A brief that does
 not validate is refused with `invalid_case`.
 
 A version names the closed lists of codes a brief, an event and a log
@@ -146,14 +146,24 @@ call it an invalid case rather than another version.
   client's card or online banking for the client's own data in the Bank
   of Russia's database (161-FZ art. 9 parts 11.6 and 11.7). The engine
   carries them as it carries every ground, from the brief to the draft.
-  Nothing else in the payload, the events or the decisions changed.
+  Nothing else in the payload, the events or the decisions changed. It
+  is no longer served.
+- Version 4 adds one client option a brief and a reply draft may carry
+  (`CLIENT_OPTIONS`), at the end: `apply_for_removal`, the client's right
+  to apply to the Bank of Russia, through the bank or its Internet
+  reception, to remove the client's data from its database, owed after a
+  suspension of the client's card or online banking for those data
+  (161-FZ art. 9 part 11.8). ariadne-rules' rubric asks for it, so the
+  desk's brief names it for such a case, and the engine carries it from
+  the brief to the draft as every option. Nothing else in the payload,
+  the events or the decisions changed.
 
 The exported session log has a version of its own, 2, for its shape,
 which is unchanged; its `protocol` field names the version its entries
-were received in, now 3. A page left open across a deployment may speak
-version 2 to the new Service Worker and is refused with
+were received in, now 4. A page left open across a deployment may speak
+version 3 to the new Service Worker and is refused with
 `unsupported_version`, which the desk shows; a reload brings the page of
-version 3.
+version 4.
 
 ## API
 

@@ -217,14 +217,17 @@ decisions. The panel says so. For the open case it proposes five steps:
    ground with its act, article and part (from the rules engine; for a
    case about the client's own data in the database, 161-FZ art. 9 part
    11.6, or 11.7 with the Ministry of Internal Affairs' information), the
-   options and the deadlines the law gives the client, and the next
+   options and the deadlines the law gives the client (for such a case,
+   the right to apply to the Bank of Russia to remove the data, through
+   the bank or its internet reception, under part 11.8), and the next
    steps. The decision on the complaint is the register's; when nobody
    has decided, the draft leaves it for the reviewer. Drafting is high
    risk: it always waits for a person, who reads the letter before it is
    written.
 4. **Check the draft** with the rules engine's rubric: grounds named and
    not mixed between 161-FZ and 115-FZ, every option and running deadline
-   stated, sentences short. The findings are shown, never applied.
+   stated (a missing right to apply for removal cites 161-FZ art. 9 part
+   11.8 itself), sentences short. The findings are shown, never applied.
 5. **Hand it to legal review.** The assistant never sends a reply; a
    signatory does, after the review.
 

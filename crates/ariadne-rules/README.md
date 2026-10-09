@@ -260,7 +260,7 @@ on them:
   `invalid_extension`, `invalid_amount`, `unknown_code`, `missing_date`.
 - Rubric: the findings above; client options `confirm_order`,
   `repeat_operation`, `submit_documents`, `apply_to_commission`,
-  `apply_to_ombudsman`; acts `payment_system`, `anti_money_laundering`,
+  `apply_to_ombudsman`, `apply_for_removal`; acts `payment_system`, `anti_money_laundering`,
   `ombudsman`, `complaint_law`, `other_law`, `contract`.
 
 ### Reason codes
@@ -321,7 +321,7 @@ needs no legal judgment:
 | `grounds_mixed` | 161-FZ and 115-FZ both among the grounds or the reasons | the same letter ("однозначно дифференцировать") |
 | `stream_ground_missing` | an antifraud or anti-money-laundering complaint answered without naming that law | the same |
 | `next_steps_missing` | no next step | the same ("порядке дальнейших действий") |
-| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4) | the letter and each provision |
+| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4); for a card or online banking suspended for the client's own data in the Bank of Russia's database, while the data are there, the right to apply to the Bank of Russia to remove them, through the bank or the Bank of Russia's Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U item 1.2) | the letter and each provision; for the removal, the finding cites 161-FZ art. 9 part 11.8 itself, and the channels come from the directive and the Bank of Russia's letter No. IN-03-59/11 |
 | `deadline_missing`, `deadline_mismatch` | a deadline that concerns the client and runs on the reply's day is not stated, or stated with another date than the clock's | the Bank of Russia's recommendations on replies (concrete terms) |
 | `text_empty`, `sentence_too_long`, `sentences_long_on_average` | no text; a sentence of more than 25 words; more than 15 words a sentence on average | the same recommendations (no long sentences) |
 
@@ -413,6 +413,7 @@ A test fails when this list and the code disagree.
 | Bank of Russia Regulation No. 842-P of 23.09.2024, the interagency commission's review, as amended by Directive No. 7382-U of 25.06.2026 | 2026-06-25 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/polozhenie-banka-rossii-ot-23092024-n-842-p-o-trebovanijakh/); revision confirmed on [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_490180/) |
 | Bank of Russia Order No. OD-2506 of 05.11.2025, the signs of a transfer without voluntary consent, in force from 01.01.2026 | 2025-11-05 | [cbr.ru, PDF](https://cbr.ru/Crosscut/LawActs/File/10123) |
 | Bank of Russia information letter No. IN-01-59/98 of 26.08.2025, informing clients of restrictions | 2025-08-26 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/412494092/) |
+| Bank of Russia information letter No. IN-03-59/11 of 24.03.2026, informing clients of restrictions in advance | 2026-03-24 | [rulaws.ru, a full-text copy](https://rulaws.ru/acts/Informatsionnoe-pismo-Banka-Rossii-ot-24.03.2026-N-IN-03-59_11/) |
 | Bank of Russia page on replies to complaints, with its recommendations | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/) |
 
 The decrees, the letters and Order No. OD-2506 have not been amended as

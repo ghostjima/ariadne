@@ -27,7 +27,7 @@ export function payloadFor(
   brief: CaseBrief = BRIEF,
 ): PlanPayload {
   return {
-    v: 3,
+    v: 4,
     seed,
     autonomy,
     brief,
