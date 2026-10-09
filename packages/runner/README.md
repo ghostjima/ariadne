@@ -26,7 +26,8 @@ plan, the session log or the stream.
 The case comes in as a brief of codes, numbers and dates only (the
 stream, the OD-2506 sign or 115-FZ category, the operation, the reply's
 last day, the grounds, the options and deadlines the law gives the
-client), which the application works out from its register and its
+client, the restrictions that apply for the client's own data in the
+Bank of Russia's database), which the application works out from its register and its
 rules. The complaint's text never reaches the engine: the protocol
 refuses a brief with any string that is not one of its codes or a date,
 so nothing an applicant writes can instruct the run.
@@ -98,7 +99,8 @@ The structured parts:
   opOn, factsDue), `reuse_linked_facts` (caseNo, linkedCase,
   sendsRequest), `reply` (caseNo, repliedOn, stream, regime, outcome,
   the operation, receivedOn, grounds, reasons, clientOptions, deadlines,
-  nextSteps: what the application writes out and the rubric checks),
+  measures, nextSteps: what the application writes out and the rubric
+  checks),
   `check_draft` (caseNo), `hand_to_review` (caseNo, stageBefore,
   replyDue, sends).
 - `objects`: `classification` (`unconfirmed` to `confirmed`),
@@ -120,9 +122,9 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (3): the plan payload
+The protocol has a version, `PROTOCOL_VERSION` (5): the plan payload
 carries it as `v` and `plan.started` repeats it as `protocol`. A payload
-without `v: 3` is refused with `unsupported_version`. A brief that does
+without `v: 5` is refused with `unsupported_version`. A brief that does
 not validate is refused with `invalid_case`.
 
 A version names the closed lists of codes a brief, an event and a log
@@ -146,14 +148,37 @@ call it an invalid case rather than another version.
   client's card or online banking for the client's own data in the Bank
   of Russia's database (161-FZ art. 9 parts 11.6 and 11.7). The engine
   carries them as it carries every ground, from the brief to the draft.
-  Nothing else in the payload, the events or the decisions changed.
+  Nothing else in the payload, the events or the decisions changed. It
+  is no longer served.
+- Version 4 adds one client option a brief and a reply draft may carry
+  (`CLIENT_OPTIONS`), at the end: `apply_for_removal`, the client's right
+  to apply to the Bank of Russia, through the bank or its Internet
+  reception, to remove the client's data from its database, owed after a
+  suspension of the client's card or online banking for those data
+  (161-FZ art. 9 part 11.8). ariadne-rules' rubric asks for it, so the
+  desk's brief names it for such a case, and the engine carries it from
+  the brief to the draft as every option. Nothing else in the payload,
+  the events or the decisions changed. It is no longer served.
+- Version 5 adds a field to the brief and the reply draft, `measures`,
+  with a list of its own (`MEASURE_CODES`): the restrictions that apply
+  for the client's own data in the Bank of Russia's database, which the
+  reply states. They are `suspend_instrument` (the card or online
+  banking suspended, 161-FZ art. 9 parts 11.6 and 11.7), `cap_transfers`
+  (instead of the suspension, the individual's transfers to individuals
+  capped at 100,000 roubles a month, part 11.6, sentence 2) and
+  `cap_atm_cash` (ATM cash capped at 100,000 roubles a month, Banking
+  Law art. 30 part 16). The field is required and empty for any other
+  case. A reader of version 4 would drop a field it does not know and
+  draft a reply that does not say which restriction applies, so the
+  version tells them apart before the brief is read. Nothing else in the
+  payload, the events or the decisions changed.
 
 The exported session log has a version of its own, 2, for its shape,
 which is unchanged; its `protocol` field names the version its entries
-were received in, now 3. A page left open across a deployment may speak
-version 2 to the new Service Worker and is refused with
-`unsupported_version`, which the desk shows; a reload brings the page of
-version 3.
+were received in, now 5; the brief it carries is the protocol's. A page
+left open across a deployment may speak version 4 to the new Service
+Worker and is refused with `unsupported_version`, which the desk shows;
+a reload brings the page of version 5.
 
 ## API
 

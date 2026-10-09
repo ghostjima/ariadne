@@ -24,6 +24,7 @@ export const BRIEF: CaseBrief = {
   grounds: ["payment_8_3_4"],
   clientOptions: ["confirm_order"],
   deadlines: [],
+  measures: [],
 };
 
 /* A general complaint about a card payment, no linked case */
@@ -57,7 +58,9 @@ export const AML: CaseBrief = {
 /* A client whose own card was suspended for their data in the Bank of
    Russia's database, with no operation blocked and no sign, and who
    applied through the bank to remove the data: the reply names art. 9
-   part 11.6, and the Bank of Russia's decision still to come */
+   part 11.6, the suspension and the ATM cash cap that apply, the right to
+   apply for removal (part 11.8), and the Bank of Russia's decision still
+   to come */
 export const REMOVAL: CaseBrief = {
   ...BRIEF,
   caseNo: 1150,
@@ -66,6 +69,16 @@ export const REMOVAL: CaseBrief = {
   forwarded: false,
   linkedCase: null,
   grounds: ["payment_9_11_6"],
-  clientOptions: [],
+  clientOptions: ["apply_for_removal"],
   deadlines: [{ kind: "exclusion_decision", due: "2026-10-23" }],
+  measures: ["suspend_instrument", "cap_atm_cash"],
+};
+
+/* The same client, whose card the bank chose not to suspend under part
+   11.6: the transfers to individuals capped instead, and ATM cash */
+export const CAPPED: CaseBrief = {
+  ...REMOVAL,
+  caseNo: 1151,
+  deadlines: [],
+  measures: ["cap_transfers", "cap_atm_cash"],
 };

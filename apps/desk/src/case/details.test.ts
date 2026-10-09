@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AS_OF, Database, Operation, Path, Sector, Stage, Stream, caseFacts, effectiveDue, generateAll, isoDay, retentionOf } from "@ariadne/grid";
+import { AS_OF, Database, Operation, Path, Restriction, Sector, Stage, Stream, caseFacts, effectiveDue, generateAll, isoDay, retentionOf } from "@ariadne/grid";
 import { clock, od2506Signs, workingDaysBetween, type CaseFacts } from "@ariadne/rules";
 import { strings } from "../i18n";
 import { REPLY_TERMS, caseDetails, termDays } from "./details";
@@ -130,10 +130,19 @@ describe("the paths beyond the first step, on the card", () => {
   it("an application to remove the client's data: the card suspended under art. 9, the same-day notice, the right to apply, and the bank's and the Bank of Russia's terms", () => {
     for (const row of withPath(Path.DatabaseRemoval)) {
       const d = caseDetails(store, row);
+      const atm = d.flags.find((f) => f.kind === "measure" && f.measure.kind === "cap_atm_cash");
+      expect(atm?.kind === "measure" && basisName(atm.measure.basis, "en")).toBe("Banking Law No. 395-1, art. 30, part 16");
+      expect(flagKinds(row)).toContain("exclusion_forwarding");
+      if (store.restriction[row] === Restriction.TransfersCapped) {
+        const capped = d.flags.find((f) => f.kind === "measure" && f.measure.kind === "cap_transfers");
+        expect(capped?.kind === "measure" && basisName(capped.measure.basis, "ru")).toBe("161-ФЗ, ст. 9, ч. 11.6, предл. 2");
+        expect(flagKinds(row)).not.toContain("instrument_suspension_notice");
+        continue;
+      }
       const suspended = d.flags.find((f) => f.kind === "measure" && f.measure.kind === "suspend_instrument");
       const part = store.database[row] === Database.ClientDataWithPoliceInformation ? "11.7" : "11.6";
       expect(suspended?.kind === "measure" && basisName(suspended.measure.basis, "en")).toBe(`161-FZ, art. 9, part ${part}`);
-      expect(flagKinds(row)).toEqual(expect.arrayContaining(["instrument_suspension_notice", "exclusion_forwarding"]));
+      expect(flagKinds(row)).toContain("instrument_suspension_notice");
       expect(d.duties.map((x) => x.kind)).toContain("notify_client_of_right_to_apply");
       const forwarding = d.flags.find((f) => f.kind === "deadline" && f.deadline.kind === "exclusion_forwarding");
       expect(forwarding?.kind === "deadline" && basisName(forwarding.deadline.basis, "ru")).toBe("Указание Банка России № 6748-У, п. 1.5");
@@ -176,7 +185,10 @@ describe("the card's words for what the rules give", () => {
     "aml_reasons_notice", "aml_documents_answer", "aml_commission_decision", "commission_request_answer", "commission_decision_notice",
     "high_risk_notice", "high_risk_commission_application", "high_risk_rating_review", "operator_application_decision",
   ];
-  const MEASURES = ["suspend_order", "refuse_operation", "suspend_confirmed_order", "refuse_repeat", "order_not_accepted", "suspend_instrument"];
+  const MEASURES = [
+    "suspend_order", "refuse_operation", "suspend_confirmed_order", "refuse_repeat", "order_not_accepted", "suspend_instrument", "cap_transfers",
+    "cap_atm_cash",
+  ];
   const DUTIES = ["copy_to_bank_of_russia", "copy_to_sro", "notify_client_of_block", "notify_client_of_repeat_block", "notify_client_of_right_to_apply", "restore_instrument"];
   const WHEN = ["same_day_as_each_dispatch", "same_day_as_reply", "immediately"];
   const WARNINGS = [
@@ -184,6 +196,7 @@ describe("the card's words for what the rules give", () => {
     "ombudsman_participation_unknown", "breach_date_unknown", "confirmation_late", "confirmation_date_missing",
     "refund_for_individuals_only", "high_risk_for_legal_entities_only", "documents_answer_beyond_text", "sro_copy_not_applicable",
     "ombudsman_term_may_have_passed", "storage_term_not_set", "commission_term_below_minimum", "commission_term_assumed",
+    "transfer_cap_for_individuals_only",
   ];
 
   it("names every term, measure, duty and note in Russian and English", () => {
@@ -205,6 +218,7 @@ describe("the card's words for what the rules give", () => {
       { ...base, stream: "money_claim", claimKopecks: 10_000_000, claimStandardForm: false, breachOn: "2023-06-01" },
       { ...base, stream: "antifraud", blocked: { operation: "transfer", on: "2026-09-28", confirmedOn: "2026-10-01", refundClaimReceivedOn: "2026-10-02" } },
       { ...base, stream: "antifraud", database: { instrumentSuspendedOn: "2026-09-28", exclusionReceivedByOperatorOn: "2026-10-01", exclusionDataMissing: true, bankOfRussiaQueryReceivedOn: "2026-10-02", dataRemovedOn: "2026-10-05" } },
+      { ...base, stream: "antifraud", applicant: "legal_entity", database: { transfersCappedOn: "2026-09-28" } },
       { ...base, sector: "credit_cooperative" },
     ];
     const seen = { deadlines: new Set<string>(), measures: new Set<string>(), duties: new Set<string>(), warnings: new Set<string>() };
@@ -220,7 +234,7 @@ describe("the card's words for what the rules give", () => {
     );
     expect([...seen.measures]).toEqual(expect.arrayContaining(["order_not_accepted", "suspend_instrument"]));
     expect([...seen.duties]).toContain("restore_instrument");
-    expect([...seen.warnings]).toEqual(expect.arrayContaining(["ombudsman_term_may_have_passed", "confirmation_late", "storage_term_not_set"]));
+    expect([...seen.warnings]).toEqual(expect.arrayContaining(["ombudsman_term_may_have_passed", "confirmation_late", "storage_term_not_set", "transfer_cap_for_individuals_only"]));
     for (const lang of ["ru", "en"] as const) {
       const c = strings[lang].case;
       expect([...seen.deadlines].filter((k) => !c.flagDeadline[k])).toEqual([]);

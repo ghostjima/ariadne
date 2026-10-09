@@ -11,20 +11,21 @@ import {
   generateScenario,
   PROTOCOL_VERSION,
   parseStreamOptions,
+  replyDraft,
   resolvePlan,
   type Decision,
 } from "../src/index.js";
-import { BRIEF, PLAIN } from "./briefs.js";
+import { BRIEF, CAPPED, PLAIN, REMOVAL } from "./briefs.js";
 import { decide, find, payloadFor, run } from "./helpers.js";
 
 describe("plan resolution", () => {
   it("rejects unknown steps and empty plans", () => {
-    expect(resolvePlan({ v: 3, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
+    expect(resolvePlan({ v: 5, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
       ok: false,
       error: "empty_plan",
     });
     expect(
-      resolvePlan({ v: 3, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
+      resolvePlan({ v: 5, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
     ).toEqual({ ok: false, error: "unknown_step", stepId: "zz" });
     expect(resolvePlan(payloadFor(["s1"])).ok).toBe(true);
   });
@@ -44,7 +45,7 @@ describe("runner: one segment per decision", () => {
     ]);
     expect(segment.events.map((e) => e.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(segment.pause).toBeNull();
-    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 3 });
+    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 5 });
     const phases = segment.events.flatMap((e) =>
       e.event.type === "step.progress" ? [[e.event.percent, e.event.phase]] : [],
     );
@@ -263,10 +264,10 @@ describe("protocol helpers", () => {
      stream tests were removed with it: the scenario no longer exists, so
      there is nothing to keep them for. What remains of version 1 is that it
      is refused, with a code the application can show. */
-  it("refuses a version 1 payload, and any version but 3", () => {
+  it("refuses a version 1 payload, and any version but 5", () => {
     const v1 = encodePlanPayload({ seed: 7, autonomy: "high_only", steps: [{ id: "s1", askFirst: false }] } as never);
     expect(decodePlanPayload(v1)).toEqual({ ok: false, error: "unsupported_version" });
-    for (const v of [2, 4]) {
+    for (const v of [2, 3, 4, 6]) {
       const other = encodePlanPayload({ ...payloadFor(["s1"]), v } as never);
       expect(decodePlanPayload(other), `v ${v}`).toEqual({ ok: false, error: "unsupported_version" });
     }
@@ -275,13 +276,49 @@ describe("protocol helpers", () => {
   /* Version 3 added the grounds of 161-FZ art. 9 parts 11.6 and 11.7. A
      reader of version 2 refuses them as an invalid case; the version tells
      the two apart before the brief is read. */
-  it("takes the grounds of 161-FZ art. 9 parts 11.6 and 11.7 in version 3 only, and calls a version 2 payload another version", () => {
+  it("takes the grounds of 161-FZ art. 9 parts 11.6 and 11.7, and calls a version 2 payload another version", () => {
     const removal = payloadFor(["s1"], "high_only", [], 7, { ...BRIEF, grounds: ["payment_9_11_6"] });
-    expect(PROTOCOL_VERSION).toBe(3);
     expect(decodePlanPayload(encodePlanPayload(removal))).toEqual({ ok: true, payload: removal });
     expect(decodePlanPayload(encodePlanPayload({ ...removal, v: 2 } as never))).toEqual({ ok: false, error: "unsupported_version" });
-    const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief: removal.brief });
-    expect([exported.version, exported.protocol]).toEqual([2, 3]);
+  });
+
+  /* Version 4 added the client's option to apply for the removal of the
+     client's data from the Bank of Russia's database (161-FZ art. 9 part
+     11.8). A reader of version 3 refuses it as an invalid case; the
+     version tells the two apart before the brief is read, and the draft
+     carries the option. */
+  it("takes the option to apply for removal, and calls a version 3 payload another version", () => {
+    const brief = REMOVAL;
+    const removal = payloadFor(["s1"], "high_only", [], 7, brief);
+    expect(decodePlanPayload(encodePlanPayload(removal))).toEqual({ ok: true, payload: removal });
+    expect(decodePlanPayload(encodePlanPayload({ ...removal, v: 3 } as never))).toEqual({ ok: false, error: "unsupported_version" });
+    expect(decodePlanPayload(encodePlanPayload(payloadFor(["s1"], "high_only", [], 7, { ...brief, clientOptions: ["apply_for_deletion" as never] })))).toEqual({
+      ok: false,
+      error: "invalid_case",
+    });
+    expect(replyDraft(brief).clientOptions).toEqual(["apply_for_removal"]);
+  });
+
+  /* Version 5 added the restrictions a brief and a draft state for the
+     client's own data in the Bank of Russia's database: the suspension,
+     or the transfer cap the bank chose instead (161-FZ art. 9 part 11.6),
+     and the ATM cash cap (Banking Law art. 30 part 16). A reader of
+     version 4 would drop the field it does not know and draft a reply
+     that does not say which applies; the version tells the two apart
+     first. The field is required, and only its codes are taken. */
+  it("takes the restrictions for the client's data in version 5 only, and calls a version 4 payload another version", () => {
+    const capped = payloadFor(["s1"], "high_only", [], 7, CAPPED);
+    expect(PROTOCOL_VERSION).toBe(5);
+    expect(decodePlanPayload(encodePlanPayload(capped))).toEqual({ ok: true, payload: capped });
+    expect(decodePlanPayload(encodePlanPayload({ ...capped, v: 4 } as never))).toEqual({ ok: false, error: "unsupported_version" });
+    for (const measures of [["cap_everything"], ["cap_transfers", "cap_transfers"], undefined, "cap_transfers"]) {
+      const brief = { ...CAPPED, measures };
+      expect(decodePlanPayload(encodePlanPayload({ ...capped, brief } as never)), JSON.stringify(measures)).toEqual({ ok: false, error: "invalid_case" });
+    }
+    expect(replyDraft(CAPPED).measures).toEqual(["cap_transfers", "cap_atm_cash"]);
+    expect(replyDraft(BRIEF).measures).toEqual([]);
+    const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief: CAPPED });
+    expect([exported.version, exported.protocol]).toEqual([2, 5]);
   });
 
   it("refuses a brief with a string that is not a code, and drops fields it does not know", () => {
@@ -293,6 +330,7 @@ describe("protocol helpers", () => {
       { grounds: ["contract", injected] },
       { grounds: ["contract", "contract"] },
       { clientOptions: [injected] },
+      { measures: [injected] },
       { deadlines: [{ kind: "antifraud_confirmation", due: injected }] },
       { deadlines: [{ kind: injected, due: "2026-10-07" }] },
       { replyDue: "2026-02-30" },

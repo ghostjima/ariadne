@@ -36,8 +36,12 @@
 //!   match in the Bank of Russia's database, the execution or the next
 //!   repeat on part 3.11, the 30-day refund;
 //! - the client's own data in that database (161-FZ art. 9, Bank of Russia
-//!   Directive No. 6748-U): the notices of a suspended card or online
-//!   banking, the restoring of it, and an application to remove the data,
+//!   Directive No. 6748-U): the bank's choice under part 11.6 between
+//!   suspending the client's card or online banking and capping the
+//!   client's transfers to individuals at 100,000 roubles a month (part
+//!   11.7 leaves no choice), the cap on ATM cash of the Banking Law art. 30
+//!   part 16, the notices of a suspension, the restoring of the card or
+//!   online banking, and an application to remove the data,
 //!   both the Bank of Russia's 15 working days from its receipt and the
 //!   operator's own terms when the client applies through it, and the
 //!   operator's own reasoned application to remove them (part 11.9);
@@ -62,6 +66,18 @@ use crate::{Date, Error};
 /// The largest money claim the financial ombudsman hears: 500,000
 /// roubles, in kopecks (123-FZ art. 15 part 1, "не превышает").
 pub const OMBUDSMAN_LIMIT_KOPECKS: u64 = 500_000 * 100;
+
+/// The most an individual whose data are in the Bank of Russia's database,
+/// and whose card or online banking the operator did not suspend, may
+/// transfer to individuals in a month: 100,000 roubles, in kopecks
+/// (161-FZ art. 9 part 11.6, sentence 2, "не более 100 тысяч рублей в
+/// месяц").
+pub const TRANSFER_CAP_KOPECKS: u64 = 100_000 * 100;
+
+/// The most cash a credit institution pays out at its ATMs in a month to
+/// a client whose data are in that database: 100,000 roubles, in kopecks
+/// (Banking Law art. 30 part 16, "не более 100 тысяч рублей в месяц").
+pub const ATM_CASH_CAP_KOPECKS: u64 = 100_000 * 100;
 
 /// Calendar days since the breach within which a claim on the standard
 /// electronic form gets the 15-working-day reply (123-FZ art. 16 part 2
@@ -203,6 +219,12 @@ pub struct DatabaseFacts {
     /// The day the operator suspended the client's electronic means of
     /// payment (a card, online banking) because of the data.
     pub instrument_suspended_on: Option<Date>,
+    /// The day the operator, not suspending the means of payment under
+    /// part 11.6, began to carry out the individual client's transfers to
+    /// individuals only up to 100,000 roubles a month (part 11.6, sentence
+    /// 2). The Ministry of Internal Affairs' information leaves no such
+    /// choice: the suspension is a duty (part 11.7).
+    pub transfers_capped_on: Option<Date>,
     /// The Ministry of Internal Affairs reported unlawful acts with the
     /// data, which makes the suspension a duty (part 11.7) rather than an
     /// option (part 11.6).
@@ -669,9 +691,45 @@ pub enum MeasureKind {
     /// data in the database (161-FZ art. 9 part 11.6, or 11.7 with the
     /// Ministry of Internal Affairs' information).
     SuspendInstrument,
+    /// Instead of the suspension, the individual client's transfers to
+    /// individuals carried out only up to 100,000 roubles a month while the
+    /// data are in the database (161-FZ art. 9 part 11.6, sentence 2).
+    CapTransfers,
+    /// Cash at the credit institution's ATMs paid out only up to 100,000
+    /// roubles a month while the client's data are in the database: a duty
+    /// whether or not the card is suspended (Banking Law art. 30 part 16).
+    CapAtmCash,
 }
 
 impl MeasureKind {
+    /// Every kind.
+    pub const ALL: [MeasureKind; 8] = [
+        MeasureKind::SuspendOrder,
+        MeasureKind::RefuseOperation,
+        MeasureKind::SuspendConfirmedOrder,
+        MeasureKind::RefuseRepeat,
+        MeasureKind::OrderNotAccepted,
+        MeasureKind::SuspendInstrument,
+        MeasureKind::CapTransfers,
+        MeasureKind::CapAtmCash,
+    ];
+
+    /// The measures the client's own data in the Bank of Russia's database
+    /// bring: the suspension or the transfer cap, and the ATM cash cap.
+    pub const DATABASE: [MeasureKind; 3] = [
+        MeasureKind::SuspendInstrument,
+        MeasureKind::CapTransfers,
+        MeasureKind::CapAtmCash,
+    ];
+
+    /// The kind with a code, or [`Error::UnknownCode`].
+    pub fn parse(code: &str) -> Result<MeasureKind, Error> {
+        MeasureKind::ALL
+            .into_iter()
+            .find(|k| k.code() == code)
+            .ok_or(Error::UnknownCode)
+    }
+
     /// The stable code, in snake case.
     pub fn code(self) -> &'static str {
         match self {
@@ -681,6 +739,8 @@ impl MeasureKind {
             MeasureKind::RefuseRepeat => "refuse_repeat",
             MeasureKind::OrderNotAccepted => "order_not_accepted",
             MeasureKind::SuspendInstrument => "suspend_instrument",
+            MeasureKind::CapTransfers => "cap_transfers",
+            MeasureKind::CapAtmCash => "cap_atm_cash",
         }
     }
 }
@@ -750,6 +810,10 @@ pub enum Warning {
     /// The commission's request was given without its term: the shortest
     /// the law allows, 3 working days, is assumed.
     CommissionTermAssumed,
+    /// The transfer cap of 161-FZ art. 9 part 11.6 applies to an
+    /// individual's transfers to individuals: a legal entity whose means of
+    /// payment is not suspended has no cap under that part.
+    TransferCapForIndividualsOnly,
 }
 
 impl Warning {
@@ -773,6 +837,7 @@ impl Warning {
             StorageTermNotSet => "storage_term_not_set",
             CommissionTermBelowMinimum => "commission_term_below_minimum",
             CommissionTermAssumed => "commission_term_assumed",
+            TransferCapForIndividualsOnly => "transfer_cap_for_individuals_only",
         }
     }
 }
@@ -787,6 +852,10 @@ pub enum Refusal {
     ExtensionGroundNotAllowed,
     /// An extension of at most 10 working days.
     ExtensionTooLong,
+    /// No transfer cap instead of the suspension when the Ministry of
+    /// Internal Affairs' information came with the data: the suspension is
+    /// a duty (161-FZ art. 9 part 11.7).
+    TransferCapNotAllowed,
 }
 
 impl Refusal {
@@ -796,6 +865,7 @@ impl Refusal {
             Refusal::ExtensionNotAllowed => "extension_not_allowed",
             Refusal::ExtensionGroundNotAllowed => "extension_ground_not_allowed",
             Refusal::ExtensionTooLong => "extension_too_long",
+            Refusal::TransferCapNotAllowed => "transfer_cap_not_allowed",
         }
     }
 }
@@ -950,7 +1020,7 @@ pub fn clock(case: &Case) -> Result<Clock, Error> {
         antifraud(case, &f, &mut c)?;
     }
     if let Some(f) = case.database {
-        database(&f, &mut c)?;
+        database(case, &f, &mut c)?;
     }
     if let Some(f) = case.aml {
         aml(case, &f, &mut c)?;
@@ -1432,8 +1502,8 @@ fn repeat_block(operation: Operation, on: Date, c: &mut Clock) {
 }
 
 /// The client's own data in the Bank of Russia's database (161-FZ art. 9,
-/// Directive No. 6748-U).
-fn database(f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
+/// Directive No. 6748-U; Banking Law art. 30 part 16).
+fn database(case: &Case, f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
     let law = sources::PAYMENT_LAW_9;
     let directive = sources::DIRECTIVE_6748_U;
     if let Some(on) = f.instrument_suspended_on {
@@ -1473,6 +1543,7 @@ fn database(f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
             });
         }
     }
+    restrictions(case, f, c);
     if let Some(received) = f.exclusion_received_by_operator_on {
         if f.exclusion_data_missing {
             // "в срок, не превышающий 5 рабочих дней со дня поступления
@@ -1583,6 +1654,57 @@ fn operator_application(f: &DatabaseFacts, sent: Date, c: &mut Clock) -> Result<
         basis,
     });
     Ok(())
+}
+
+/// What the bank does instead of the suspension under part 11.6, and the
+/// ATM cash cap every credit institution owes while the data are in the
+/// database.
+fn restrictions(case: &Case, f: &DatabaseFacts, c: &mut Clock) {
+    let law = sources::PAYMENT_LAW_9;
+    if let Some(on) = f.transfers_capped_on {
+        if f.police_information {
+            // "обязан приостановить ... при наличии сведений федерального
+            // органа исполнительной власти в сфере внутренних дел" (part
+            // 11.7): with the Ministry's information there is no cap
+            // instead of the suspension.
+            c.refusals.push(Refusal::TransferCapNotAllowed);
+        } else if case.applicant == Applicant::LegalEntity {
+            // "по распоряжению клиента - физического лица в пользу
+            // получателей - физических лиц": the cap is an individual's.
+            c.warnings.push(Warning::TransferCapForIndividualsOnly);
+        } else {
+            // "В случае, если использование клиентом электронного средства
+            // платежа не было приостановлено ..., оператор ... может
+            // осуществлять переводы ... на сумму не более 100 тысяч рублей
+            // в месяц": not suspended on Saturday 9 May 2026, the client's
+            // transfers to individuals are capped from that day.
+            c.measures.push(Measure {
+                kind: MeasureKind::CapTransfers,
+                on,
+                basis: text(law, "9", "11.6, sentence 2"),
+            });
+        }
+    }
+    // "Кредитная организация обязана ограничить выдачу наличных денежных
+    // средств с использованием банкоматов на сумму не более 100 тысяч
+    // рублей в месяц, если от Банка России получена информация ..., на
+    // период нахождения сведений в указанной базе данных": a duty of a
+    // credit institution, with or without the suspension. It runs from the
+    // day the bank received the record; the clock knows the day the bank
+    // acted on it, the earlier of the suspension and the cap.
+    let acted = match (f.instrument_suspended_on, f.transfers_capped_on) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    };
+    if let Some(on) = acted {
+        if case.sector == Sector::Bank {
+            c.measures.push(Measure {
+                kind: MeasureKind::CapAtmCash,
+                on,
+                basis: text(sources::BANKING_LAW_30, "30", "16"),
+            });
+        }
+    }
 }
 
 fn aml(case: &Case, f: &AmlFacts, c: &mut Clock) -> Result<(), Error> {

@@ -85,7 +85,7 @@ describe("plan machine: execution", () => {
     expect(Object.keys(snap.context.stepRefs)).toHaveLength(4);
     expect(snap.context.stepRefs[plan[0]!.id]).toBeUndefined();
 
-    server(actor, { type: "plan.started", at: 100, total: 4, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 4, protocol: 5 }, 110);
     expect(actor.getSnapshot().value).toBe("running");
 
     const step = plan[1]!;
@@ -135,7 +135,7 @@ describe("plan machine: execution", () => {
     const { actor } = boot();
     const plan = generatePlan(7, BRIEF);
     actor.send({ type: "APPROVE", sessionId: "sess", at: 100 });
-    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 5 }, 110);
     const step = plan[0]!;
     server(
       actor,
@@ -177,7 +177,7 @@ describe("plan machine: execution", () => {
     const { actor } = boot();
     const plan = generatePlan(7, BRIEF);
     actor.send({ type: "APPROVE", sessionId: "sess", at: 100 });
-    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 5 }, 110);
     const first = plan[0]!;
     server(
       actor,
@@ -209,7 +209,7 @@ describe("plan machine: execution", () => {
     const plan = generatePlan(7, BRIEF);
     const high = plan.find((s) => s.risk === "high")!;
     actor.send({ type: "APPROVE", sessionId: "sess", at: 100 });
-    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 5 }, 110);
     server(
       actor,
       { type: "step.started", stepId: high.id, at: 120, requiresConfirmation: true },
@@ -255,7 +255,7 @@ describe("plan machine: execution", () => {
     const { actor } = boot();
     const high = generatePlan(7, BRIEF).find((s) => s.risk === "high")!;
     actor.send({ type: "APPROVE", sessionId: "sess", at: 100 });
-    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 5 }, 110);
     server(
       actor,
       { type: "step.started", stepId: high.id, at: 120, requiresConfirmation: true },
@@ -274,7 +274,7 @@ describe("plan machine: execution", () => {
   it("reset returns to a fresh draft", () => {
     const { actor } = boot();
     actor.send({ type: "APPROVE", sessionId: "sess", at: 100 });
-    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 3 }, 110);
+    server(actor, { type: "plan.started", at: 100, total: 5, protocol: 5 }, 110);
     server(actor, { type: "plan.finished", at: 200 }, 200);
     actor.send({ type: "RESET", at: 300 });
     const snap = actor.getSnapshot();

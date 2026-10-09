@@ -194,6 +194,10 @@ pub struct CaseInput {
     /// client's own data in the Bank of Russia's database.
     #[wasm_bindgen(js_name = instrumentSuspendedOn)]
     pub instrument_suspended_on: Option<String>,
+    /// The day the client's transfers to individuals were capped at
+    /// 100,000 roubles a month instead of the suspension.
+    #[wasm_bindgen(js_name = transfersCappedOn)]
+    pub transfers_capped_on: Option<String>,
     #[wasm_bindgen(js_name = policeInformation)]
     pub police_information: bool,
     #[wasm_bindgen(js_name = dataRemovedOn)]
@@ -262,6 +266,7 @@ impl CaseInput {
             database_match_after_confirmation: false,
             refund_claim_received_on: None,
             instrument_suspended_on: None,
+            transfers_capped_on: None,
             police_information: false,
             data_removed_on: None,
             exclusion_received_by_operator_on: None,
@@ -377,6 +382,7 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
     };
     let database = clock::DatabaseFacts {
         instrument_suspended_on: opt_date(&i.instrument_suspended_on)?,
+        transfers_capped_on: opt_date(&i.transfers_capped_on)?,
         police_information: i.police_information,
         data_removed_on: opt_date(&i.data_removed_on)?,
         exclusion_received_by_operator_on: opt_date(&i.exclusion_received_by_operator_on)?,
@@ -389,6 +395,7 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         operator_application_sent_on: opt_date(&i.operator_application_sent_on)?,
     };
     let any_database = database.instrument_suspended_on.is_some()
+        || database.transfers_capped_on.is_some()
         || database.data_removed_on.is_some()
         || database.exclusion_received_by_operator_on.is_some()
         || database.exclusion_received_by_bank_of_russia_on.is_some()
@@ -807,6 +814,9 @@ pub struct ReplyInput {
     pub client_options: Vec<String>,
     #[wasm_bindgen(js_name = statedDeadlines)]
     pub stated_deadlines: Vec<StatedDeadlineInput>,
+    /// Measure codes the reply says apply (`suspend_instrument`,
+    /// `cap_transfers`, `cap_atm_cash`, ...).
+    pub measures: Vec<String>,
     pub text: String,
 }
 
@@ -822,6 +832,7 @@ impl ReplyInput {
             next_steps: Vec::new(),
             client_options: Vec::new(),
             stated_deadlines: Vec::new(),
+            measures: Vec::new(),
             text,
         }
     }
@@ -885,6 +896,11 @@ fn to_reply(r: &ReplyInput) -> Result<Reply, Error> {
                 })
             })
             .collect::<Result<_, Error>>()?,
+        measures: r
+            .measures
+            .iter()
+            .map(|c| clock::MeasureKind::parse(c))
+            .collect::<Result<_, Error>>()?,
         text: r.text.clone(),
     })
 }
@@ -895,7 +911,7 @@ fn rubric_pure(reply: &ReplyInput, input: &CaseInput) -> Result<Vec<FindingOutpu
     Ok(rubric::rubric(&to_reply(reply)?, &case, &c)
         .into_iter()
         .map(|f| {
-            let (source, reference) = f.code.basis();
+            let (source, reference) = f.basis();
             FindingOutput {
                 code: f.code.code().into(),
                 subject: f.subject.map(String::from),
@@ -977,7 +993,8 @@ mod tests {
             m,
             [
                 ("refuse_operation", "2026-05-08", "3.4, sentence 2"),
-                ("suspend_instrument", "2026-05-09", "11.6")
+                ("suspend_instrument", "2026-05-09", "11.6"),
+                ("cap_atm_cash", "2026-05-09", "16")
             ]
         );
         let due = |kind: &str| {
@@ -998,6 +1015,75 @@ mod tests {
         assert_eq!(to_case(&j).unwrap().database, None);
         j.data_removed_on = Some("2026-5-20".into());
         assert_eq!(to_case(&j), Err(Error::InvalidDate));
+    }
+
+    #[test]
+    fn the_transfer_cap_and_the_measures_a_reply_states_cross_whole() {
+        // Not suspended but capped on Saturday 9 May 2026: the transfer
+        // cap on part 11.6, sentence 2, and the bank's ATM cash cap on the
+        // Banking Law art. 30 part 16, from the same day. A reply that
+        // states the suspension instead is told so; an unknown measure is
+        // a code error.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        i.transfers_capped_on = Some("2026-05-09".into());
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        let m: Vec<_> = out
+            .measures
+            .iter()
+            .map(|m| {
+                (
+                    m.kind.as_str(),
+                    m.on.as_str(),
+                    m.basis.source.as_str(),
+                    m.basis.part.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            m,
+            [
+                (
+                    "cap_transfers",
+                    "2026-05-09",
+                    "payment_law_9",
+                    "11.6, sentence 2"
+                ),
+                ("cap_atm_cash", "2026-05-09", "banking_law_30", "16")
+            ]
+        );
+        let mut r = ReplyInput::new("2026-05-12".into(), "Переводы ограничены.".into());
+        r.client_options = vec!["apply_for_removal".into()];
+        r.next_steps = vec!["Ответьте на письмо.".into()];
+        r.grounds = vec![GroundInput::new(
+            ActCode::PaymentSystem,
+            "9".into(),
+            "11.6".into(),
+        )];
+        r.measures = vec!["suspend_instrument".into(), "cap_atm_cash".into()];
+        let f = rubric_pure(&r, &i).unwrap();
+        let codes: Vec<_> = f
+            .iter()
+            .map(|x| (x.code.as_str(), x.subject.as_deref(), x.source.as_str()))
+            .collect();
+        assert_eq!(
+            codes,
+            [
+                (
+                    "measure_not_taken",
+                    Some("suspend_instrument"),
+                    "letter_in_03_59_11"
+                ),
+                (
+                    "measure_missing",
+                    Some("cap_transfers"),
+                    "letter_in_03_59_11"
+                )
+            ]
+        );
+        r.measures = vec!["cap_transfers".into(), "cap_atm_cash".into()];
+        assert!(rubric_pure(&r, &i).unwrap().is_empty());
+        r.measures = vec!["cap_everything".into()];
+        assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
     }
 
     #[test]
@@ -1073,6 +1159,28 @@ mod tests {
         assert_eq!(f[0].source, "letter_in_01_59_98");
         r.client_options = vec!["call_us".into()];
         assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
+        // The client's card suspended on 9 May for the client's own data
+        // in the database: the right to apply for removal is owed, and its
+        // finding cites 161-FZ art. 9 part 11.8 rather than the letter.
+        // Named, it is taken.
+        let mut j = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        j.instrument_suspended_on = Some("2026-05-09".into());
+        let mut q = ReplyInput::new("2026-05-12".into(), "Карта приостановлена.".into());
+        let removal = rubric_pure(&q, &j)
+            .unwrap()
+            .into_iter()
+            .find(|x| x.subject.as_deref() == Some("apply_for_removal"))
+            .unwrap();
+        assert_eq!(
+            (removal.code.as_str(), removal.source.as_str()),
+            ("client_option_missing", "payment_law_9")
+        );
+        assert!(removal.reference.starts_with("art. 9 part 11.8"));
+        q.client_options = vec!["apply_for_removal".into()];
+        assert!(rubric_pure(&q, &j)
+            .unwrap()
+            .iter()
+            .all(|x| x.subject.as_deref() != Some("apply_for_removal")));
         r.client_options.clear();
         r.reasons = vec!["od2506_9_9".into()];
         assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);

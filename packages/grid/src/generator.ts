@@ -22,6 +22,7 @@ import {
   Operation,
   Outcome,
   Path,
+  Restriction,
   SIGNATORY_COUNT,
   SIGN_COUNT,
   Sector,
@@ -118,6 +119,14 @@ const DATABASE_SALT = 0xdb5a1e;
    suspension is a duty (art. 9 part 11.7): the next draw of the same
    stream, the generator's own share */
 const POLICE_INFORMATION_SHARE = 0.35;
+/* Of the cases about an individual's own data without the Ministry's
+   information, the share where the bank did not suspend the card or
+   online banking under 161-FZ art. 9 part 11.6 and the client's transfers
+   to individuals are capped instead (sentence 2). Drawn from a stream of
+   its own (RESTRICTION_SALT), so every other column is what it was before
+   the choice was drawn; the share is this generator's own. */
+const TRANSFERS_CAPPED_SHARE = 0.4;
+const RESTRICTION_SALT = 0x11e6c4;
 /* 115-FZ categories in ariadne-rules' order */
 const AML_WEIGHTS = [0.42, 0.08, 0.16, 0.12, 0.04, 0.04, 0.14];
 const AML_OPERATION = [
@@ -280,6 +289,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     let opRef = mixSeed(seed, r + 0x51);
     let template = 0;
     let database: number = Database.None;
+    let restriction: number = Restriction.None;
 
     if (stream === Stream.Antifraud) {
       applicant = rng() < 0.97 ? Applicant.Individual : Applicant.LegalEntity;
@@ -301,6 +311,13 @@ export function generateChunk(seed: number, start: number, count: number, total:
            banking suspended on `opOn`, no sign, no operation; the client
            asks how to have the data removed */
         database = kind() < POLICE_INFORMATION_SHARE ? Database.ClientDataWithPoliceInformation : Database.ClientData;
+        /* The bank's choice under part 11.6, for an individual: part 11.7
+           leaves none, and a legal entity has no cap */
+        const choice = makeRng(mixSeed(seed ^ RESTRICTION_SALT, r));
+        restriction =
+          database === Database.ClientData && applicant === Applicant.Individual && choice() < TRANSFERS_CAPPED_SHARE
+            ? Restriction.TransfersCapped
+            : Restriction.InstrumentSuspended;
         reason = 0;
         operation = Operation.None;
         opAmount = 0;
@@ -352,6 +369,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
       claimForm = c.claimForm[j] ?? 0;
       template = c.template[j] ?? 0;
       database = c.database[j] ?? Database.None;
+      restriction = c.restriction[j] ?? Restriction.None;
     }
 
     /* The organisation of the group, from a draw of its own so the rest of
@@ -550,6 +568,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.pathThen[i] = pathThen;
     c.pathTerm[i] = pathTerm;
     c.database[i] = database;
+    c.restriction[i] = restriction;
   }
   return c;
 }

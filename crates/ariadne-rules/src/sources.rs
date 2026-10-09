@@ -75,6 +75,17 @@ pub const BANKING_LAW_30_1: Source = Source {
     checked: "2026-10-06",
 };
 
+/// Banking Law, art. 30: the bank's relations with its clients; part 16
+/// caps ATM cash at 100,000 roubles a month for a client whose data are in
+/// the Bank of Russia's database of transfers without consent.
+pub const BANKING_LAW_30: Source = Source {
+    id: "banking_law_30",
+    title: "Федеральный закон от 02.12.1990 N 395-1 «О банках и банковской деятельности», статья 30",
+    url: "https://www.consultant.ru/document/cons_doc_LAW_5842/e452b6541ff9e2aad438b239b6e5ba38a28162da/",
+    revision: "2026-08-04",
+    checked: "2026-10-09",
+};
+
 /// Microfinance Law, art. 9.1: how a microfinance organisation handles
 /// complaints.
 pub const MICROFINANCE_LAW_9_1: Source = Source {
@@ -160,7 +171,7 @@ pub const PAYMENT_LAW_9: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 9",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/",
     revision: "2026-08-04",
-    checked: "2026-10-08",
+    checked: "2026-10-09",
 };
 
 /// The Bank of Russia's letter on counting the terms of art. 8 of the
@@ -263,6 +274,20 @@ pub const RESTRICTIONS_LETTER: Source = Source {
     checked: "2026-10-06",
 };
 
+/// The Bank of Russia's information letter on informing clients of
+/// restrictions in advance: the kind of a restriction and its legal
+/// ground, and for one under 161-FZ art. 9 parts 11.6 and 11.7 the right
+/// to apply for the removal of the client's data, through the bank or the
+/// Bank of Russia's Internet reception, with a link to its page. The text
+/// was read in a full-text copy.
+pub const PROACTIVE_LETTER: Source = Source {
+    id: "letter_in_03_59_11",
+    title: "Информационное письмо Банка России от 24.03.2026 N ИН-03-59/11 «О применении проактивного подхода при информировании об ограничении операций и дистанционных способов распоряжения счетом»",
+    url: "https://rulaws.ru/acts/Informatsionnoe-pismo-Banka-Rossii-ot-24.03.2026-N-IN-03-59_11/",
+    revision: "2026-03-24",
+    checked: "2026-10-09",
+};
+
 /// The Bank of Russia's recommendations on replies to complaints: plain
 /// language, no long sentences, concrete terms.
 pub const BANK_OF_RUSSIA_REPLY_PAGE: Source = Source {
@@ -281,6 +306,7 @@ pub const ALL: &[Source] = &[
     DECREE_2026,
     DECREE_2027,
     BANKING_LAW_30_1,
+    BANKING_LAW_30,
     MICROFINANCE_LAW_9_1,
     INSURANCE_LAW_6_2,
     SECURITIES_LAW_15_11,
@@ -299,5 +325,6 @@ pub const ALL: &[Source] = &[
     REGULATION_842_P,
     OD_2506,
     RESTRICTIONS_LETTER,
+    PROACTIVE_LETTER,
     BANK_OF_RUSSIA_REPLY_PAGE,
 ];

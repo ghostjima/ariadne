@@ -126,6 +126,20 @@ they are taken again with `pnpm measure`.
   ariadne-rules, which gives the part. The register shows the code in
   its own column, blank for the other cases. The shares are the
   generator's own.
+- **The bank's choice under part 11.6** (`Restriction`, the column
+  `restriction`). Without the Ministry's information the bank "вправе
+  приостановить" the card or online banking; if it does not, an
+  individual's transfers to individuals are capped at 100,000 roubles a
+  month (161-FZ art. 9 part 11.6, sentence 2). About two in five of the
+  individuals' cases without that information have the cap instead of
+  the suspension, by a stream of their own, so every other column is
+  what it was before the choice was drawn; a case with the Ministry's
+  information is always suspended (part 11.7), and so is a legal
+  entity's, which has no cap under that part. `caseFacts` passes the day
+  as the suspension's or the cap's; ariadne-rules adds the ATM cash cap
+  of the Banking Law art. 30 part 16 to either. A refusal still rests on
+  part 11.6. The column shows the restriction, blank for the other
+  cases. The share is the generator's own.
 - **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
   `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
   their own so every other column, and every answered case, is what it

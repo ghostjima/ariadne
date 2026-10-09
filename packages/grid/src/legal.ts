@@ -16,6 +16,7 @@ import {
   EXTENSION_WORKING_DAYS,
   Operation,
   Path,
+  Restriction,
   SECTOR_RULES,
   STREAM_RULES,
   Source,
@@ -219,12 +220,17 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
   }
   /* The client's own data in the database: no operation was blocked; the
      card or online banking was suspended on `opOn`, a duty with the
-     Ministry of Internal Affairs' information; then, if the client
-     applied, the application to remove the data through the bank, and its
-     receipt by the Bank of Russia once forwarded */
+     Ministry of Internal Affairs' information, or, the bank's choice under
+     part 11.6, the transfers capped instead; then, if the client applied,
+     the application to remove the data through the bank, and its receipt
+     by the Bank of Russia once forwarded */
   const database = store.database[i] ?? Database.None;
   if (stream === Stream.Antifraud && database !== Database.None) {
-    facts.database = { instrumentSuspendedOn: on, policeInformation: database === Database.ClientDataWithPoliceInformation };
+    const capped = store.restriction[i] === Restriction.TransfersCapped;
+    facts.database = {
+      ...(capped ? { transfersCappedOn: on } : { instrumentSuspendedOn: on }),
+      policeInformation: database === Database.ClientDataWithPoliceInformation,
+    };
     if (path === Path.DatabaseRemoval && pathOn >= 0) {
       facts.database.exclusionReceivedByOperatorOn = isoDay(pathOn);
       if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);

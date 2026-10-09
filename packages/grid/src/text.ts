@@ -10,6 +10,7 @@ import {
   COLUMN_IDS,
   COMPANY_COUNT,
   DATABASE_COUNT,
+  RESTRICTION_COUNT,
   DEADLINE_COUNT,
   EXTENSION_COUNT,
   FIRST_NAME_COUNT,
@@ -99,6 +100,9 @@ export type Labels = {
      database, with or without the Ministry of Internal Affairs'
      information; code 0, none, included */
   database: readonly string[];
+  /* By Restriction code: the suspension, or the transfer cap instead;
+     code 0, none, included */
+  restriction: readonly string[];
   extension: readonly string[];
   deadline: readonly string[];
   operation: readonly string[];
@@ -172,6 +176,7 @@ export function validateLabels(labels: Labels): TextIssue[] {
   checkList(issues, "outcome", labels.outcome, OUTCOME_COUNT);
   checkList(issues, "ground", labels.ground, GROUND_COUNT);
   checkList(issues, "database", labels.database, DATABASE_COUNT);
+  checkList(issues, "restriction", labels.restriction, RESTRICTION_COUNT);
   checkList(issues, "extension", labels.extension, EXTENSION_COUNT);
   checkList(issues, "deadline", labels.deadline, DEADLINE_COUNT);
   checkList(issues, "operation", labels.operation, OPERATION_COUNT);

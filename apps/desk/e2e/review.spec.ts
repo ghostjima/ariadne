@@ -258,6 +258,44 @@ test("a reply about removing the client's data rests on 161-FZ art. 9: with the 
   await expect(letter(page)).not.toContainText("part 11.7");
 });
 
+test("a reply about the client's own data in the database tells the client how to apply to the Bank of Russia for their removal, in both languages, and the rubric asks for nothing more", async ({ page }) => {
+  // 161-FZ art. 9 part 11.8: the right to apply, also through the bank;
+  // the two channels and the Bank of Russia's page, as its letter No.
+  // IN-03-59/11 recommends.
+  await openAs(page, REMOVAL_CASE, "reviewer");
+  await expect(letter(page)).toContainText(
+    "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
+  );
+  const findings = letterPanel(page).locator(".rubric-findings");
+  await expect(findings).toBeVisible();
+  await expect(findings).not.toContainText(agentStrings.en.rubric.option.apply_for_removal);
+  await openAs(page, REMOVAL_CASE, "reviewer", "lang=ru");
+  await expect(letter(page)).toContainText(
+    "Вы можете подать заявление об исключении сведений о вас из базы данных Банка России через наш банк или интернет-приёмную cbr.ru/contactBR/161-FZ.",
+  );
+  await expect(letterPanel(page).locator(".rubric-findings")).not.toContainText(agentStrings.ru.rubric.option.apply_for_removal);
+});
+
+test("a reply where the bank capped the transfers instead of the suspension says so, with ATM cash, on 161-FZ art. 9 part 11.6, and the rubric asks for nothing more", async ({ page }) => {
+  // The Bank of Russia's letter No. IN-03-59/11: the kind of each
+  // restriction and its legal ground.
+  await openAs(page, "C-001140", "reviewer");
+  await expect(letter(page)).toContainText(agentStrings.en.reply.measure.cap_transfers);
+  await expect(letter(page)).toContainText(agentStrings.en.reply.measure.cap_atm_cash);
+  await expect(letter(page)).not.toContainText(agentStrings.en.reply.measure.suspend_instrument);
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  const findings = letterPanel(page).locator(".rubric-findings");
+  await expect(findings).toBeVisible();
+  for (const measure of Object.values(agentStrings.en.rubric.measure)) await expect(findings).not.toContainText(measure);
+  // A suspended case's letter says it is suspended, and not capped.
+  await openAs(page, REMOVAL_CASE, "reviewer");
+  await expect(letter(page)).toContainText(agentStrings.en.reply.measure.suspend_instrument);
+  await expect(letter(page)).not.toContainText(agentStrings.en.reply.measure.cap_transfers);
+  await openAs(page, "C-001140", "reviewer", "lang=ru");
+  await expect(letter(page)).toContainText(agentStrings.ru.reply.measure.cap_transfers);
+  await expect(letter(page)).toContainText(agentStrings.ru.reply.measure.cap_atm_cash);
+});
+
 test("in the queue a reply is not sent before it is signed", async ({ page }) => {
   await open(page, `role=signatory&view=${viewParam({ search: SIGN_CASE, columns: ["id", "client", "stage"] })}`, "1 of 1,200 cases");
   await pick(page, 0, 3, "Reply sent");
@@ -296,6 +334,15 @@ for (const lang of ["ru", "en"] as const)
       await expect(letter(page)).toContainText(lang === "en" ? "161-FZ, art. 9, part 11.7" : "161-ФЗ, ст. 9, ч. 11.7");
       await expect(letterPanel(page).getByRole("heading", { name: words.review.findings })).toBeVisible();
       await expectNoSeriousViolations(page, "review-database-ground", { lang, theme });
+    });
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: the review of a reply where the bank capped the transfers instead of the suspension (${lang}, ${theme})`, async ({ page }) => {
+      await openAs(page, "C-001140", "reviewer", `lang=${lang}&theme=${theme}`);
+      await expect(letter(page)).toContainText(agentStrings[lang].reply.measure.cap_atm_cash);
+      await expect(letterPanel(page).getByRole("heading", { name: workflowStrings[lang].review.findings })).toBeVisible();
+      await expectNoSeriousViolations(page, "review-transfer-cap", { lang, theme });
     });
 
 test("on a phone the review and the signature fit without sideways scroll", async ({ page }) => {

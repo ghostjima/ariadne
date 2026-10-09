@@ -96,6 +96,8 @@ item is the part.
 | Refused repeat of a card, e-money or Faster Payments operation after a database match | two days from and including the repeat; then the next repeat is carried out | 161-FZ art. 8 parts 3.10, 3.11 |
 | Client's notice of the second step | at once: the reason, the term, a later repeat | 161-FZ art. 8 part 3.10, sentence 2 |
 | Card or online banking suspended for the client's own data in the database | notice with the reason the same day; notice of the right to apply for removal at once; restored at once after removal | 161-FZ art. 9 parts 9.2, 11.8, 11.11 (the suspension under parts 11.6, 11.7) |
+| Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
+| ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, from the day the bank acted on the record | Banking Law art. 30 part 16 |
 | Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it | Directive No. 6748-U items 2.1, 2.3, 2.4 |
@@ -128,6 +130,19 @@ Russia's database (`suspend_confirmed_order`, `refuse_repeat`). A
 transfer confirmed after the day following the suspension is not
 accepted (part 3.9, `order_not_accepted`), and a database match after it
 suspends nothing.
+
+For the client's own data in the database, part 11.6 lets the bank
+choose: it "вправе приостановить" the client's card or online banking
+(`suspend_instrument`), or, if it does not, carries out an individual's
+transfers to individuals "на сумму не более 100 тысяч рублей в месяц"
+(`cap_transfers`, sentence 2). With the Ministry of Internal Affairs'
+information there is no choice: part 11.7 makes the suspension a duty,
+and a cap given instead is refused (`transfer_cap_not_allowed`). A
+legal entity whose card is not suspended has no cap under part 11.6
+(`transfer_cap_for_individuals_only`). Whichever the bank chose, a
+credit institution caps ATM cash at 100,000 roubles a month while the
+data are in the database (Banking Law art. 30 part 16, `cap_atm_cash`).
+The notices of parts 9.2 and 11.8 follow a suspension only.
 
 #### Conservative readings
 
@@ -245,7 +260,7 @@ on them:
   `same_day_as_each_dispatch`, `same_day_as_reply`, `immediately`.
 - Measures: `suspend_order`, `refuse_operation`,
   `suspend_confirmed_order`, `refuse_repeat`, `order_not_accepted`,
-  `suspend_instrument`.
+  `suspend_instrument`, `cap_transfers`, `cap_atm_cash`.
 - Warnings: `registration_date_assumed`, `registered_late`,
   `money_claim_outside_ombudsman`, `money_claim_from_legal_entity`,
   `ombudsman_participation_unknown`, `breach_date_unknown`,
@@ -253,14 +268,15 @@ on them:
   `refund_for_individuals_only`, `high_risk_for_legal_entities_only`,
   `documents_answer_beyond_text`, `sro_copy_not_applicable`,
   `ombudsman_term_may_have_passed`, `storage_term_not_set`,
-  `commission_term_below_minimum`, `commission_term_assumed`.
+  `commission_term_below_minimum`, `commission_term_assumed`,
+  `transfer_cap_for_individuals_only`.
 - Refusals: `extension_not_allowed`, `extension_ground_not_allowed`,
-  `extension_too_long`.
+  `extension_too_long`, `transfer_cap_not_allowed`.
 - Errors: `invalid_date`, `outside_calendar`, `dates_out_of_order`,
   `invalid_extension`, `invalid_amount`, `unknown_code`, `missing_date`.
 - Rubric: the findings above; client options `confirm_order`,
   `repeat_operation`, `submit_documents`, `apply_to_commission`,
-  `apply_to_ombudsman`; acts `payment_system`, `anti_money_laundering`,
+  `apply_to_ombudsman`, `apply_for_removal`; acts `payment_system`, `anti_money_laundering`,
   `ombudsman`, `complaint_law`, `other_law`, `contract`.
 
 ### Reason codes
@@ -305,7 +321,9 @@ data) and `payment_9_11_7` (part 11.7, the same with the Ministry of
 Internal Affairs' information, where the suspension is a duty). The
 codes keep this order and a new ground is added at the end; the
 `suspend_instrument` measure of the clock rests on the third or the
-fourth.
+fourth. A reply about the transfer cap the bank chose instead of the
+suspension names `payment_9_11_6` as well: the cap is part 11.6's
+second sentence.
 
 ### Reply rubric
 
@@ -321,8 +339,9 @@ needs no legal judgment:
 | `grounds_mixed` | 161-FZ and 115-FZ both among the grounds or the reasons | the same letter ("однозначно дифференцировать") |
 | `stream_ground_missing` | an antifraud or anti-money-laundering complaint answered without naming that law | the same |
 | `next_steps_missing` | no next step | the same ("порядке дальнейших действий") |
-| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4) | the letter and each provision |
+| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4); for a card or online banking suspended for the client's own data in the Bank of Russia's database, or the client's transfers capped instead, while the data are there, the right to apply to the Bank of Russia to remove them, through the bank or the Bank of Russia's Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U item 1.2; for the cap, the Bank of Russia's letter No. IN-03-59/11) | the letter and each provision; for the removal, the finding cites 161-FZ art. 9 part 11.8 itself, and the channels come from the directive and the Bank of Russia's letter No. IN-03-59/11 |
 | `deadline_missing`, `deadline_mismatch` | a deadline that concerns the client and runs on the reply's day is not stated, or stated with another date than the clock's | the Bank of Russia's recommendations on replies (concrete terms) |
+| `measure_missing`, `measure_not_taken` | for the client's own data in the database, while they are there, a restriction that applies is not stated, or one is stated that does not apply: the suspension of the card or online banking, or the transfer cap instead (161-FZ art. 9 part 11.6), and the ATM cash cap (Banking Law art. 30 part 16) | the Bank of Russia's letter No. IN-03-59/11 ("вид примененных ограничений, правовые основания их применения") |
 | `text_empty`, `sentence_too_long`, `sentences_long_on_average` | no text; a sentence of more than 25 words; more than 15 words a sentence on average | the same recommendations (no long sentences) |
 
 The word limits, 25 words a sentence at most and 15 on average, are the
@@ -375,8 +394,9 @@ the code:
 - `rubric(reply, input)`: `reply` is a `ReplyInput`, made with
   `new ReplyInput(repliedOn, text)` and filled with `grounds`
   (`GroundInput`s of an act code, article and part), `reasons`,
-  `nextSteps`, `clientOptions` and `statedDeadlines`
-  (`StatedDeadlineInput`s); `input` is the case's `CaseInput`, from which
+  `nextSteps`, `clientOptions`, `statedDeadlines`
+  (`StatedDeadlineInput`s) and `measures` (measure codes the reply says
+  apply); `input` is the case's `CaseInput`, from which
   the clock is computed. Returns `FindingOutput`s with `code`, `subject`,
   `sentence`, `words`, `source` and `reference`.
 
@@ -395,6 +415,7 @@ A test fails when this list and the code disagree.
 | Government Decree No. 1466 of 24.09.2025, transfers of days off in 2026 | 2025-09-24 | [government.ru, PDF](http://static.government.ru/media/files/4jeB8hNKm69ggOa9yDiYOli6YoAyM21i.pdf) |
 | Government Decree No. 1187 of 17.09.2026, transfers of days off in 2027 | 2026-09-17 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_544706/) |
 | Banking Law (О банках и банковской деятельности) No. 395-1, art. 30.1 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_5842/c96fe25edab2fcc32ab9225c1b392a2b2d599467/) |
+| Banking Law No. 395-1, art. 30 (part 16, ATM cash for a client whose data are in the Bank of Russia's database) | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_5842/e452b6541ff9e2aad438b239b6e5ba38a28162da/) |
 | Microfinance Law No. 151-FZ, art. 9.1 | 2026-04-09 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_102112/69201da7780e16951d28521d25d0899992b44981/) |
 | Insurance Law No. 4015-1, art. 6.2 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_1307/0f3a0c69a3c8e13748037a8a4667ab9552b69ca4/) |
 | Securities Market Law No. 39-FZ, art. 15.11 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_10148/0d69714fc90963f4be8075f53386f5173417d690/) |
@@ -413,6 +434,7 @@ A test fails when this list and the code disagree.
 | Bank of Russia Regulation No. 842-P of 23.09.2024, the interagency commission's review, as amended by Directive No. 7382-U of 25.06.2026 | 2026-06-25 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/polozhenie-banka-rossii-ot-23092024-n-842-p-o-trebovanijakh/); revision confirmed on [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_490180/) |
 | Bank of Russia Order No. OD-2506 of 05.11.2025, the signs of a transfer without voluntary consent, in force from 01.01.2026 | 2025-11-05 | [cbr.ru, PDF](https://cbr.ru/Crosscut/LawActs/File/10123) |
 | Bank of Russia information letter No. IN-01-59/98 of 26.08.2025, informing clients of restrictions | 2025-08-26 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/412494092/) |
+| Bank of Russia information letter No. IN-03-59/11 of 24.03.2026, informing clients of restrictions in advance | 2026-03-24 | [rulaws.ru, a full-text copy](https://rulaws.ru/acts/Informatsionnoe-pismo-Banka-Rossii-ot-24.03.2026-N-IN-03-59_11/) |
 | Bank of Russia page on replies to complaints, with its recommendations | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/protection_rights/rassmotrenie-obrascheniy-potrebiteley-finansovykh-uslug/) |
 
 The decrees, the letters and Order No. OD-2506 have not been amended as

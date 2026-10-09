@@ -1,8 +1,8 @@
 //! The reply rubric: worked examples of replies, each finding explained.
 
 use ariadne_rules::clock::{
-    clock, AmlDecisionKind, AmlFacts, AntifraudFacts, Case, DeadlineKind as K, MoneyClaim,
-    Operation, Stream,
+    clock, AmlDecisionKind, AmlFacts, AntifraudFacts, Case, DatabaseFacts, DeadlineKind as K,
+    MeasureKind, MoneyClaim, Operation, Stream,
 };
 use ariadne_rules::reasons::{AmlReason, Reason};
 use ariadne_rules::rubric::{
@@ -64,6 +64,7 @@ fn good_antifraud_reply() -> Reply {
         ],
         // Four sentences of 15, 6, 6 and 6 words: "ч. 3.4 ст. 8" does not
         // end a sentence, "161-ФЗ." before a capital does.
+        measures: vec![],
         text: "Мы приостановили перевод на два дня по ч. 3.4 ст. 8 Федерального закона № 161-ФЗ. \
                Операция не похожа на ваши обычные переводы. \
                Подтвердите перевод в приложении до 9 мая. \
@@ -135,6 +136,151 @@ fn next_steps_and_the_clients_options() {
             ("client_option_missing", Some("confirm_order"))
         ]
     );
+}
+
+/// The client's card suspended on Saturday 9 May 2026 because the Bank
+/// of Russia's database holds the client's own data, and a complaint about
+/// it on Tuesday 12 May: no operation was blocked.
+fn database_case(police_information: bool) -> Case {
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+    case.database = Some(DatabaseFacts {
+        instrument_suspended_on: Some(d("2026-05-09")),
+        transfers_capped_on: None,
+        police_information,
+        data_removed_on: None,
+        exclusion_received_by_operator_on: None,
+        exclusion_data_missing: false,
+        exclusion_received_by_bank_of_russia_on: None,
+        exclusion_decision_received_on: None,
+        bank_of_russia_query_received_on: None,
+        operator_application_sent_on: None,
+    });
+    case
+}
+
+#[test]
+fn a_reply_about_a_suspension_for_the_database_tells_of_the_right_to_apply_for_removal() {
+    // "незамедлительно уведомить клиента о приостановлении ..., а также о
+    // праве клиента подать ... заявление в Банк России, в том числе через
+    // оператора по переводу денежных средств, об исключении сведений"
+    // (161-FZ art. 9 part 11.8), with or without the Ministry of Internal
+    // Affairs' information: the option is owed, and its finding cites the
+    // statute, not only the letter every option cites.
+    for police in [false, true] {
+        let case = database_case(police);
+        let c = clock(&case).unwrap();
+        let mut reply = Reply {
+            replied_on: d("2026-05-12"),
+            grounds: vec![ground(
+                Act::PaymentSystem,
+                "9",
+                if police { "11.7" } else { "11.6" },
+            )],
+            reasons: vec![],
+            next_steps: vec!["Ответьте на это письмо, если остались вопросы.".into()],
+            client_options: vec![],
+            stated_deadlines: vec![],
+            measures: vec![MeasureKind::SuspendInstrument, MeasureKind::CapAtmCash],
+            text: "Карта приостановлена. Сведения о вас есть в базе данных Банка России.".into(),
+        };
+        let findings = rubric(&reply, &case, &c);
+        assert_eq!(
+            codes(&findings),
+            [("client_option_missing", Some("apply_for_removal"))]
+        );
+        let (source, reference) = findings[0].basis();
+        assert_eq!(source, ariadne_rules::sources::PAYMENT_LAW_9);
+        assert!(reference.starts_with("art. 9 part 11.8"), "{reference}");
+        reply.client_options = vec![ClientOption::ApplyForRemoval];
+        assert_eq!(rubric(&reply, &case, &c), []);
+    }
+    // Once the data have left the database the card is restored (part
+    // 11.11), and there is nothing to apply for.
+    let mut case = database_case(false);
+    if let Some(f) = case.database.as_mut() {
+        f.data_removed_on = Some(d("2026-05-12"));
+    }
+    let c = clock(&case).unwrap();
+    let reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![ground(Act::PaymentSystem, "9", "11.6")],
+        reasons: vec![],
+        next_steps: vec!["Карта снова доступна.".into()],
+        client_options: vec![],
+        stated_deadlines: vec![],
+        measures: vec![],
+        text: "Сведения исключены из базы данных. Карта снова доступна.".into(),
+    };
+    assert_eq!(rubric(&reply, &case, &c), []);
+    // A block on an OD-2506 sign carries no database facts: the option is
+    // not owed.
+    let case = antifraud_case();
+    let c = clock(&case).unwrap();
+    assert_eq!(rubric(&good_antifraud_reply(), &case, &c), []);
+}
+
+#[test]
+fn a_reply_about_the_clients_data_in_the_database_says_which_restriction_applies() {
+    // Under part 11.6 the bank "вправе приостановить"; if it does not,
+    // the client's transfers to individuals are capped at 100,000 roubles
+    // a month. ATM cash is capped either way (Banking Law art. 30 part
+    // 16). The reply names the restrictions that apply and no other (the
+    // Bank of Russia's letter No. IN-03-59/11: the kind of each
+    // restriction and its legal ground), and the right to apply for
+    // removal is owed for the cap too (the same letter).
+    let mut case = database_case(false);
+    if let Some(f) = case.database.as_mut() {
+        f.instrument_suspended_on = None;
+        f.transfers_capped_on = Some(d("2026-05-09"));
+    }
+    let c = clock(&case).unwrap();
+    let mut reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![ground(Act::PaymentSystem, "9", "11.6")],
+        reasons: vec![],
+        next_steps: vec!["Ответьте на это письмо, если остались вопросы.".into()],
+        client_options: vec![],
+        stated_deadlines: vec![],
+        // As if the card were suspended: the bank chose the cap instead.
+        measures: vec![MeasureKind::SuspendInstrument],
+        text: "Карта приостановлена. Сведения о вас есть в базе данных Банка России.".into(),
+    };
+    let findings = rubric(&reply, &case, &c);
+    assert_eq!(
+        codes(&findings),
+        [
+            ("client_option_missing", Some("apply_for_removal")),
+            ("measure_not_taken", Some("suspend_instrument")),
+            ("measure_missing", Some("cap_transfers")),
+            ("measure_missing", Some("cap_atm_cash")),
+        ]
+    );
+    assert_eq!(
+        findings[1].basis().0,
+        ariadne_rules::sources::PROACTIVE_LETTER
+    );
+    reply.measures = vec![MeasureKind::CapTransfers, MeasureKind::CapAtmCash];
+    reply.client_options = vec![ClientOption::ApplyForRemoval];
+    assert_eq!(rubric(&reply, &case, &c), []);
+    // A suspended card: the cap must not be stated.
+    let case = database_case(true);
+    let c = clock(&case).unwrap();
+    reply.grounds = vec![ground(Act::PaymentSystem, "9", "11.7")];
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [
+            ("measure_missing", Some("suspend_instrument")),
+            ("measure_not_taken", Some("cap_transfers")),
+        ]
+    );
+    // An operation blocked on a sign carries no database restriction: the
+    // rubric reads none.
+    let case = antifraud_case();
+    let c = clock(&case).unwrap();
+    let mut good = good_antifraud_reply();
+    assert_eq!(rubric(&good, &case, &c), []);
+    good.measures = vec![MeasureKind::SuspendOrder];
+    assert_eq!(rubric(&good, &case, &c), []);
 }
 
 #[test]
@@ -223,6 +369,7 @@ fn an_aml_refusal_needs_documents_and_the_commission() {
         next_steps: vec!["Пришлите документы о сделке.".into()],
         client_options: vec![ClientOption::SubmitDocuments],
         stated_deadlines: vec![],
+        measures: vec![],
         text: "Мы отказали в операции по п. 11 ст. 7 Закона № 115-ФЗ. Пришлите документы о сделке."
             .into(),
     };
@@ -260,6 +407,7 @@ fn a_reply_states_when_the_bank_of_russia_reviews_a_rating() {
         next_steps: vec!["Дождитесь решения Банка России.".into()],
         client_options: vec![],
         stated_deadlines: vec![],
+        measures: vec![],
         text: "Банк России рассмотрит ваше заявление. Дождитесь его решения.".into(),
     };
     assert_eq!(
@@ -291,6 +439,7 @@ fn a_money_claim_reply_names_the_ombudsman() {
         next_steps: vec!["Вы можете обратиться к финансовому уполномоченному.".into()],
         client_options: vec![],
         stated_deadlines: vec![],
+        measures: vec![],
         text: "Мы рассмотрели ваше требование. Мы не можем его удовлетворить.".into(),
     };
     assert_eq!(
@@ -366,6 +515,8 @@ fn every_finding_cites_a_listed_source() {
         F::ClientOptionMissing,
         F::DeadlineMissing,
         F::DeadlineMismatch,
+        F::MeasureMissing,
+        F::MeasureNotTaken,
         F::TextEmpty,
         F::SentenceTooLong,
         F::SentencesLongOnAverage,
@@ -373,6 +524,13 @@ fn every_finding_cites_a_listed_source() {
         let (source, reference) = f.basis();
         assert!(ariadne_rules::sources::ALL.contains(&source), "{f:?}");
         assert!(!reference.is_empty());
+    }
+    for o in ClientOption::ALL {
+        if let Some((source, reference)) = o.basis() {
+            assert!(ariadne_rules::sources::ALL.contains(&source), "{o:?}");
+            assert!(!reference.is_empty());
+        }
+        assert_eq!(ClientOption::parse(o.code()), Ok(o));
     }
 }
 

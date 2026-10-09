@@ -203,6 +203,7 @@ function numericKeys(store: ColumnStore, id: string): ArrayLike<number> | null {
     case "source":
     case "sector":
     case "database":
+    case "restriction":
     case "channel":
     case "extension":
     case "stage":
