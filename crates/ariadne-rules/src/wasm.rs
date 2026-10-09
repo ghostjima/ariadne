@@ -888,7 +888,7 @@ fn rubric_pure(reply: &ReplyInput, input: &CaseInput) -> Result<Vec<FindingOutpu
     Ok(rubric::rubric(&to_reply(reply)?, &case, &c)
         .into_iter()
         .map(|f| {
-            let (source, reference) = f.code.basis();
+            let (source, reference) = f.basis();
             FindingOutput {
                 code: f.code.code().into(),
                 subject: f.subject.map(String::from),
@@ -1066,6 +1066,28 @@ mod tests {
         assert_eq!(f[0].source, "letter_in_01_59_98");
         r.client_options = vec!["call_us".into()];
         assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
+        // The client's card suspended on 9 May for the client's own data
+        // in the database: the right to apply for removal is owed, and its
+        // finding cites 161-FZ art. 9 part 11.8 rather than the letter.
+        // Named, it is taken.
+        let mut j = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        j.instrument_suspended_on = Some("2026-05-09".into());
+        let mut q = ReplyInput::new("2026-05-12".into(), "Карта приостановлена.".into());
+        let removal = rubric_pure(&q, &j)
+            .unwrap()
+            .into_iter()
+            .find(|x| x.subject.as_deref() == Some("apply_for_removal"))
+            .unwrap();
+        assert_eq!(
+            (removal.code.as_str(), removal.source.as_str()),
+            ("client_option_missing", "payment_law_9")
+        );
+        assert!(removal.reference.starts_with("art. 9 part 11.8"));
+        q.client_options = vec!["apply_for_removal".into()];
+        assert!(rubric_pure(&q, &j)
+            .unwrap()
+            .iter()
+            .all(|x| x.subject.as_deref() != Some("apply_for_removal")));
         r.client_options.clear();
         r.reasons = vec!["od2506_9_9".into()];
         assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);

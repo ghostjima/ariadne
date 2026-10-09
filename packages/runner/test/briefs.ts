@@ -57,7 +57,8 @@ export const AML: CaseBrief = {
 /* A client whose own card was suspended for their data in the Bank of
    Russia's database, with no operation blocked and no sign, and who
    applied through the bank to remove the data: the reply names art. 9
-   part 11.6, and the Bank of Russia's decision still to come */
+   part 11.6, the right to apply for removal (part 11.8), and the Bank of
+   Russia's decision still to come */
 export const REMOVAL: CaseBrief = {
   ...BRIEF,
   caseNo: 1150,
@@ -66,6 +67,6 @@ export const REMOVAL: CaseBrief = {
   forwarded: false,
   linkedCase: null,
   grounds: ["payment_9_11_6"],
-  clientOptions: [],
+  clientOptions: ["apply_for_removal"],
   deadlines: [{ kind: "exclusion_decision", due: "2026-10-23" }],
 };

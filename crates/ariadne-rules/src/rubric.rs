@@ -14,7 +14,10 @@
 //!   reply on an antifraud or anti-money-laundering complaint names its
 //!   own law;
 //! - next steps are stated, and the options the law gives the client in
-//!   that case (the same letter; the provisions cited per option);
+//!   that case (the same letter; the provisions cited per option), among
+//!   them, for a card or online banking suspended for the client's own
+//!   data in the Bank of Russia's database, the right to apply for their
+//!   removal and how (161-FZ art. 9 part 11.8);
 //! - every deadline still running that concerns the client is stated,
 //!   with the date the clock computes;
 //! - sentences are not long (the Bank of Russia's recommendations on
@@ -82,16 +85,22 @@ pub enum ClientOption {
     ApplyToCommission,
     /// Apply to the financial ombudsman (123-FZ art. 16 part 4).
     ApplyToOmbudsman,
+    /// Apply to the Bank of Russia to remove the client's data from its
+    /// database, through the bank or through the Bank of Russia's
+    /// Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U
+    /// item 1.2).
+    ApplyForRemoval,
 }
 
 impl ClientOption {
     /// Every option.
-    pub const ALL: [ClientOption; 5] = [
+    pub const ALL: [ClientOption; 6] = [
         ClientOption::ConfirmOrder,
         ClientOption::RepeatOperation,
         ClientOption::SubmitDocuments,
         ClientOption::ApplyToCommission,
         ClientOption::ApplyToOmbudsman,
+        ClientOption::ApplyForRemoval,
     ];
 
     /// The option with a code, or [`Error::UnknownCode`].
@@ -110,6 +119,21 @@ impl ClientOption {
             ClientOption::SubmitDocuments => "submit_documents",
             ClientOption::ApplyToCommission => "apply_to_commission",
             ClientOption::ApplyToOmbudsman => "apply_to_ombudsman",
+            ClientOption::ApplyForRemoval => "apply_for_removal",
+        }
+    }
+
+    /// The source a missing option's finding rests on, when it is not the
+    /// letter every option cites ([`FindingCode::basis`]): the right to
+    /// apply for removal is a duty of the statute, not only a
+    /// recommendation, and the channels are the directive's.
+    pub fn basis(self) -> Option<(Source, &'static str)> {
+        match self {
+            ClientOption::ApplyForRemoval => Some((
+                sources::PAYMENT_LAW_9,
+                "art. 9 part 11.8; the channels: Directive No. 6748-U item 1.2 and the Bank of Russia's letter No. IN-03-59/11",
+            )),
+            _ => None,
         }
     }
 }
@@ -229,6 +253,17 @@ pub struct Finding {
 }
 
 impl Finding {
+    /// The source the finding rests on, and where in it: the finding
+    /// code's, or for a missing option with a source of its own, the
+    /// option's.
+    pub fn basis(&self) -> (Source, &'static str) {
+        let option = self.subject.and_then(|s| ClientOption::parse(s).ok());
+        match (self.code, option.and_then(ClientOption::basis)) {
+            (FindingCode::ClientOptionMissing, Some(basis)) => basis,
+            _ => self.code.basis(),
+        }
+    }
+
     fn of(code: FindingCode) -> Finding {
         Finding {
             code,
@@ -299,6 +334,16 @@ fn required_options(case: &Case, clock: &Clock) -> Vec<ClientOption> {
         }
         if f.high_risk_measures_on.is_some() || f.high_risk_notice_received_on.is_some() {
             add(ClientOption::ApplyToCommission);
+        }
+    }
+    if let Some(f) = case.database {
+        // "незамедлительно уведомить клиента о приостановлении ..., а также
+        // о праве клиента подать ... заявление в Банк России, в том числе
+        // через оператора по переводу денежных средств, об исключении
+        // сведений" (161-FZ art. 9 part 11.8): owed after a suspension, as
+        // long as the data are in the database.
+        if f.instrument_suspended_on.is_some() && f.data_removed_on.is_none() {
+            add(ClientOption::ApplyForRemoval);
         }
     }
     need
