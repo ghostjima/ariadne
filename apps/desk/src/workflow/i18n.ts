@@ -532,7 +532,7 @@ const en: WorkflowStrings = {
     },
     query: "The Bank of Russia's request on the client's own application",
     queryHelp:
-      "A client may apply to the Bank of Russia directly, through its internet reception. The bank learns of it from the Bank of Russia's request and answers within 3 working days with its view of whether the data were included with basis (Directive No. 6748-U items 2.2, 2.9). The Bank of Russia sends its decision to the client by email, so the bank passes nothing on; if the data are removed, the bank restores the card at once (161-FZ art. 9 part 11.11).",
+      "A client may apply to the Bank of Russia directly, through its internet reception. The bank learns of it from the Bank of Russia's request and answers within 3 working days with its view of whether the data were included with basis (Directive No. 6748-U items 2.2, 2.9). The Bank of Russia sends its decision to the client by email, so the bank passes nothing on; if the data are removed, the bank restores a suspended card at once (161-FZ art. 9 part 11.11).",
     queryThroughBank: "The client applied through the bank, which forwarded its view with the application (Directive No. 6748-U item 1.5).",
     recordQuery: "Record the request received today",
     queryWhoMay: "The operator of the case or the supervisor records the request.",
@@ -842,7 +842,7 @@ const ru: WorkflowStrings = {
     },
     query: "Запрос Банка России по заявлению самого клиента",
     queryHelp:
-      "Клиент может подать заявление в Банк России сам, через интернет-приёмную. Банк узнаёт о нём из запроса Банка России и в течение 3 рабочих дней сообщает, обоснованно ли включены сведения (пп. 2.2, 2.9 Указания Банка России № 6748-У). Решение Банк России направляет клиенту по электронной почте, банку передавать нечего; если сведения исключены, банк сразу возобновляет карту (ч. 11.11 ст. 9 161-ФЗ).",
+      "Клиент может подать заявление в Банк России сам, через интернет-приёмную. Банк узнаёт о нём из запроса Банка России и в течение 3 рабочих дней сообщает, обоснованно ли включены сведения (пп. 2.2, 2.9 Указания Банка России № 6748-У). Решение Банк России направляет клиенту по электронной почте, банку передавать нечего; если сведения исключены, банк сразу возобновляет приостановленную карту (ч. 11.11 ст. 9 161-ФЗ).",
     queryThroughBank: "Клиент подал заявление через банк, и банк передал свою позицию вместе с ним (п. 1.5 Указания Банка России № 6748-У).",
     recordQuery: "Отметить запрос, поступивший сегодня",
     queryWhoMay: "Запрос отмечает исполнитель обращения или руководитель.",
