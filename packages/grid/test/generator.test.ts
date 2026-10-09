@@ -33,9 +33,9 @@ import { pools as ru } from "../src/pools/ru.js";
 import { storeDigest } from "./digest.js";
 
 describe("generator", () => {
-  it("has a 26-column catalogue with unique ids", () => {
-    expect(COLUMNS).toHaveLength(26);
-    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(26);
+  it("has a 27-column catalogue with unique ids", () => {
+    expect(COLUMNS).toHaveLength(27);
+    expect(new Set(COLUMNS.map((c) => c.id)).size).toBe(27);
   });
 
   it("is deterministic for the same seed", () => {
@@ -199,17 +199,29 @@ describe("generator", () => {
        drawn for some of the cases about the client's data (the next draw
        of their own stream): their `database` code and the ground of their
        refusals, 161-FZ art. 9 part 11.7, changed; every other column is
-       as it was, which the next test checks. */
+       as it was, which a test below checks.
+       Re-pinned when the bank's choice under 161-FZ art. 9 part 11.6
+       between the suspension and the transfer cap was drawn for the cases
+       about an individual's own data without the Ministry's information
+       (a stream of its own): one new column, `restriction`, at the end;
+       every other column is byte for byte as it was, which the next test
+       checks against the previous pin. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
+  it("leaves every column but the new restriction as it was before the bank's choice under part 11.6 was drawn", () => {
+    const before = COLUMN_KEYS.filter((key) => key !== "restriction");
+    expect(COLUMN_KEYS.at(-1)).toBe("restriction");
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_RESTRICTION);
+  });
+
   it("leaves every column but the database code and the ground as it was before the Ministry's information was drawn", () => {
-    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground");
+    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground" && key !== "restriction");
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_POLICE_INFORMATION);
   });
 
   it("leaves every column but those that tell the client's own data from sign 1.1 as it was before", () => {
-    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database"]);
+    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database", "restriction"]);
     const before = COLUMN_KEYS.filter((key) => !told.has(key));
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_CLIENT_DATA);
   });
@@ -233,7 +245,10 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "6d000bb1";
+const GOLDEN_DIGEST = "097738b3";
+/* The pin before the bank's choice under part 11.6 was drawn ("6d000bb1"),
+   over every column but the new `restriction` */
+const DIGEST_BEFORE_RESTRICTION = "6d000bb1";
 /* The pin before the Ministry's information was drawn ("722e7330"), over
    every column but `database` and `ground` */
 const DIGEST_BEFORE_POLICE_INFORMATION = "bf6ecaa8";

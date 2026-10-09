@@ -4,7 +4,7 @@
 // assistant) gives the same brief as the same rows without them, and no
 // string of the brief is anything but a code of the engine or a date.
 import { describe, expect, it } from "vitest";
-import { AML_REASON_CODES as GRID_AML, AS_OF, Database, GROUNDS, Path, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
+import { AML_REASON_CODES as GRID_AML, AS_OF, Database, GROUNDS, Path, Restriction, Stage, Stream, caseFacts, complaintText, generateAll } from "@ariadne/grid";
 import {
   ALL_CODES,
   AML_REASON_CODES,
@@ -45,7 +45,7 @@ describe("caseBrief", () => {
   it("decodes as a valid brief for every case of the corpus", () => {
     for (const row of rows) {
       const brief = caseBrief(store, row);
-      const payload = { v: 4 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
+      const payload = { v: 5 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
       expect(decodePlanPayload(encodePlanPayload(payload)), `row ${row}`).toEqual({ ok: true, payload });
     }
   });
@@ -140,7 +140,7 @@ describe("caseBrief", () => {
       expect(caseBrief(store, row).grounds.filter((g) => g.startsWith("payment_9_")), `row ${row}`).toEqual([]);
     // The part is the rules engine's: with the Ministry's information the
     // suspension is a duty, under part 11.7.
-    const facts = caseFacts(store, removal[0]!);
+    const facts = caseFacts(store, removal.find((i) => store.restriction[i] === Restriction.InstrumentSuspended)!);
     expect(instrumentGround(facts)).toBe("payment_9_11_6");
     expect(instrumentGround({ ...facts, database: { ...facts.database, policeInformation: true } })).toBe("payment_9_11_7");
     expect(instrumentGround({ ...facts, database: undefined })).toBeNull();
@@ -166,6 +166,26 @@ describe("caseBrief", () => {
     for (const row of clientData) expect(caseBrief(store, row).clientOptions, `row ${row}`).toContain("apply_for_removal");
     for (const row of rows.filter((i) => store.stream[i] !== Stream.Antifraud || store.database[i] === Database.None))
       expect(caseBrief(store, row).clientOptions, `row ${row}`).not.toContain("apply_for_removal");
+  });
+
+  it("a reply about the client's own data in the database says which restriction applies: the suspension, or the transfer cap the bank chose instead, and ATM cash either way", () => {
+    // 161-FZ art. 9 part 11.6: "вправе приостановить"; if not, transfers
+    // to individuals up to 100,000 roubles a month (sentence 2); Banking
+    // Law art. 30 part 16 caps ATM cash. The brief carries what the rubric
+    // asks the reply to state, and the ground is part 11.6 for the cap.
+    const clientData = rows.filter((i) => store.database[i] !== Database.None);
+    const capped = clientData.filter((i) => store.restriction[i] === Restriction.TransfersCapped);
+    expect(capped.length).toBeGreaterThan(0);
+    for (const row of clientData) {
+      const brief = caseBrief(store, row);
+      if (store.restriction[row] === Restriction.TransfersCapped) {
+        expect(brief.measures, `row ${row}`).toEqual(["cap_transfers", "cap_atm_cash"]);
+        expect(brief.grounds, `row ${row}`).toEqual(["payment_9_11_6"]);
+      } else expect(brief.measures, `row ${row}`).toEqual(["suspend_instrument", "cap_atm_cash"]);
+      expect(brief.clientOptions, `row ${row}`).toContain("apply_for_removal");
+    }
+    for (const row of rows.filter((i) => store.database[i] === Database.None)) expect(caseBrief(store, row).measures, `row ${row}`).toEqual([]);
+    expect(instrumentGround(caseFacts(store, capped[0]!))).toBe("payment_9_11_6");
   });
 
   it("a reply stating what the brief carries leaves the rules nothing to ask for", () => {

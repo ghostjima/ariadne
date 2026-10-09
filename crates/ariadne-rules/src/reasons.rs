@@ -370,7 +370,9 @@ pub enum PaymentGround {
     /// Russia's database holds the client's data and the Ministry of
     /// Internal Affairs has reported no unlawful acts: the operator may
     /// suspend it (art. 9 part 11.6). The ground of a reply about removing
-    /// the data from the database.
+    /// the data from the database; also of a reply about the transfer cap
+    /// the operator applies instead of the suspension (the same part,
+    /// sentence 2).
     InstrumentSuspended,
     /// The same with the Ministry of Internal Affairs' information on
     /// unlawful acts: the operator must suspend it (art. 9 part 11.7).

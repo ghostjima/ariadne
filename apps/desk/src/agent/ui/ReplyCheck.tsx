@@ -34,6 +34,7 @@ export function ReplyCheck({ x, draft, facts, text, level = 5 }: { x: Text; draf
   const subject = (code: string, s: string | null): string => {
     if (!s) return "";
     if (code === "client_option_missing") return t.rubric.option[s as keyof typeof t.rubric.option] ?? s;
+    if (code === "measure_missing" || code === "measure_not_taken") return t.rubric.measure[s as keyof typeof t.rubric.measure] ?? s;
     return t.rubric.deadline[s as keyof typeof t.rubric.deadline] ?? s;
   };
   // A key per finding: its code, subject and sentence, and how many like

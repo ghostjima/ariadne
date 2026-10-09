@@ -76,6 +76,7 @@ const WIDTHS: Record<string, number> = {
   stream: 216,
   reason: 280,
   database: 280,
+  restriction: 280,
   subject: 280,
   source: 152,
   sector: 200,
@@ -241,6 +242,10 @@ export function buildColumns(ids: readonly string[], { store, lang, t, stoa, for
       case "database":
         // Blank for a case with no data of the client's in the database.
         columns.push({ ...base, accessor: (i) => ((store.database[i] ?? 0) === 0 ? "" : (labels.database[store.database[i] ?? 0] ?? "")) });
+        break;
+      case "restriction":
+        // Blank for a case with no data of the client's in the database.
+        columns.push({ ...base, accessor: (i) => ((store.restriction[i] ?? 0) === 0 ? "" : (labels.restriction[store.restriction[i] ?? 0] ?? "")) });
         break;
       case "channel":
         columns.push({ ...base, accessor: code(labels.channel, store.channel) });

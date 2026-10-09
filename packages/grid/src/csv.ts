@@ -75,6 +75,9 @@ export function cellText(store: ColumnStore, row: number, spec: ColumnSpec, opti
     case "database":
       /* Blank for a case with no data of the client's in the database */
       return (store.database[row] ?? 0) === 0 ? "" : code(labels.database, store.database[row]);
+    case "restriction":
+      /* Blank for a case with no data of the client's in the database */
+      return (store.restriction[row] ?? 0) === 0 ? "" : code(labels.restriction, store.restriction[row]);
     case "subject":
       return subjectText(store, row, pools);
     case "source":

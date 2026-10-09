@@ -259,6 +259,25 @@ export const Database = {
 } as const;
 export const DATABASE_COUNT = 3;
 
+/* What the bank does while the client's own data are in the database: a
+   code of the `restriction` column, from `opOn`. Under 161-FZ art. 9 part
+   11.6 the bank "вправе приостановить" the client's card or online
+   banking; if it does not, an individual's transfers to individuals are
+   capped at 100,000 roubles a month (part 11.6, sentence 2). With the
+   Ministry of Internal Affairs' information the suspension is a duty
+   (part 11.7), so such a case is never capped, nor is a legal entity's,
+   which has no cap under that part. ATM cash is capped either way
+   (Banking Law art. 30 part 16); ariadne-rules adds that measure, the
+   register does not store it. */
+export const Restriction = {
+  None: 0,
+  /* The card or online banking suspended (part 11.6, or 11.7) */
+  InstrumentSuspended: 1,
+  /* Not suspended: transfers to individuals capped (part 11.6, sentence 2) */
+  TransfersCapped: 2,
+} as const;
+export const RESTRICTION_COUNT = 3;
+
 /* The 115-FZ categories, in ariadne-rules' order */
 export const AML_REASON_CODES = [
   "aml_operation_refused",
@@ -311,6 +330,7 @@ export const COLUMNS: readonly ColumnSpec[] = [
   { id: "stream", kind: "enum" },
   { id: "reason", kind: "enum" },
   { id: "database", kind: "enum" },
+  { id: "restriction", kind: "enum" },
   { id: "subject", kind: "text", searchable: true },
   { id: "source", kind: "enum" },
   { id: "sector", kind: "enum" },

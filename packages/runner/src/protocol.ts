@@ -21,14 +21,15 @@
   Every field of every event is a code, a number, a boolean, an ISO date or a
   step id; see codes.ts.
 
-  Version 4 (PROTOCOL_VERSION). The payload carries "v": 4 and the case brief
+  Version 5 (PROTOCOL_VERSION). The payload carries "v": 5 and the case brief
   (scenario.ts): the run is about one complaint, and every string in the
   brief must be one of the engine's codes or an ISO date, so no text of the
   complaint can travel with it. plan.started repeats the version. A payload
-  without "v": 4 is refused with unsupported_version: version 1 (the
+  without "v": 5 is refused with unsupported_version: version 1 (the
   procurement scenario), version 2 (the complaint before the grounds of
-  161-FZ art. 9 parts 11.6 and 11.7) and version 3 (before the client's
-  option to apply for the removal of the client's data) are no longer
+  161-FZ art. 9 parts 11.6 and 11.7), version 3 (before the client's
+  option to apply for the removal of the client's data) and version 4
+  (before the restrictions a brief states for those data) are no longer
   served; a brief that does not validate is refused with invalid_case. A code added to a list
   the brief, the events or the log draw from makes a new version: a reader
   of the old one would refuse the new code as an invalid case, not as
@@ -42,6 +43,7 @@ import {
   CLIENT_OPTIONS,
   COMMANDS,
   GROUND_CODES,
+  MEASURE_CODES,
   OPERATIONS,
   OUTCOMES,
   PROTOCOL_VERSION,
@@ -199,7 +201,8 @@ export function validateBrief(raw: unknown): CaseBrief | null {
   if (r.linkedCase !== null && (!isCount(r.linkedCase, MAX_CASE_NO) || r.linkedCase === 0)) return null;
   const grounds = codeList(GROUND_CODES, r.grounds);
   const clientOptions = codeList(CLIENT_OPTIONS, r.clientOptions);
-  if (!grounds || !clientOptions) return null;
+  const measures = codeList(MEASURE_CODES, r.measures);
+  if (!grounds || !clientOptions || !measures) return null;
   if (!Array.isArray(r.deadlines) || r.deadlines.length > CLIENT_DEADLINE_KINDS.length) return null;
   const deadlines: CaseBrief["deadlines"] = [];
   for (const d of r.deadlines as unknown[]) {
@@ -230,6 +233,7 @@ export function validateBrief(raw: unknown): CaseBrief | null {
     grounds,
     clientOptions,
     deadlines,
+    measures,
   };
 }
 

@@ -17,6 +17,8 @@ export const FINDING_CODES = [
   "client_option_missing",
   "deadline_missing",
   "deadline_mismatch",
+  "measure_missing",
+  "measure_not_taken",
   "text_empty",
   "sentence_too_long",
   "sentences_long_on_average",
@@ -43,6 +45,7 @@ export function checkReply(draft: ReplyDraft, text: string, facts: CaseFacts): F
       nextSteps: draft.nextSteps,
       clientOptions: draft.clientOptions,
       statedDeadlines: draft.deadlines.map((d) => ({ kind: d.kind, due: d.due })),
+      measures: draft.measures,
     },
     facts,
   );

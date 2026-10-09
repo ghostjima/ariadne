@@ -35,10 +35,10 @@ import {
   type Decision,
   type RunEvent,
 } from "../src/index.js";
-import { AML, BRIEF, PLAIN, REMOVAL } from "./briefs.js";
+import { AML, BRIEF, CAPPED, PLAIN, REMOVAL } from "./briefs.js";
 import { decide, payloadFor, run, runToEnd } from "./helpers.js";
 
-const BRIEFS = [BRIEF, PLAIN, AML, REMOVAL];
+const BRIEFS = [BRIEF, PLAIN, AML, REMOVAL, CAPPED];
 import { parseEventStream } from "./sse-parse.js";
 
 const LETTER = /\p{L}/u;

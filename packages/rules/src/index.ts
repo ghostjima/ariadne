@@ -142,6 +142,10 @@ export type CaseFacts = {
      art. 9, Directive No. 6748-U) */
   database?: {
     instrumentSuspendedOn?: Day;
+    /* Not suspended: the client's transfers to individuals capped at
+       100,000 roubles a month from this day (161-FZ art. 9 part 11.6,
+       sentence 2) */
+    transfersCappedOn?: Day;
     policeInformation?: boolean;
     dataRemovedOn?: Day;
     exclusionReceivedByOperatorOn?: Day;
@@ -233,6 +237,7 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
   if (f.database !== undefined) {
     const db = f.database;
     if (db.instrumentSuspendedOn !== undefined) i.instrumentSuspendedOn = db.instrumentSuspendedOn;
+    if (db.transfersCappedOn !== undefined) i.transfersCappedOn = db.transfersCappedOn;
     if (db.policeInformation !== undefined) i.policeInformation = db.policeInformation;
     if (db.dataRemovedOn !== undefined) i.dataRemovedOn = db.dataRemovedOn;
     if (db.exclusionReceivedByOperatorOn !== undefined) i.exclusionReceivedByOperatorOn = db.exclusionReceivedByOperatorOn;
@@ -434,6 +439,9 @@ export type Reply = {
   /* Option codes (`confirm_order`, `apply_to_commission`, ...) */
   clientOptions?: string[];
   statedDeadlines?: { kind: string; due: Day }[];
+  /* Measure codes the reply says apply (`suspend_instrument`,
+     `cap_transfers`, `cap_atm_cash`, ...) */
+  measures?: string[];
 };
 
 export type Finding = {
@@ -457,6 +465,7 @@ export function rubric(reply: Reply, facts: CaseFacts): Finding[] {
       r.nextSteps = reply.nextSteps ?? [];
       r.clientOptions = reply.clientOptions ?? [];
       r.statedDeadlines = (reply.statedDeadlines ?? []).map((s) => new wasm.StatedDeadlineInput(s.kind, s.due));
+      r.measures = reply.measures ?? [];
       return wasm.rubric(r, input).map((f) => {
         const finding: Finding = {
           code: f.code,

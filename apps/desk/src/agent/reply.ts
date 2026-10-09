@@ -44,6 +44,7 @@ export function replyLines(x: Text, draft: ReplyDraft): string[] {
       if (sign) lines.push(draft.operation === "bank_transfer" ? r.suspended(sign) : r.refused(sign));
     }
   }
+  for (const measure of draft.measures) lines.push(r.measure[measure]);
   for (const ground of draft.grounds) {
     const citation = groundCitation(x, ground);
     lines.push(citation === null ? r.contract : r.ground(citation));
