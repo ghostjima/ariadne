@@ -177,6 +177,14 @@ export function rowReplyFacts(store: ColumnStore, i: number): ReplyFacts {
   };
 }
 
+/* The Moscow day of the bank's own application to remove the client's
+   data from the Bank of Russia's database, from the case's journal
+   (database.ts), or -1 when it has not applied */
+export function removalAppliedOn(store: ColumnStore, row: number): number {
+  const entry = (store.journal.get(row) ?? []).find((e) => e.action === "removal_applied");
+  return entry ? Math.floor((entry.at + 3 * 3_600_000) / 86_400_000) : -1;
+}
+
 /* The 115-FZ decisions ariadne-rules counts from, by category */
 const AML_DECISION: Partial<Record<(typeof AML_REASON_CODES)[number], "refuse_operation" | "refuse_account" | "terminate_account">> = {
   aml_operation_refused: "refuse_operation",
@@ -221,6 +229,10 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
       facts.database.exclusionReceivedByOperatorOn = isoDay(pathOn);
       if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);
     }
+    /* The bank's own application to remove the data, from the case's
+       journal (database.ts) */
+    const applied = removalAppliedOn(store, i);
+    if (applied >= 0) facts.database.operatorApplicationSentOn = isoDay(applied);
   }
   if (stream === Stream.Aml) {
     const category = AML_REASON_CODES[(store.reason[i] ?? 1) - 1];

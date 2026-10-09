@@ -143,6 +143,18 @@ assistant's).
   plain text and as CSV (its header, the derivation of the reply day, the
   journal, the letter and the copies; text that a spreadsheet would read
   as a formula is written as text).
+- **The Bank of Russia's database**, on a case about the client's own
+  data there: what the bank's copy of the record holds, and the bank's
+  own reasoned application to the Bank of Russia to remove the data,
+  without the client, when the bank has grounds to think them included
+  without basis (161-FZ art. 9 part 11.9). The legal reviewer or the
+  supervisor writes the bank's reasons and sends it after a
+  confirmation, with the focus on Not now, since it is not recalled. It
+  goes in the journal with the reasons, and the card shows the Bank of
+  Russia's 15 working days from the rules engine (Directive No. 6748-U
+  items 2.6 and 2.7, counted from the day it is sent; with the client's
+  own application under review, one decision 15 working days from the
+  first, item 2.8).
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -330,7 +342,9 @@ of a letter with its findings and changes, the signature with a refused
 decision record, the review of a reply about removing the client's data
 with the grounds offered and with 161-FZ art. 9 part 11.7 named, the
 dispatch's confirmation and its send delay, the
-supervisor's refused extension, the supervisor's metrics, and, in the
+supervisor's refused extension, the bank's own application to remove the
+client's data refused without reasons, its confirmation and sent, the
+supervisor's metrics, and, in the
 assistant,
 the plan, the agent's request to change a step, a failed step, the
 reply's confirmation with its letter, a finished run with the draft, the
@@ -349,7 +363,8 @@ where the focus goes after a bulk change, a Retry, the conflict dialog,
 deleting a view, opening and closing a case, a transition taken from
 the case and the return dialog, the confirmed handover, the letter's
 editor, a signature and a deferral, the dispatch's confirmation and its
-cancel, a copy marked sent, and after every
+cancel, a copy marked sent, the bank's own application to remove the
+client's data once sent, and after every
 decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI

@@ -149,6 +149,9 @@ export type CaseFacts = {
     exclusionReceivedByBankOfRussiaOn?: Day;
     exclusionDecisionReceivedOn?: Day;
     bankOfRussiaQueryReceivedOn?: Day;
+    /* The day the bank sent its own reasoned application to remove the
+       client's data (161-FZ art. 9 part 11.9) */
+    operatorApplicationSentOn?: Day;
   };
   aml?: {
     decision?: { kind: AmlDecisionCode; on: Day };
@@ -237,6 +240,7 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     if (db.exclusionReceivedByBankOfRussiaOn !== undefined) i.exclusionReceivedByBankOfRussiaOn = db.exclusionReceivedByBankOfRussiaOn;
     if (db.exclusionDecisionReceivedOn !== undefined) i.exclusionDecisionReceivedOn = db.exclusionDecisionReceivedOn;
     if (db.bankOfRussiaQueryReceivedOn !== undefined) i.bankOfRussiaQueryReceivedOn = db.bankOfRussiaQueryReceivedOn;
+    if (db.operatorApplicationSentOn !== undefined) i.operatorApplicationSentOn = db.operatorApplicationSentOn;
   }
   if (f.aml !== undefined) {
     const a = f.aml;

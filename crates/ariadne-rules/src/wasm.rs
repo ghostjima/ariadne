@@ -208,6 +208,10 @@ pub struct CaseInput {
     pub exclusion_decision_received_on: Option<String>,
     #[wasm_bindgen(js_name = bankOfRussiaQueryReceivedOn)]
     pub bank_of_russia_query_received_on: Option<String>,
+    /// The day the operator sent its own reasoned application to remove
+    /// the client's data (161-FZ art. 9 part 11.9).
+    #[wasm_bindgen(js_name = operatorApplicationSentOn)]
+    pub operator_application_sent_on: Option<String>,
     #[wasm_bindgen(js_name = amlDecision)]
     pub aml_decision: Option<AmlDecisionCode>,
     #[wasm_bindgen(js_name = amlDecisionOn)]
@@ -265,6 +269,7 @@ impl CaseInput {
             exclusion_received_by_bank_of_russia_on: None,
             exclusion_decision_received_on: None,
             bank_of_russia_query_received_on: None,
+            operator_application_sent_on: None,
             aml_decision: None,
             aml_decision_on: None,
             documents_submitted_on: None,
@@ -381,13 +386,15 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         )?,
         exclusion_decision_received_on: opt_date(&i.exclusion_decision_received_on)?,
         bank_of_russia_query_received_on: opt_date(&i.bank_of_russia_query_received_on)?,
+        operator_application_sent_on: opt_date(&i.operator_application_sent_on)?,
     };
     let any_database = database.instrument_suspended_on.is_some()
         || database.data_removed_on.is_some()
         || database.exclusion_received_by_operator_on.is_some()
         || database.exclusion_received_by_bank_of_russia_on.is_some()
         || database.exclusion_decision_received_on.is_some()
-        || database.bank_of_russia_query_received_on.is_some();
+        || database.bank_of_russia_query_received_on.is_some()
+        || database.operator_application_sent_on.is_some();
     case.database = any_database.then_some(database);
     let decision = match (i.aml_decision, opt_date(&i.aml_decision_on)?) {
         (None, None) => None,
@@ -1127,6 +1134,33 @@ mod tests {
         let mut i = base;
         i.breach_on = Some("2026-4-1".into());
         i.claim_kopecks = Some(100.0);
+        assert_eq!(to_case(&i), Err(Error::InvalidDate));
+    }
+    #[test]
+    fn the_operators_own_application_crosses_whole() {
+        // The bank sends its own reasoned application on Tuesday 12 May
+        // 2026 (161-FZ art. 9 part 11.9): the Bank of Russia decides by 2
+        // June, counted from the day it is sent, a conservative reading of
+        // Directive No. 6748-U items 2.6 and 2.7; a deadline for others.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        i.operator_application_sent_on = Some("2026-05-12".into());
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        let d = out
+            .deadlines
+            .iter()
+            .find(|d| d.kind == "operator_application_decision")
+            .unwrap();
+        assert_eq!(
+            (
+                d.due.as_str(),
+                d.from.as_str(),
+                d.for_others,
+                d.basis.part.as_str(),
+                d.basis.reading.as_str()
+            ),
+            ("2026-06-02", "2026-05-12", true, "2.6, 2.7", "conservative")
+        );
+        i.operator_application_sent_on = Some("2026-5-12".into());
         assert_eq!(to_case(&i), Err(Error::InvalidDate));
     }
 }

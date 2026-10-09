@@ -495,6 +495,7 @@ const en: Strings = {
       commission_request_answer: "The bank's justification is due to the commission",
       commission_decision_notice: "The commission's decision is due to the client and the bank",
       high_risk_rating_review: "The Bank of Russia answers on the risk rating",
+      operator_application_decision: "The Bank of Russia decides on the bank's own application to remove the client's data",
     },
     measure: {
       suspend_order: "The transfer order suspended for two days",
@@ -828,6 +829,7 @@ const ruStrings: Strings = {
       commission_request_answer: "Срок направить комиссии обоснование банка",
       commission_decision_notice: "Срок сообщить клиенту и банку решение комиссии",
       high_risk_rating_review: "Банк России отвечает об уровне риска",
+      operator_application_decision: "Банк России решает по заявлению банка об исключении сведений о клиенте",
     },
     measure: {
       suspend_order: "Приём распоряжения к исполнению приостановлен на два дня",

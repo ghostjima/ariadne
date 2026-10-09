@@ -1,0 +1,130 @@
+// The client's own data in the Bank of Russia's database, on the case: the
+// bank's own reasoned application to remove them (161-FZ art. 9 part
+// 11.9), filed by the legal reviewer or the supervisor with the bank's
+// reasons after a confirmation, since it is not recalled; journaled; and
+// the Bank of Russia's 15 working days on the card, from the rules engine.
+import { readFile } from "node:fs/promises";
+import { expect, test, type Page } from "@playwright/test";
+import { workflowStrings } from "../src/workflow/i18n";
+import { expectNoSeriousViolations } from "./helpers";
+
+const w = workflowStrings.en;
+const b = w.database;
+/** A case about the client's own data, with the Ministry of Internal
+ * Affairs' information, whose own application through the bank the Bank
+ * of Russia received on 6 October 2026 and is reviewing; under legal
+ * review. */
+const CLIENT_DATA = "C-001115";
+/** A suspended transfer, a block on a sign: no database panel. */
+const BLOCK = "C-001196";
+const REASONS = "The payer's bank confirmed the transfer was the client's own.";
+
+const panel = (page: Page) => page.locator(".database-panel");
+const lastEntry = (page: Page) => page.locator(".case-work .stoa-timeline__entry").last();
+/** The confirmation: Stoa's AlertDialog (a toast has the role alertdialog too). */
+const confirmation = (page: Page) => page.locator('section.stoa-dialog[role="alertdialog"]');
+const bodyHasFocus = (page: Page) => page.evaluate(() => document.activeElement === document.body);
+
+async function openAs(page: Page, id: string, role: string, query = "") {
+  const params = new URLSearchParams(query);
+  if (!params.has("lang")) params.set("lang", "en");
+  params.set("case", id);
+  params.set("role", role);
+  params.set("colleague", "off");
+  await page.goto(`/?${params}`);
+  await expect(page.locator(".case-card")).toBeVisible({ timeout: 15_000 });
+}
+
+test("the supervisor applies to the Bank of Russia to remove the client's data: reasons first, a confirmation, then the journal and the Bank of Russia's term on the card", async ({ page }) => {
+  await openAs(page, CLIENT_DATA, "supervisor");
+  await expect(panel(page)).toContainText(b.record);
+  await expect(panel(page)).toContainText("The client's data and the police information");
+  await expect(panel(page)).toContainText(b.ownHelp);
+  // Without reasons it does not go.
+  await panel(page).getByRole("button", { name: b.apply }).click();
+  await expect(panel(page).getByRole("alert")).toHaveText(b.errors["removal-reason-required"]("10"));
+  await expect(confirmation(page)).toBeHidden();
+  await panel(page).getByLabel(b.reasons).fill(REASONS);
+  await panel(page).getByRole("button", { name: b.apply }).click();
+  const confirm = confirmation(page);
+  await expect(confirm).toContainText(b.confirmText);
+  await expect(confirm).toContainText(REASONS);
+  // The safe action has the focus: an Enter by habit sends nothing.
+  await expect(confirm.getByRole("button", { name: b.keep })).toBeFocused();
+  await confirm.getByRole("button", { name: b.confirm, exact: true }).click();
+  await expect(confirm).toBeHidden();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.applied(CLIENT_DATA));
+  // The form has gone with the application; the focus is on the panel.
+  await expect(panel(page).getByRole("button", { name: b.apply })).toHaveCount(0);
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  expect(await bodyHasFocus(page)).toBe(false);
+  // The client's own application is under review: one decision on both,
+  // 15 working days from the first (Directive No. 6748-U item 2.8).
+  await expect(panel(page)).toContainText(b.sent("Oct 6, 2026"));
+  await expect(panel(page)).toContainText("(Bank of Russia Directive No. 6748-U, item 2.8)");
+  await expect(lastEntry(page)).toContainText(w.action.removal_applied);
+  await expect(lastEntry(page)).toContainText(`Comment: ${REASONS}`);
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The Bank of Russia decides on the bank's own application to remove the client's data");
+  await expect(flags).toContainText("Ground: Bank of Russia Directive No. 6748-U, item 2.8");
+  // The export for an inspection keeps the entry with the reasons.
+  const download = page.waitForEvent("download");
+  await page.locator(".dispatch-panel").getByRole("button", { name: w.dispatch.exportText }).click();
+  const body = await readFile((await (await download).path())!, "utf8");
+  expect(body).toContain(w.action.removal_applied);
+  expect(body).toContain(REASONS);
+});
+
+test("the operator and the signatory see who files it; a block on a sign has no database panel", async ({ page }) => {
+  for (const role of ["operator", "signatory"]) {
+    await openAs(page, CLIENT_DATA, role);
+    await expect(panel(page)).toContainText(b.whoMay);
+    await expect(panel(page).getByRole("button", { name: b.apply })).toHaveCount(0);
+  }
+  await openAs(page, BLOCK, "supervisor");
+  await expect(page.locator(".dispatch-panel")).toBeVisible();
+  await expect(panel(page)).toHaveCount(0);
+});
+
+test("in Russian, the legal reviewer files it and the card shows the Bank of Russia's term by item", async ({ page }) => {
+  const ru = workflowStrings.ru.database;
+  await openAs(page, CLIENT_DATA, "reviewer", "lang=ru");
+  await expect(panel(page)).toContainText("Сведения о клиенте и сведения МВД");
+  await panel(page).getByLabel(ru.reasons).fill("Банк плательщика подтвердил, что перевод сделал сам клиент.");
+  await panel(page).getByRole("button", { name: ru.apply }).click();
+  await confirmation(page).getByRole("button", { name: ru.confirm, exact: true }).click();
+  await expect(panel(page)).toContainText("(Указание Банка России № 6748-У, п. 2.8)");
+  await expect(page.getByRole("region", { name: "Признаки и решения" })).toContainText("Банк России решает по заявлению банка об исключении сведений о клиенте");
+  await expect(lastEntry(page)).toContainText(workflowStrings.ru.action.removal_applied);
+});
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: the bank's own application to remove the client's data, refused without reasons, its confirmation, and sent (${lang}, ${theme})`, async ({ page }) => {
+      const words = workflowStrings[lang].database;
+      await openAs(page, CLIENT_DATA, "supervisor", `lang=${lang}&theme=${theme}`);
+      await panel(page).getByRole("button", { name: words.apply }).click();
+      await expect(panel(page).getByRole("alert")).toBeVisible();
+      await expectNoSeriousViolations(page, "bank's removal application refused", { lang, theme });
+      await panel(page).getByLabel(words.reasons).fill(REASONS);
+      await panel(page).getByRole("button", { name: words.apply }).click();
+      await expect(confirmation(page)).toBeVisible();
+      await expectNoSeriousViolations(page, "bank's removal application confirmation", { lang, theme });
+      await confirmation(page).getByRole("button", { name: words.confirm, exact: true }).click();
+      await expect(confirmation(page)).toBeHidden();
+      await expect(panel(page).getByRole("button", { name: words.apply })).toHaveCount(0);
+      await expectNoSeriousViolations(page, "bank's removal application sent", { lang, theme });
+    });
+
+test("on a phone the database panel fits without sideways scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  for (const lang of ["ru", "en"] as const) {
+    await openAs(page, CLIENT_DATA, "supervisor", `lang=${lang}`);
+    await expect(panel(page)).toBeVisible();
+    const sideways = await page.evaluate(() => {
+      const region = document.querySelector(".stoa-page-shell__scroll")!;
+      return [document.documentElement.scrollWidth - document.documentElement.clientWidth, region.scrollWidth - region.clientWidth];
+    });
+    expect(sideways, lang).toEqual([0, 0]);
+  }
+});

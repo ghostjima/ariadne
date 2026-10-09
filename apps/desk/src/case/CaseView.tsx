@@ -35,7 +35,8 @@ import { CaseCard } from "./CaseCard";
 import { CaseWork, actsOn, type TransitionRequest, type WorkRefusal } from "../workflow/CaseWork";
 import { LetterPanel } from "../workflow/LetterPanel";
 import { DispatchPanel, type PendingDispatch } from "../workflow/DispatchPanel";
-import type { CopyKind, ExtensionError } from "@ariadne/grid";
+import { DatabasePanel } from "../workflow/DatabasePanel";
+import type { CopyKind, ExtensionError, RemovalError } from "@ariadne/grid";
 import type { DecisionRecord, LetterError, SignDecision, SignError } from "../workflow/caseFile";
 import { Handover } from "../workflow/Handover";
 import type { CaseFiles } from "../workflow/caseFile";
@@ -86,6 +87,9 @@ export type CaseViewProps = {
   onMarkCopy: (kind: CopyKind) => void;
   onBreach: (found: boolean) => string | null;
   onExtend: (reason: string) => ExtensionError | null;
+  /** Sends the bank's own application to remove the client's data from
+   * the Bank of Russia's database. */
+  onApplyForRemoval: (reason: string) => RemovalError | null;
   onExported: () => void;
   /** Records the assistant's handover a person confirmed. */
   onHandover: (draft: ReplyDraft, run: number) => void;
@@ -162,6 +166,7 @@ export function CaseView(props: CaseViewProps) {
         onExtend={props.onExtend}
         onExported={props.onExported}
       />
+      <DatabasePanel store={store} row={row} role={role} lang={lang} version={version} onApplyForRemoval={props.onApplyForRemoval} />
       <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
     </div>
   ) : (

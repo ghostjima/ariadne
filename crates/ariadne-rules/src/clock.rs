@@ -39,7 +39,8 @@
 //!   Directive No. 6748-U): the notices of a suspended card or online
 //!   banking, the restoring of it, and an application to remove the data,
 //!   both the Bank of Russia's 15 working days from its receipt and the
-//!   operator's own terms when the client applies through it;
+//!   operator's own terms when the client applies through it, and the
+//!   operator's own reasoned application to remove them (part 11.9);
 //! - an anti-money-laundering refusal (115-FZ): the reasons in 5 working
 //!   days, the answer to the client's documents in 7, the interagency
 //!   commission's 20, its request to the organisation (at least 3 working
@@ -225,6 +226,11 @@ pub struct DatabaseFacts {
     /// The day a request of the Bank of Russia about an application
     /// reached the operator (item 2.9).
     pub bank_of_russia_query_received_on: Option<Date>,
+    /// The day the operator sent the Bank of Russia its own reasoned
+    /// application to remove the client's data, without the client's part
+    /// in it, having grounds to think them included without basis (161-FZ
+    /// art. 9 part 11.9; Directive No. 6748-U items 2.5 to 2.8).
+    pub operator_application_sent_on: Option<Date>,
 }
 
 /// What a 115-FZ decision refused.
@@ -374,11 +380,12 @@ pub enum DeadlineKind {
     HighRiskNotice,
     HighRiskCommissionApplication,
     HighRiskRatingReview,
+    OperatorApplicationDecision,
 }
 
 impl DeadlineKind {
     /// Every kind.
-    pub const ALL: [DeadlineKind; 29] = {
+    pub const ALL: [DeadlineKind; 30] = {
         use DeadlineKind::*;
         [
             Registration,
@@ -410,6 +417,7 @@ impl DeadlineKind {
             HighRiskNotice,
             HighRiskCommissionApplication,
             HighRiskRatingReview,
+            OperatorApplicationDecision,
         ]
     };
 
@@ -454,6 +462,7 @@ impl DeadlineKind {
             CommissionRequestAnswer => "commission_request_answer",
             CommissionDecisionNotice => "commission_decision_notice",
             HighRiskRatingReview => "high_risk_rating_review",
+            OperatorApplicationDecision => "operator_application_decision",
         }
     }
 
@@ -470,6 +479,7 @@ impl DeadlineKind {
                 | CommissionDecisionNotice
                 | HighRiskCommissionApplication
                 | HighRiskRatingReview
+                | OperatorApplicationDecision
         )
     }
 }
@@ -1532,6 +1542,46 @@ fn database(f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
             basis: text(directive, "", "2.9"),
         });
     }
+    if let Some(sent) = f.operator_application_sent_on {
+        operator_application(f, sent, c)?;
+    }
+    Ok(())
+}
+
+/// The Bank of Russia's decision on the operator's own reasoned
+/// application to remove the client's data (161-FZ art. 9 parts 11.9 and
+/// 11.10; Directive No. 6748-U items 2.6 to 2.8).
+fn operator_application(f: &DatabaseFacts, sent: Date, c: &mut Clock) -> Result<(), Error> {
+    let directive = sources::DIRECTIVE_6748_U;
+    // "в срок, не превышающий 15 рабочих дней со дня поступления
+    // мотивированного заявления в Банк России" (items 2.6, 2.7). The
+    // operator sends it through the Bank of Russia's system and does not
+    // know the day it is received; the day it is sent, the earliest, gives
+    // the earliest decision: a conservative reading. Sent on Tuesday 12 May
+    // 2026: 13 to 15 May (3), 18 to 22 (8), 25 to 29 (13), 1 and 2 June
+    // (15).
+    let mut from = sent;
+    let mut basis = conservative(directive, "", "2.6, 2.7");
+    // "в случае если в период рассмотрения Банком России заявления клиента
+    // ... от оператора ... поступило мотивированное заявление ..., Банк
+    // России ... принимает одно мотивированное решение ... в срок, не
+    // превышающий 15 рабочих дней со дня поступления в Банк России первого
+    // заявления" (item 2.8): the client's application, received earlier
+    // and not yet decided, sets the day.
+    if let Some(first) = f.exclusion_received_by_bank_of_russia_on {
+        let decided_before = f.exclusion_decision_received_on.is_some_and(|d| d < sent);
+        if first <= sent && !decided_before {
+            from = first;
+            basis = text(directive, "", "2.8");
+        }
+    }
+    c.deadlines.push(Deadline {
+        kind: DeadlineKind::OperatorApplicationDecision,
+        due: calendar::add_working_days(from, 15)?,
+        from,
+        count: Count::WorkingDays(15),
+        basis,
+    });
     Ok(())
 }
 

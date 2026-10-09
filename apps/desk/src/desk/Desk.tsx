@@ -62,6 +62,7 @@ import {
   deskNow,
   dispatchReply,
   extendDeadline,
+  applyForRemoval,
   markBreach,
   markCopySent,
   beginEdit,
@@ -619,6 +620,18 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return null;
   };
 
+  // The bank's own application to remove the client's data from the Bank
+  // of Russia's database: journaled with its reasons, not recalled.
+  const removal = (row: number, reason: string) => {
+    const refused = applyForRemoval(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()), reason });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].database.applied(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+
   // The simulated colleague.
   const tick = useRef(0);
   const simulate = () => {
@@ -887,6 +900,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onMarkCopy={(kind) => markCopy(openCase, kind)}
           onBreach={(found) => breach(openCase, found)}
           onExtend={(reason) => extend(openCase, reason)}
+          onApplyForRemoval={(reason) => removal(openCase, reason)}
           onExported={() => toasts.add({ tone: "positive", text: workflowStrings[lang].dispatch.exported, timeout: 5000 })}
         />
       ) : openCase !== null && load.loading ? (

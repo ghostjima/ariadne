@@ -134,6 +134,18 @@ describe("through the WebAssembly build", () => {
     expect([decision.due, decision.from, decision.basis.source, decision.basis.article]).toEqual(["2026-06-02", "2026-05-12", "directive_6748_u", ""]);
   });
 
+  it("gives the Bank of Russia's 15 working days on the bank's own application to remove the client's data", () => {
+    // Sent on Tuesday 12 May 2026 (161-FZ art. 9 part 11.9): decided by
+    // 2 June, counted from the day it is sent (Directive No. 6748-U items
+    // 2.6, 2.7, a conservative reading); with the client's application
+    // received on 8 May and not decided, one decision by 1 June (item 2.8).
+    const facts = { stream: "antifraud", receivedOn: "2026-05-12", database: { operatorApplicationSentOn: "2026-05-12" } } as const;
+    const decision = clock(facts).deadlines.find((d) => d.kind === "operator_application_decision")!;
+    expect([decision.due, decision.from, decision.forOthers, decision.basis.part, decision.basis.reading]).toEqual(["2026-06-02", "2026-05-12", true, "2.6, 2.7", "conservative"]);
+    const joined = clock({ ...facts, database: { ...facts.database, exclusionReceivedByBankOfRussiaOn: "2026-05-08" } }).deadlines.find((d) => d.kind === "operator_application_decision")!;
+    expect([joined.due, joined.from, joined.basis.part]).toEqual(["2026-06-01", "2026-05-08", "2.8"]);
+  });
+
   it("caps a fact request by the external terms that bind the answering unit", () => {
     // The crate's worked example: documents against a refused operation
     // submitted on 8 May 2026 are answered by 20 May; a fact request on

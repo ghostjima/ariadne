@@ -100,6 +100,7 @@ item is the part.
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it | Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | Operator's answer to a Bank of Russia request on an application | 3 working days from the request | Directive No. 6748-U item 2.9 |
+| Bank of Russia on the operator's own reasoned application to remove the client's data | 15 working days from its receipt, taken as the day it is sent; with the client's application under review, one decision 15 working days from the first | 161-FZ art. 9 parts 11.9, 11.10; Directive No. 6748-U items 2.6 to 2.8 |
 | Refund to an individual | 30 days after the claim is received | 161-FZ art. 8 part 3.13 |
 | 115-FZ reasons notice | 5 working days from the decision | 115-FZ art. 7 item 13.1-1 (paragraph 1 for an account, 2 for an operation) |
 | Answer to the client's documents | 7 working days from submission | 115-FZ art. 7 item 13.4, paragraph 2 |
@@ -145,7 +146,11 @@ gives the earlier date or the wider duty, marks the basis
   notice; the engine applies that notice's 5 working days from the
   registration of the repeated complaint.
 - The commission's request given without its term: the least the law
-  allows, 3 working days, with the warning `commission_term_assumed`. A
+  allows, 3 working days, with the warning `commission_term_assumed`.
+- The operator's own application to remove the client's data is taken
+  as received by the Bank of Russia on the day the operator sends it:
+  the directive counts from receipt, which the operator does not learn,
+  and the earliest day gives the earliest decision. A
   request that gives less keeps its own, earlier day, with the warning
   `commission_term_below_minimum`.
 - A standard-form claim without a breach day, and a money claim to a
@@ -230,7 +235,8 @@ on them:
   `aml_reasons_notice`, `aml_documents_answer`,
   `aml_commission_decision`, `commission_request_answer`,
   `commission_decision_notice`, `high_risk_notice`,
-  `high_risk_commission_application`, `high_risk_rating_review`.
+  `high_risk_commission_application`, `high_risk_rating_review`,
+  `operator_application_decision`.
 - Counts: `same_day`, `next_working_day`, `working_days`,
   `calendar_days`, `calendar_days_to_working_day`, `months`, `years`.
 - Duties: `copy_to_bank_of_russia`, `copy_to_sro`,
@@ -378,7 +384,7 @@ the code:
 
 Each rule cites its source from `src/sources.rs`; every source is listed
 here with the revision its text was checked against, read on 2026-10-06
-or, where `sources.rs` says so, on 2026-10-07 or 2026-10-08.
+or, where `sources.rs` says so, on 2026-10-07, 2026-10-08 or 2026-10-09.
 A test fails when this list and the code disagree.
 
 | Source | Revision | Text read at |

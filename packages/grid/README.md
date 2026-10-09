@@ -259,6 +259,7 @@ All of it is exported from `@ariadne/grid`.
 | undo | `EditHistory`: `setField(store, rows, field, value, role, now)`, `setNote(store, row, value, role, now)`, `undo(store, { overwrite? })` |
 | colleague | `colleagueSchedule(seed, count)`, `dueTicks`, `planColleagueEdit`, `applyRemoteEdit`, `beginEdit`, `detectConflict` |
 | dispatch | `dispatchReply`, `replyCopies`, `copiesOwed`, `copiesSent`, `markCopySent`, `markBreach`, `extendDeadline`, `copiesDueOn`, `copyClass` |
+| database | `isClientDataCase`, `checkRemoval`, `applyForRemoval` (the bank's own reasoned application to remove the client's data from the Bank of Russia's database, 161-FZ art. 9 part 11.9: the legal reviewer or the supervisor, with the bank's reasons, once, journaled as `removal_applied`; `caseFacts` passes its day to ariadne-rules), `removalAppliedOn`, `REMOVAL_ROLES`, `REMOVAL_REASON_MIN`, `REMOVAL_REASON_MAX` |
 | retention | `retentionOf`, `plusYears`, `RETENTION_YEARS` |
 | CSV | `toCsv(store, index, columns, { headers, pools, labels, limit? })`, `cellText`, `csvEscape`, `neutralizeFormula`, `CSV_LIMIT` (5,000) |
 | loading | `DatasetLoader` (worker or main thread, `subscribe` and `getSnapshot`), `createChunkProducer`, `WorkerRequest`, `WorkerResponse` |
