@@ -1,8 +1,8 @@
 //! The reply rubric: worked examples of replies, each finding explained.
 
 use ariadne_rules::clock::{
-    clock, AmlDecisionKind, AmlFacts, AntifraudFacts, Case, DeadlineKind as K, MoneyClaim,
-    Operation, Stream,
+    clock, AmlDecisionKind, AmlFacts, AntifraudFacts, Case, DatabaseFacts, DeadlineKind as K,
+    MoneyClaim, Operation, Stream,
 };
 use ariadne_rules::reasons::{AmlReason, Reason};
 use ariadne_rules::rubric::{
@@ -135,6 +135,83 @@ fn next_steps_and_the_clients_options() {
             ("client_option_missing", Some("confirm_order"))
         ]
     );
+}
+
+/// The client's card suspended on Saturday 9 May 2026 because the Bank
+/// of Russia's database holds the client's own data, and a complaint about
+/// it on Tuesday 12 May: no operation was blocked.
+fn database_case(police_information: bool) -> Case {
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+    case.database = Some(DatabaseFacts {
+        instrument_suspended_on: Some(d("2026-05-09")),
+        police_information,
+        data_removed_on: None,
+        exclusion_received_by_operator_on: None,
+        exclusion_data_missing: false,
+        exclusion_received_by_bank_of_russia_on: None,
+        exclusion_decision_received_on: None,
+        bank_of_russia_query_received_on: None,
+    });
+    case
+}
+
+#[test]
+fn a_reply_about_a_suspension_for_the_database_tells_of_the_right_to_apply_for_removal() {
+    // "незамедлительно уведомить клиента о приостановлении ..., а также о
+    // праве клиента подать ... заявление в Банк России, в том числе через
+    // оператора по переводу денежных средств, об исключении сведений"
+    // (161-FZ art. 9 part 11.8), with or without the Ministry of Internal
+    // Affairs' information: the option is owed, and its finding cites the
+    // statute, not only the letter every option cites.
+    for police in [false, true] {
+        let case = database_case(police);
+        let c = clock(&case).unwrap();
+        let mut reply = Reply {
+            replied_on: d("2026-05-12"),
+            grounds: vec![ground(
+                Act::PaymentSystem,
+                "9",
+                if police { "11.7" } else { "11.6" },
+            )],
+            reasons: vec![],
+            next_steps: vec!["Ответьте на это письмо, если остались вопросы.".into()],
+            client_options: vec![],
+            stated_deadlines: vec![],
+            text: "Карта приостановлена. Сведения о вас есть в базе данных Банка России.".into(),
+        };
+        let findings = rubric(&reply, &case, &c);
+        assert_eq!(
+            codes(&findings),
+            [("client_option_missing", Some("apply_for_removal"))]
+        );
+        let (source, reference) = findings[0].basis();
+        assert_eq!(source, ariadne_rules::sources::PAYMENT_LAW_9);
+        assert!(reference.starts_with("art. 9 part 11.8"), "{reference}");
+        reply.client_options = vec![ClientOption::ApplyForRemoval];
+        assert_eq!(rubric(&reply, &case, &c), []);
+    }
+    // Once the data have left the database the card is restored (part
+    // 11.11), and there is nothing to apply for.
+    let mut case = database_case(false);
+    if let Some(f) = case.database.as_mut() {
+        f.data_removed_on = Some(d("2026-05-12"));
+    }
+    let c = clock(&case).unwrap();
+    let reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![ground(Act::PaymentSystem, "9", "11.6")],
+        reasons: vec![],
+        next_steps: vec!["Карта снова доступна.".into()],
+        client_options: vec![],
+        stated_deadlines: vec![],
+        text: "Сведения исключены из базы данных. Карта снова доступна.".into(),
+    };
+    assert_eq!(rubric(&reply, &case, &c), []);
+    // A block on an OD-2506 sign carries no database facts: the option is
+    // not owed.
+    let case = antifraud_case();
+    let c = clock(&case).unwrap();
+    assert_eq!(rubric(&good_antifraud_reply(), &case, &c), []);
 }
 
 #[test]
@@ -373,6 +450,13 @@ fn every_finding_cites_a_listed_source() {
         let (source, reference) = f.basis();
         assert!(ariadne_rules::sources::ALL.contains(&source), "{f:?}");
         assert!(!reference.is_empty());
+    }
+    for o in ClientOption::ALL {
+        if let Some((source, reference)) = o.basis() {
+            assert!(ariadne_rules::sources::ALL.contains(&source), "{o:?}");
+            assert!(!reference.is_empty());
+        }
+        assert_eq!(ClientOption::parse(o.code()), Ok(o));
     }
 }
 

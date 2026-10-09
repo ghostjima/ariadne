@@ -661,6 +661,7 @@ const en: Strings = {
       submit_documents: "submitting documents",
       apply_to_commission: "applying to the interagency commission",
       apply_to_ombudsman: "applying to the financial ombudsman",
+      apply_for_removal: "applying to the Bank of Russia to remove the client's data from its database",
     },
     deadline: {
       antifraud_suspension_ends: "the end of the suspension",
@@ -709,6 +710,7 @@ const en: Strings = {
       submit_documents: "You can send us documents that explain the operation.",
       apply_to_commission: "After our answer on the documents, you can apply to the interagency commission at the Bank of Russia.",
       apply_to_ombudsman: "If you disagree, you can apply to the financial ombudsman.",
+      apply_for_removal: "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
     },
     deadline: {
       antifraud_suspension_ends: (d) => `The suspension ends on ${d}.`,
@@ -1088,6 +1090,7 @@ const ruStrings: Strings = {
       submit_documents: "представить документы",
       apply_to_commission: "обратиться в межведомственную комиссию",
       apply_to_ombudsman: "обратиться к финансовому уполномоченному",
+      apply_for_removal: "подать в Банк России заявление об исключении сведений о клиенте из его базы данных",
     },
     deadline: {
       antifraud_suspension_ends: "окончание приостановления",
@@ -1136,6 +1139,7 @@ const ruStrings: Strings = {
       submit_documents: "Вы можете представить нам документы, поясняющие операцию.",
       apply_to_commission: "После нашего ответа по документам вы можете обратиться в межведомственную комиссию при Банке России.",
       apply_to_ombudsman: "Если вы не согласны, вы можете обратиться к финансовому уполномоченному.",
+      apply_for_removal: "Вы можете подать заявление об исключении сведений о вас из базы данных Банка России через наш банк или интернет-приёмную cbr.ru/contactBR/161-FZ.",
     },
     deadline: {
       antifraud_suspension_ends: (d) => `Приостановление заканчивается ${d}`,

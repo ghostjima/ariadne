@@ -45,7 +45,7 @@ describe("caseBrief", () => {
   it("decodes as a valid brief for every case of the corpus", () => {
     for (const row of rows) {
       const brief = caseBrief(store, row);
-      const payload = { v: 3 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
+      const payload = { v: 4 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
       expect(decodePlanPayload(encodePlanPayload(payload)), `row ${row}`).toEqual({ ok: true, payload });
     }
   });
@@ -155,6 +155,17 @@ describe("caseBrief", () => {
     } finally {
       store.ground[row] = held;
     }
+  });
+
+  it("a reply about the client's own data in the database offers the right to apply to the Bank of Russia for their removal, and a block does not", () => {
+    // 161-FZ art. 9 part 11.8: after the suspension, the client is told of
+    // the right to apply, also through the bank. The rubric asks for it,
+    // so the brief carries it, with or without an application already made.
+    const clientData = rows.filter((i) => store.database[i] !== Database.None);
+    expect(clientData.length).toBeGreaterThan(0);
+    for (const row of clientData) expect(caseBrief(store, row).clientOptions, `row ${row}`).toContain("apply_for_removal");
+    for (const row of rows.filter((i) => store.stream[i] !== Stream.Antifraud || store.database[i] === Database.None))
+      expect(caseBrief(store, row).clientOptions, `row ${row}`).not.toContain("apply_for_removal");
   });
 
   it("a reply stating what the brief carries leaves the rules nothing to ask for", () => {

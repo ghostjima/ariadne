@@ -21,14 +21,15 @@
   Every field of every event is a code, a number, a boolean, an ISO date or a
   step id; see codes.ts.
 
-  Version 3 (PROTOCOL_VERSION). The payload carries "v": 3 and the case brief
+  Version 4 (PROTOCOL_VERSION). The payload carries "v": 4 and the case brief
   (scenario.ts): the run is about one complaint, and every string in the
   brief must be one of the engine's codes or an ISO date, so no text of the
   complaint can travel with it. plan.started repeats the version. A payload
-  without "v": 3 is refused with unsupported_version: version 1 (the
-  procurement scenario) and version 2 (the complaint before the grounds of
-  161-FZ art. 9 parts 11.6 and 11.7) are no longer served; a brief that
-  does not validate is refused with invalid_case. A code added to a list
+  without "v": 4 is refused with unsupported_version: version 1 (the
+  procurement scenario), version 2 (the complaint before the grounds of
+  161-FZ art. 9 parts 11.6 and 11.7) and version 3 (before the client's
+  option to apply for the removal of the client's data) are no longer
+  served; a brief that does not validate is refused with invalid_case. A code added to a list
   the brief, the events or the log draw from makes a new version: a reader
   of the old one would refuse the new code as an invalid case, not as
   another version.

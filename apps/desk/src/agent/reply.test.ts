@@ -58,6 +58,27 @@ describe("the drafted reply", () => {
     expect(groundCitation(text("ru"), "payment_9_11_7")).toBe("161-ФЗ, ст. 9, ч. 11.7");
   });
 
+  it("about the client's own data in the database, tells the client how to apply for their removal, and the rubric asks for it on the statute's ground", () => {
+    const clientData = open.filter((i) => store.database[i] !== Database.None);
+    expect(clientData.length).toBeGreaterThan(0);
+    for (const row of clientData) {
+      expect(replyLines(text("en"), draftOf(row)), `row ${row}`).toContain(
+        "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
+      );
+      expect(replyLines(text("ru"), draftOf(row)), `row ${row}`).toContain(
+        "Вы можете подать заявление об исключении сведений о вас из базы данных Банка России через наш банк или интернет-приёмную cbr.ru/contactBR/161-FZ.",
+      );
+    }
+    // Without it, the finding names the option and rests on 161-FZ art. 9
+    // part 11.8 (with the channels of Directive No. 6748-U), not only on
+    // the letter every option cites.
+    const row = clientData[0]!;
+    const draft = { ...draftOf(row), clientOptions: draftOf(row).clientOptions.filter((o) => o !== "apply_for_removal") };
+    const missing = checkReply(draft, replyText(text("en"), draft), caseFacts(store, row)).filter((f) => f.code === "client_option_missing");
+    expect(missing.map((f) => [f.subject, f.source])).toEqual([["apply_for_removal", "payment_law_9"]]);
+    expect(missing[0]!.reference).toMatch(/^art\. 9 part 11\.8/);
+  });
+
   it("states the decision only as the register holds it: a pending one is left to the reviewer", () => {
     const pending = open.find((i) => draftOf(i).outcome === "pending")!;
     expect(replyLines(text("en"), draftOf(pending))).toContain("[The decision on the complaint: for the reviewer to state.]");

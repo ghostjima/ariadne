@@ -160,7 +160,7 @@ pub const PAYMENT_LAW_9: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 9",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/",
     revision: "2026-08-04",
-    checked: "2026-10-08",
+    checked: "2026-10-09",
 };
 
 /// The Bank of Russia's letter on counting the terms of art. 8 of the
@@ -263,6 +263,20 @@ pub const RESTRICTIONS_LETTER: Source = Source {
     checked: "2026-10-06",
 };
 
+/// The Bank of Russia's information letter on informing clients of
+/// restrictions in advance: the kind of a restriction and its legal
+/// ground, and for one under 161-FZ art. 9 parts 11.6 and 11.7 the right
+/// to apply for the removal of the client's data, through the bank or the
+/// Bank of Russia's Internet reception, with a link to its page. The text
+/// was read in a full-text copy.
+pub const PROACTIVE_LETTER: Source = Source {
+    id: "letter_in_03_59_11",
+    title: "Информационное письмо Банка России от 24.03.2026 N ИН-03-59/11 «О применении проактивного подхода при информировании об ограничении операций и дистанционных способов распоряжения счетом»",
+    url: "https://rulaws.ru/acts/Informatsionnoe-pismo-Banka-Rossii-ot-24.03.2026-N-IN-03-59_11/",
+    revision: "2026-03-24",
+    checked: "2026-10-09",
+};
+
 /// The Bank of Russia's recommendations on replies to complaints: plain
 /// language, no long sentences, concrete terms.
 pub const BANK_OF_RUSSIA_REPLY_PAGE: Source = Source {
@@ -299,5 +313,6 @@ pub const ALL: &[Source] = &[
     REGULATION_842_P,
     OD_2506,
     RESTRICTIONS_LETTER,
+    PROACTIVE_LETTER,
     BANK_OF_RUSSIA_REPLY_PAGE,
 ];
