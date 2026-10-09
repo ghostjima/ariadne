@@ -52,6 +52,10 @@ export const ACTIONS = [
   "breach_withdrawn",
   "copy_sent",
   "dispatch_cancelled",
+  /* Recorded without a stage change: the bank's own reasoned application
+     to the Bank of Russia to remove the client's data from its database
+     (161-FZ art. 9 part 11.9), with the bank's reasons (database.ts) */
+  "removal_applied",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 

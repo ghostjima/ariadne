@@ -192,6 +192,34 @@ export type WorkflowStrings = {
     /** Under the run's step once the handover is on the case. */
     final: string;
   };
+
+  /** The client's own data in the Bank of Russia's database, on the case:
+   * the bank's own application to remove them. */
+  database: {
+    panel: string;
+    /** What the bank's copy of the database record holds, as a term. */
+    record: string;
+    own: string;
+    ownHelp: string;
+    reasons: string;
+    reasonsHelp: (min: string) => string;
+    apply: string;
+    whoMay: string;
+    confirmTitle: (id: string) => string;
+    confirmText: string;
+    confirm: string;
+    keep: string;
+    applied: (id: string) => string;
+    sent: (day: string) => string;
+    decidesBy: (day: string, basis: string) => string;
+    errors: {
+      "removal-not-client-data": string;
+      "removal-role": string;
+      "removal-already-sent": string;
+      "removal-reason-required": (min: string) => string;
+      "removal-reason-too-long": (max: string, length: string) => string;
+    };
+  };
 };
 
 const en: WorkflowStrings = {
@@ -272,6 +300,7 @@ const en: WorkflowStrings = {
     breach_withdrawn: "Breach of a standard withdrawn",
     copy_sent: "Copy sent",
     dispatch_cancelled: "Dispatch cancelled before sending",
+    removal_applied: "The bank applied to the Bank of Russia to remove the client's data",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Reason: ${reason}`,
@@ -444,6 +473,31 @@ const en: WorkflowStrings = {
     already: (stage) => `The case is already at “${stage}”.`,
     final: "On the case now: a return for rework is the reviewer's.",
   },
+  database: {
+    panel: "The Bank of Russia's database",
+    record: "The bank's copy of the record",
+    own: "The bank's own application to remove the data",
+    ownHelp:
+      "With grounds to think the client's data were included without basis, the bank may apply to the Bank of Russia on its own, without the client (161-FZ art. 9 part 11.9). The Bank of Russia decides within 15 working days and sends the decision to the bank. Once sent, the application is not recalled.",
+    reasons: "The bank's reasons",
+    reasonsHelp: (min) => `Why the data were included without basis, as the application states it; at least ${min} characters.`,
+    apply: "Apply to the Bank of Russia",
+    whoMay: "The legal reviewer or the supervisor files the bank's own application.",
+    confirmTitle: (id) => `Apply to remove the client's data, case ${id}?`,
+    confirmText: "The application goes to the Bank of Russia with these reasons and is not recalled. The client takes no part in it.",
+    confirm: "Send the application",
+    keep: "Not now",
+    applied: (id) => `Case ${id}: the bank's application to remove the client's data went to the Bank of Russia.`,
+    sent: (day) => `Sent to the Bank of Russia on ${day}.`,
+    decidesBy: (day, basis) => `The Bank of Russia decides by ${day} (${basis}).`,
+    errors: {
+      "removal-not-client-data": "Only a case about the client's own data in the database has this application.",
+      "removal-role": "The legal reviewer or the supervisor files the bank's own application.",
+      "removal-already-sent": "The bank has already applied on this case.",
+      "removal-reason-required": (min) => `State the bank's reasons, at least ${min} characters.`,
+      "removal-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
+    },
+  },
 };
 
 const ru: WorkflowStrings = {
@@ -524,6 +578,7 @@ const ru: WorkflowStrings = {
     breach_withdrawn: "Отметка о нарушении стандарта снята",
     copy_sent: "Копия направлена",
     dispatch_cancelled: "Отправка отменена до ухода",
+    removal_applied: "Банк подал в Банк России заявление об исключении сведений о клиенте",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Причина: ${reason}`,
@@ -695,6 +750,31 @@ const ru: WorkflowStrings = {
     notOperator: "Передачу подтверждает оператор: переключитесь на роль оператора.",
     already: (stage) => `Обращение уже на этапе «${stage}».`,
     final: "Отражено в обращении: вернуть на доработку может юрист.",
+  },
+  database: {
+    panel: "База данных Банка России",
+    record: "Копия записи в банке",
+    own: "Заявление банка об исключении сведений",
+    ownHelp:
+      "Если у банка есть основания полагать, что сведения о клиенте включены необоснованно, банк вправе сам, без участия клиента, направить в Банк России мотивированное заявление (ч. 11.9 ст. 9 161-ФЗ). Банк России решает в течение 15 рабочих дней и направляет решение банку. Отправленное заявление не отзывается.",
+    reasons: "Основания банка",
+    reasonsHelp: (min) => `Почему сведения включены необоснованно, как это будет сказано в заявлении; не короче ${min} знаков.`,
+    apply: "Подать заявление в Банк России",
+    whoMay: "Заявление банка подаёт юрист или руководитель.",
+    confirmTitle: (id) => `Подать заявление об исключении сведений по обращению ${id}?`,
+    confirmText: "Заявление уйдёт в Банк России с этими основаниями и не отзывается. Клиент в нём не участвует.",
+    confirm: "Направить заявление",
+    keep: "Не сейчас",
+    applied: (id) => `Обращение ${id}: заявление банка об исключении сведений о клиенте направлено в Банк России.`,
+    sent: (day) => `Направлено в Банк России ${day}.`,
+    decidesBy: (day, basis) => `Банк России решает не позднее ${day} (${basis}).`,
+    errors: {
+      "removal-not-client-data": "Такое заявление есть только в обращении о сведениях самого клиента в базе.",
+      "removal-role": "Заявление банка подаёт юрист или руководитель.",
+      "removal-already-sent": "Банк уже подал заявление по этому обращению.",
+      "removal-reason-required": (min) => `Укажите основания банка, не короче ${min} знаков.`,
+      "removal-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
+    },
   },
 };
 

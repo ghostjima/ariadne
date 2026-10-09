@@ -65,6 +65,7 @@ fn no_database() -> DatabaseFacts {
         exclusion_received_by_bank_of_russia_on: None,
         exclusion_decision_received_on: None,
         bank_of_russia_query_received_on: None,
+        operator_application_sent_on: None,
     }
 }
 
@@ -1248,6 +1249,7 @@ fn property_every_basis_is_a_listed_source() {
         exclusion_received_by_bank_of_russia_on: Some(d("2026-05-05")),
         exclusion_decision_received_on: Some(d("2026-05-28")),
         bank_of_russia_query_received_on: Some(d("2026-05-06")),
+        operator_application_sent_on: None,
     });
     case.no_substance = Some(NoSubstanceGround::Offensive);
     case.stop_correspondence = true;
@@ -1262,8 +1264,11 @@ fn property_every_basis_is_a_listed_source() {
         high_risk_notice_received_on: Some(d("2026-05-06")),
         rating_review_received_on: Some(d("2026-05-07")),
     });
+    if let Some(f) = case.database.as_mut() {
+        f.operator_application_sent_on = Some(d("2026-05-07"));
+    }
     let c = clock(&case).unwrap();
-    assert_eq!(c.deadlines.len(), 26);
+    assert_eq!(c.deadlines.len(), 27);
     // Only an act numbered in items alone has no article.
     let itemised = [sources::DIRECTIVE_6748_U, sources::REGULATION_842_P];
     let article_ok =
@@ -1281,4 +1286,78 @@ fn property_every_basis_is_a_listed_source() {
         assert!(sources::ALL.contains(&x.basis.source), "{x:?}");
         assert!(article_ok(&x.basis) && !x.basis.part.is_empty(), "{x:?}");
     }
+}
+
+#[test]
+fn the_bank_of_russia_decides_the_banks_own_application_in_15_working_days() {
+    // "вправе самостоятельно (без участия клиента) направить в Банк России
+    // мотивированное заявление об исключении сведений" (161-FZ art. 9
+    // part 11.9); "в срок, не превышающий 15 рабочих дней" (part 11.10),
+    // "со дня поступления мотивированного заявления в Банк России"
+    // (Directive No. 6748-U items 2.6, 2.7). Sent on Tuesday 12 May 2026
+    // and taken as received that day, the earliest: 13 to 15 May (3), 18
+    // to 22 (8), 25 to 29 (13), 1 and 2 June (15). The term binds the
+    // Bank of Russia, not the bank, and the client is told nothing by law.
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-08"));
+    let mut f = no_database();
+    f.instrument_suspended_on = Some(d("2026-05-06"));
+    f.operator_application_sent_on = Some(d("2026-05-12"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    let decision = c.deadline(K::OperatorApplicationDecision).unwrap();
+    assert_eq!(
+        (decision.due, decision.from),
+        (d("2026-06-02"), d("2026-05-12"))
+    );
+    assert_eq!(decision.count, Count::WorkingDays(15));
+    assert_eq!(decision.basis.source, sources::DIRECTIVE_6748_U);
+    assert_eq!(
+        (decision.basis.part, decision.basis.reading),
+        ("2.6, 2.7", Reading::Conservative)
+    );
+    assert!(K::OperatorApplicationDecision.is_for_others());
+    assert_eq!(
+        K::parse("operator_application_decision"),
+        Ok(K::OperatorApplicationDecision)
+    );
+    assert!(!c
+        .duties
+        .iter()
+        .any(|x| x.kind == DutyKind::RestoreInstrument));
+    // The client's own application, received by the Bank of Russia on
+    // Friday 8 May and not yet decided: one decision, 15 working days from
+    // the first (item 2.8): 12 to 15 May (4), 18 to 22 (9), 25 to 29 (14),
+    // 1 June (15).
+    f.exclusion_received_by_bank_of_russia_on = Some(d("2026-05-08"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    let decision = c.deadline(K::OperatorApplicationDecision).unwrap();
+    assert_eq!(
+        (decision.due, decision.from),
+        (d("2026-06-01"), d("2026-05-08"))
+    );
+    assert_eq!(
+        (decision.basis.part, decision.basis.reading),
+        ("2.8", Reading::Text)
+    );
+    assert_eq!(due(&c, K::ExclusionDecision), "2026-06-01");
+    // Decided before the bank applied: the bank's application is a new
+    // one, with its own 15 working days.
+    f.exclusion_decision_received_on = Some(d("2026-05-11"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(
+        c.deadline(K::OperatorApplicationDecision).unwrap().from,
+        d("2026-05-12")
+    );
+    // An application of the client's that reached the Bank of Russia after
+    // the bank's does not move the bank's term.
+    f.exclusion_decision_received_on = None;
+    f.exclusion_received_by_bank_of_russia_on = Some(d("2026-05-13"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(
+        c.deadline(K::OperatorApplicationDecision).unwrap().from,
+        d("2026-05-12")
+    );
 }

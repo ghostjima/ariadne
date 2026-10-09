@@ -240,6 +240,7 @@ fn a_suspended_card_rests_on_part_11_6_or_with_the_police_information_on_11_7() 
             exclusion_received_by_bank_of_russia_on: None,
             exclusion_decision_received_on: None,
             bank_of_russia_query_received_on: None,
+            operator_application_sent_on: None,
         });
         let c = clock(&case).unwrap();
         let m = c

@@ -153,6 +153,7 @@ fn database_case(police_information: bool) -> Case {
         exclusion_received_by_bank_of_russia_on: None,
         exclusion_decision_received_on: None,
         bank_of_russia_query_received_on: None,
+        operator_application_sent_on: None,
     });
     case
 }

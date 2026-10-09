@@ -33,7 +33,9 @@ the browser, in Russian (the default) and English:
   and the terms they bring), the duties tied to them and how long the
   case is kept, the timeline of its channels, linked
   cases, and how the reply's last day was worked out, each step with its
-  source.
+  source; for a case about the client's own data in the Bank of Russia's
+  database, the bank's own application to remove them, with its reasons
+  and the Bank of Russia's term.
 - **The assistant** beside the case: a run a person can stop. For the
   open case it proposes a plan: classify the complaint, request the facts
   from antifraud, AML compliance or operations with a deadline of their

@@ -183,7 +183,7 @@ describe("the card's words for what the rules give", () => {
     "antifraud_repeat_refusal_ends", "antifraud_after_repeat_refusal", "instrument_suspension_notice", "exclusion_forwarding",
     "exclusion_refusal_notice", "exclusion_decision", "exclusion_decision_relay", "bank_of_russia_query_answer", "antifraud_refund",
     "aml_reasons_notice", "aml_documents_answer", "aml_commission_decision", "commission_request_answer", "commission_decision_notice",
-    "high_risk_notice", "high_risk_commission_application", "high_risk_rating_review",
+    "high_risk_notice", "high_risk_commission_application", "high_risk_rating_review", "operator_application_decision",
   ];
   const MEASURES = [
     "suspend_order", "refuse_operation", "suspend_confirmed_order", "refuse_repeat", "order_not_accepted", "suspend_instrument", "cap_transfers",
