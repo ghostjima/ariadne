@@ -18,6 +18,9 @@
    panel's edge. A row too wide for it overflows on its own. */
 .agent .stoa-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--stoa-space-3); align-content: start; }
 .agent .stoa-panel__title { margin: 0; }
+/* The plan bar's count is a one-line label: Stoa's tight line height, as
+   the Stoa labels around it are given in styles.css. */
+.agent .plan-bar > p { line-height: var(--stoa-font-line-height-tight); }
 .agent .log { block-size: 100%; grid-template-rows: auto 1fr; }
 .agent .log .stoa-empty-state { align-self: stretch; }
 /* The run's heading holds the focus after a decision (RunPanel); drawn as
