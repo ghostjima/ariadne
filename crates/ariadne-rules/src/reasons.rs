@@ -2,7 +2,9 @@
 //! consent set by the Bank of Russia's Order No. OD-2506, and the
 //! grounds of a refusal or restriction under 115-FZ as reason categories;
 //! and the 161-FZ provisions a reply names as the ground of what the
-//! operator did.
+//! operator did, with the item of the Bank of Russia's directive under
+//! 161-FZ on which an operator refuses to forward an incomplete
+//! application.
 //!
 //! The signs are transcribed from the order's text as the Bank of Russia
 //! publishes it (`sources::OD_2506`), each with its number, wording and
@@ -350,11 +352,11 @@ impl AmlReason {
     }
 }
 
-/// A provision of 161-FZ a reply names as the ground of what the operator
-/// did, with a stable code. The codes are kept in this order and a new
-/// ground is added at the end, so a code once given never changes its
-/// meaning; the desk keeps a number of its own for each that never
-/// changes either.
+/// A provision of 161-FZ, or of the Bank of Russia's directive under its
+/// art. 9, that a reply names as the ground of what the operator did, with
+/// a stable code. The codes are kept in this order and a new ground is
+/// added at the end, so a code once given never changes its meaning; the
+/// desk keeps a number of its own for each that never changes either.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaymentGround {
     /// The first action on an operation that matched a sign, for every
@@ -377,14 +379,24 @@ pub enum PaymentGround {
     /// The same with the Ministry of Internal Affairs' information on
     /// unlawful acts: the operator must suspend it (art. 9 part 11.7).
     InstrumentSuspendedOnPoliceInformation,
+    /// The client's application to remove the data, filed through the
+    /// operator, not forwarded to the Bank of Russia because it lacks
+    /// mandatory data: "оператор по переводу денежных средств при
+    /// отсутствии в заявлении клиента обязательных сведений отказывает
+    /// клиенту в передаче такого заявления клиента в Банк России" (the Bank
+    /// of Russia's Directive No. 6748-U item 1.3, last paragraph). The
+    /// notice of the refusal, with its ground, is due within 5 working days
+    /// of the application's receipt (item 1.4).
+    ForwardingRefused,
 }
 
 /// Every 161-FZ ground, in the order of their codes.
-pub const PAYMENT_GROUNDS: [PaymentGround; 4] = [
+pub const PAYMENT_GROUNDS: [PaymentGround; 5] = [
     PaymentGround::FirstAction,
     PaymentGround::SecondAction,
     PaymentGround::InstrumentSuspended,
     PaymentGround::InstrumentSuspendedOnPoliceInformation,
+    PaymentGround::ForwardingRefused,
 ];
 
 impl PaymentGround {
@@ -403,10 +415,12 @@ impl PaymentGround {
             PaymentGround::SecondAction => "payment_8_3_10",
             PaymentGround::InstrumentSuspended => "payment_9_11_6",
             PaymentGround::InstrumentSuspendedOnPoliceInformation => "payment_9_11_7",
+            PaymentGround::ForwardingRefused => "directive_6748_u_1_3",
         }
     }
 
-    /// The source, article and part the ground is.
+    /// The source, article and part the ground is; a directive has no
+    /// articles, and its item is the part.
     pub fn basis(self) -> (Source, &'static str, &'static str) {
         match self {
             PaymentGround::FirstAction => (sources::PAYMENT_LAW_8, "8", "3.4"),
@@ -415,6 +429,7 @@ impl PaymentGround {
             PaymentGround::InstrumentSuspendedOnPoliceInformation => {
                 (sources::PAYMENT_LAW_9, "9", "11.7")
             }
+            PaymentGround::ForwardingRefused => (sources::DIRECTIVE_6748_U, "", "1.3"),
         }
     }
 

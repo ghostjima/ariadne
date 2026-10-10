@@ -99,7 +99,7 @@ item is the part.
 | Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap until a later suspension or the removal of the data; where the bank suspended some days after it received the database information, the cap in between; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
 | A suspension chosen under part 11.6, lifted while the data are in the database | the suspension ends on the day of the lift and, for an individual, the transfer cap starts; refused with the Ministry of Internal Affairs' information, where the suspension is a duty for the whole period; no cap follows for a legal entity | 161-FZ art. 9 part 11.6 (a conservative reading of its second sentence); part 11.7 |
 | ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, for an individual and a legal entity alike, from the day the bank received the database information to the day the data leave the database; without the day of receipt, from the day the bank acted on the data, with a warning | Banking Law art. 30 part 16; the information is received as Directive No. 7282-U items 6.1 to 6.3 set |
-| Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
+| Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing the operator refuses to forward it (the ground `directive_6748_u_1_3`), and the notice of the refusal, naming its ground, is due within 5 working days of receipt | Directive No. 6748-U items 1.3, 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it, for an application filed through the operator; on one filed through the Bank of Russia's Internet reception the decision goes to the client by email and the operator passes nothing on | Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | Operator's answer to a Bank of Russia request on an application, including one the client filed with the Bank of Russia directly | 3 working days from the request | Directive No. 6748-U items 2.2, 2.9 |
@@ -362,8 +362,13 @@ matched a sign), `payment_8_3_10` (part 3.10, the second action after a
 confirmation or a repeat), `payment_9_11_6` (art. 9 part 11.6, the
 client's card or online banking suspended for the client's own data in
 the Bank of Russia's database, the ground of a reply about removing the
-data) and `payment_9_11_7` (part 11.7, the same with the Ministry of
-Internal Affairs' information, where the suspension is a duty). The
+data), `payment_9_11_7` (part 11.7, the same with the Ministry of
+Internal Affairs' information, where the suspension is a duty) and
+`directive_6748_u_1_3` (the Bank of Russia's Directive No. 6748-U item
+1.3: the client's application to remove the data, filed through the
+operator, is not forwarded to the Bank of Russia when it lacks mandatory
+data; the directive has no articles, so the ground's article is empty
+and its item is the part). The
 codes keep this order and a new ground is added at the end; the
 `suspend_instrument` measure of the clock rests on the third or the
 fourth. A reply about the transfer cap the bank chose instead of the
@@ -380,7 +385,7 @@ needs no legal judgment:
 | Finding | When | Basis |
 |---|---|---|
 | `ground_missing` | no legal ground named | the Bank of Russia's letter No. IN-01-59/98, paragraph 3 ("со ссылкой на конкретную норму"); Banking Law art. 30.1 part 9 and equivalents |
-| `ground_without_article` | a law named without an article (a contract needs none) | the same |
+| `ground_without_article` | a law named without an article, or a Bank of Russia directive (`bank_of_russia_act`) without its item (a contract needs neither) | the same |
 | `grounds_mixed` | 161-FZ and 115-FZ both among the grounds or the reasons | the same letter ("однозначно дифференцировать") |
 | `stream_ground_missing` | an antifraud or anti-money-laundering complaint answered without naming that law | the same |
 | `next_steps_missing` | no next step | the same ("порядке дальнейших действий") |
@@ -436,7 +441,8 @@ the code:
 - `amlReasons()`: the 115-FZ categories, each with `code`, `source`,
   `article`, `part` and `revision`.
 - `paymentGrounds()`: the 161-FZ grounds in the order of their codes,
-  each with `code`, `source`, `article`, `part` and `revision`.
+  the directive's item last, each with `code`, `source`, `article`,
+  `part` and `revision`.
 - `rubric(reply, input)`: `reply` is a `ReplyInput`, made with
   `new ReplyInput(repliedOn, text)` and filled with `grounds`
   (`GroundInput`s of an act code, article and part), `reasons`,

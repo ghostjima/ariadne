@@ -40,7 +40,7 @@ what comes back in is a proposal in codes, and the one piece of text a
 model writes, the reply's letter, travels beside the run and never in
 it.
 
-Status: early. One scenario (180 tests). Measured in Node on an
+Status: early. One scenario (168 tests). Measured in Node on an
 Apple M4 Pro: a plan generates in about 1 us and a complete run replays
 in about 4 to 14 us; method, stamps and spread in
 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
@@ -149,8 +149,11 @@ scheduled failure.
 A test compares every plan, scenario, segment and stop of seeds 1 to 40
 over the five cases of the test set, and the handler's stream of a
 complete run, with the bytes the engine gave before the proposer
-existed, under protocol version 5: a scripted run is identical but for
-the protocol number that `plan.started` repeats.
+existed: they are identical, with and without the scripted proposer
+handed in. Those bytes were taken in protocol version 5; the run is
+asked in the current version, and the one number that differs, the
+version `plan.started` repeats, is written as the fixtures' before the
+comparison.
 
 ## A run a model proposes
 
@@ -294,7 +297,7 @@ field is a code from `src/codes.ts`, a step id or an ISO date.
 
 | type | fields |
 |---|---|
-| `plan.started` | `at`, `total`, `protocol` (6) |
+| `plan.started` | `at`, `total`, `protocol` (7) |
 | `step.started` | `stepId`, `at`, `requiresConfirmation` |
 | `step.deviation` | `stepId`, `deviation`: `reason`, `linkedCase`, `proposal`, `newType`, `newRisk` |
 | `step.deviated` | `stepId`, `deviatedTo`, `actionType`, `risk`, `requiresConfirmation` |
@@ -343,9 +346,9 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (6): the plan payload
+The protocol has a version, `PROTOCOL_VERSION` (7): the plan payload
 carries it as `v` and `plan.started` repeats it as `protocol`. A payload
-without `v: 6` is refused with `unsupported_version`. A brief that does
+without `v: 7` is refused with `unsupported_version`. A brief that does
 not validate is refused with `invalid_case`, a proposal log that does
 not with `invalid_proposals`.
 
@@ -394,7 +397,20 @@ call it an invalid case rather than another version.
   draft a reply that does not say which restriction applies, so the
   version tells them apart before the brief is read. Nothing else in the
   payload, the events or the decisions changed. It is no longer served.
-- Version 6 lets a model propose what the classification, the fact
+- Version 6 adds one ground a brief and a reply draft may name
+  (`GROUND_CODES`), at the end so the list keeps the register's code
+  order: `directive_6748_u_1_3`, the item of the Bank of Russia's
+  Directive No. 6748-U (revision of 19.01.2026) on which a bank refuses
+  to forward to the Bank of Russia a client's application to remove the
+  client's data that lacks mandatory data (item 1.3). The desk's brief
+  names it, after the part of 161-FZ art. 9 the suspension or the cap
+  rests on, for a case whose application was refused. The engine carries
+  it as it carries every ground, from the brief to the draft. A reader of
+  version 5 would refuse the code as an invalid case, so the version
+  tells the two apart before the brief is read. Nothing else in the
+  payload, the events or the decisions changed. It is no longer
+  served.
+- Version 7 lets a model propose what the classification, the fact
   request and the reply say. New codes: two step errors
   (`ERROR_CODES`: `proposal_invalid`, `model_unavailable`) with their
   service (`SERVICES`: `model`), the agent `model` (`AGENT_KINDS`) and the
@@ -403,17 +419,17 @@ call it an invalid case rather than another version.
   frame may carry `proposal`; `step.error.error` has `timeoutSec` only
   for a service that timed out. A scripted run is unchanged but for the
   version number: its payload needs neither new field, and its events
-  are the bytes of version 5 with `protocol: 6` (a test compares them).
-  A reader of version 5 would refuse the new error codes in a log and
-  would not know a segment could wait for a proposal.
+  are the bytes of version 5 with the number `plan.started` repeats (a
+  test compares them). A reader of version 6 would refuse the new error
+  codes in a log and would not know a segment could wait for a proposal.
 
 The exported session log has a version of its own, 2, for its shape,
 which is unchanged; its `protocol` field names the version its entries
-were received in, now 6; the brief it carries is the protocol's, and its
+were received in, now 7; the brief it carries is the protocol's, and its
 `agent` says whether the script or a model proposed. A page left open
-across a deployment may speak version 5 to the new Service Worker and is
+across a deployment may speak version 6 to the new Service Worker and is
 refused with `unsupported_version`, which the desk shows; a reload
-brings the page of version 6.
+brings the page of version 7.
 
 ## API
 

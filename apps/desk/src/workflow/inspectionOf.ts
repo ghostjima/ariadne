@@ -33,6 +33,7 @@ export function inspectionOf(store: ColumnStore, row: number, lang: Lang, t: Str
       e.reason ? w.why(w.reasons[e.reason]) : "",
       e.copy ? w.dispatch.copy[e.copy] : "",
       e.view ? w.database.viewSaid(w.database.views[e.view]) : "",
+      e.missing ? w.database.missingSaid(e.missing.map((code) => w.database.data[code]).join("; ")) : "",
       record
         ? [w.signature.record(w.signature.decisions[record.decision]), record.concerns ? w.signature.concernsSaid(record.concerns) : "", w.signature.wrongSaid(record.wrong)].filter(Boolean).join(" ")
         : e.comment

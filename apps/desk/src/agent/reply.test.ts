@@ -5,7 +5,20 @@
 // the law gives the client, and keeps its sentences short. A finding here
 // would be the draft's fault, not the reviewer's to catch.
 import { describe, expect, it } from "vitest";
-import { Applicant, Database, Path, Restriction, Stage, caseFacts, deskNow, generateAll, liftSuspension, selfActor } from "@ariadne/grid";
+import {
+  Applicant,
+  Database,
+  Path,
+  Restriction,
+  Stage,
+  caseFacts,
+  deskNow,
+  generateAll,
+  liftSuspension,
+  recordApplication,
+  refuseForwarding,
+  selfActor,
+} from "@ariadne/grid";
 import { generatePlan, type ReplyDraft } from "@ariadne/runner";
 import { POOLS } from "../data/query";
 import { caseBrief } from "../case/brief";
@@ -67,6 +80,42 @@ describe("the drafted reply after a suspension is lifted", () => {
       ["measure_not_taken", "suspend_instrument"],
       ["measure_missing", "cap_transfers"],
     ]);
+  });
+});
+
+describe("the drafted reply after a refusal to forward the client's application", () => {
+  it("names the directive's item beside the part of 161-FZ, in a sentence of its own, and leaves the rubric nothing to flag", () => {
+    // The client applied through the bank to remove the data; the
+    // application lacks mandatory data, and the bank refused to forward it
+    // (the Bank of Russia's Directive No. 6748-U item 1.3).
+    const refused = generateAll(20261006, 1_200, 400);
+    const by = { role: "supervisor" as const, actor: selfActor("supervisor"), at: deskNow(Date.UTC(2026, 9, 6, 9)) };
+    for (const police of [false, true]) {
+      const row = open.find(
+        (i) => refused.database[i] === (police ? Database.ClientDataWithPoliceInformation : Database.ClientData) && refused.path[i] !== Path.DatabaseRemoval,
+      )!;
+      const part = police ? "11.7" : "11.6";
+      expect(caseBrief(refused, row).grounds).toEqual([`payment_9_${part.replace(".", "_")}`]);
+      expect(recordApplication(refused, row, by)).toBeNull();
+      // Received and not refused: nothing new to name.
+      expect(caseBrief(refused, row).grounds).toEqual([`payment_9_${part.replace(".", "_")}`]);
+      expect(refuseForwarding(refused, row, { ...by, missing: ["accounts"] })).toBeNull();
+      const brief = caseBrief(refused, row);
+      expect(brief.grounds).toEqual([`payment_9_${part.replace(".", "_")}`, "directive_6748_u_1_3"]);
+      expect(brief.clientOptions).toContain("apply_for_removal");
+      const draft = generatePlan(7, brief).find((s) => s.type === "draft_reply")!.draft;
+      if (draft.kind !== "reply") throw new Error("not a reply");
+      const en = replyLines(text("en"), draft);
+      const ru = replyLines(text("ru"), draft);
+      expect(en).toContain(`The ground is 161-FZ, art. 9, part ${part}.`);
+      expect(en).toContain("We did not forward your removal application to the Bank of Russia: mandatory data are missing (Bank of Russia Directive No. 6748-U, item 1.3).");
+      expect(ru).toContain("Мы не передали ваше заявление об исключении сведений в Банк России: в нём нет обязательных сведений (Указание Банка России № 6748-У, п. 1.3).");
+      // Not a bare citation as well.
+      expect(en.filter((line) => line.includes("6748-U"))).toHaveLength(1);
+      for (const lang of ["ru", "en"] as const) expect(checkReply(draft, replyText(text(lang), draft), caseFacts(refused, row)), `${lang} ${part}`).toEqual([]);
+    }
+    expect(groundCitation(text("en"), "directive_6748_u_1_3")).toBe("Bank of Russia Directive No. 6748-U, item 1.3");
+    expect(groundCitation(text("ru"), "directive_6748_u_1_3")).toBe("Указание Банка России № 6748-У, п. 1.3");
   });
 });
 

@@ -65,6 +65,9 @@ import {
   applyForRemoval,
   answerQuery,
   liftSuspension,
+  recordApplication,
+  refuseForwarding,
+  type MandatoryData,
   recordQuery,
   markBreach,
   markCopySent,
@@ -672,6 +675,29 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return null;
   };
 
+  // The client's application to remove the data, received through the
+  // bank today, and the refusal to forward one that lacks mandatory data
+  // (Directive No. 6748-U items 1.2 to 1.4): journaled; the days go to the
+  // rules with the case's facts.
+  const application = (row: number) => {
+    const refused = recordApplication(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()) });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].database.applicationRecorded(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+  const refuseToForward = (row: number, missing: MandatoryData[]) => {
+    const refused = refuseForwarding(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()), missing });
+    if (refused) return refused;
+    bump();
+    const said = workflowStrings[lang].database.refusedToast(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+
   // The simulated colleague.
   const tick = useRef(0);
   const simulate = () => {
@@ -944,6 +970,8 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onRecordQuery={() => query(openCase)}
           onAnswerQuery={(view, reason) => answer(openCase, view, reason)}
           onLiftSuspension={(reason) => lift(openCase, reason)}
+          onRecordApplication={() => application(openCase)}
+          onRefuseForwarding={(missing) => refuseToForward(openCase, missing)}
           onExported={() => toasts.add({ tone: "positive", text: workflowStrings[lang].dispatch.exported, timeout: 5000 })}
         />
       ) : openCase !== null && load.loading ? (

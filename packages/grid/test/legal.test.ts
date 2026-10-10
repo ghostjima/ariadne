@@ -189,15 +189,24 @@ describe("codes and labels follow ariadne-rules' lists", () => {
 });
 
 describe("ground codes", () => {
-  it("the 161-FZ grounds cite what the crate cites, art. 9 parts 11.6 and 11.7 among them", () => {
+  it("the 161-FZ grounds cite what the crate cites, art. 9 parts 11.6 and 11.7 among them, and the directive's item for an application not forwarded", () => {
     const list = paymentGrounds();
-    expect(list.map((g) => g.code)).toEqual(["payment_8_3_4", "payment_8_3_10", "payment_9_11_6", "payment_9_11_7"]);
+    expect(list.map((g) => g.code)).toEqual(["payment_8_3_4", "payment_8_3_10", "payment_9_11_6", "payment_9_11_7", "directive_6748_u_1_3"]);
+    expect(PAYMENT_GROUND_CODES).toHaveLength(list.length);
     list.forEach((g, k) => {
       const code = PAYMENT_GROUND_CODES[k]!;
       const ground = GROUNDS[code]!;
       expect(ground.id).toBe(g.code);
-      expect([ground.act, ground.article, ground.part]).toEqual(["payment_system", g.article, g.part]);
       expect(ground.streams).toEqual([Stream.Antifraud]);
+      if (g.source === "directive_6748_u") {
+        // A Bank of Russia directive has no articles: its item is the part.
+        expect([ground.act, ground.article, ground.part]).toEqual(["bank_of_russia_act", "", "1.3"]);
+        expect([g.article, g.part]).toEqual(["", "1.3"]);
+        expect(en.ground[code]).toBe("Bank of Russia Directive No. 6748-U, item 1.3");
+        expect(ru.ground[code]).toBe("Указание Банка России № 6748-У, п. 1.3");
+        return;
+      }
+      expect([ground.act, ground.article, ground.part]).toEqual(["payment_system", g.article, g.part]);
       expect(en.ground[code]).toBe(`161-FZ, art. ${g.article}, part ${g.part}`);
       expect(ru.ground[code]).toBe(`161-ФЗ, ст. ${g.article}, ч. ${g.part}`);
     });
@@ -218,6 +227,7 @@ describe("ground codes", () => {
       "contract",
       "payment_9_11_6",
       "payment_9_11_7",
+      "directive_6748_u_1_3",
     ]);
     expect([Ground.None, Ground.Contract, AML_GROUND_OFFSET]).toEqual([0, 10, 3]);
     expect([...GROUND_ORDER].sort((a, b) => a - b)).toEqual(GROUNDS.map((_, k) => k));
@@ -227,6 +237,7 @@ describe("ground codes", () => {
       "161-FZ, art. 8, part 3.10",
       "161-FZ, art. 9, part 11.6",
       "161-FZ, art. 9, part 11.7",
+      "Bank of Russia Directive No. 6748-U, item 1.3",
       "115-FZ, art. 7, item 11",
       "115-FZ, art. 7, item 5.2, paragraph 2",
       "115-FZ, art. 7, item 5.2, paragraph 3",

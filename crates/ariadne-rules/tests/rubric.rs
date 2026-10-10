@@ -123,6 +123,43 @@ fn a_ground_needs_its_article_and_the_streams_law() {
 }
 
 #[test]
+fn a_bank_of_russia_directive_is_named_by_its_item_and_has_no_article() {
+    // A reply about an application to remove the client's data that the
+    // bank did not forward, mandatory data missing, names the suspension's
+    // part of 161-FZ and the directive's item (Directive No. 6748-U item
+    // 1.3). The directive has no articles: its item is enough, and it is
+    // neither a 161-FZ nor a 115-FZ ground for the mixing check.
+    let case = database_case(false);
+    let c = clock(&case).unwrap();
+    let mut reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![
+            ground(Act::PaymentSystem, "9", "11.6"),
+            ground(Act::BankOfRussiaAct, "", "1.3"),
+        ],
+        reasons: vec![],
+        next_steps: vec!["Подайте заявление снова, указав недостающие сведения.".into()],
+        client_options: vec![ClientOption::ApplyForRemoval],
+        stated_deadlines: vec![],
+        measures: vec![MeasureKind::SuspendInstrument, MeasureKind::CapAtmCash],
+        text: "Заявление не передано в Банк России. В нём нет обязательных сведений.".into(),
+    };
+    assert_eq!(rubric(&reply, &case, &c), []);
+    // The directive without its item is a ground without its provision.
+    reply.grounds[1] = ground(Act::BankOfRussiaAct, "", " ");
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [("ground_without_article", None)]
+    );
+    // The directive alone does not name the stream's law.
+    reply.grounds = vec![ground(Act::BankOfRussiaAct, "", "1.3")];
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [("stream_ground_missing", None)]
+    );
+}
+
+#[test]
 fn next_steps_and_the_clients_options() {
     let case = antifraud_case();
     let c = clock(&case).unwrap();

@@ -16,8 +16,9 @@
 */
 
 import { GROUNDS } from "@ariadne/grid";
-import { amlReasons, clock, od2506Signs, paymentGrounds, type CaseFacts } from "@ariadne/rules";
+import { amlReasons, clock, od2506Signs, type CaseFacts } from "@ariadne/rules";
 import { proposeAll, SCRIPTED, type CaseBrief, type ProposalSet } from "@ariadne/runner";
+import { groundSource } from "./read.js";
 
 /* Where the engine gives a provision for the case */
 export const PROVISION_ROLES = ["ground", "reason", "deadline", "duty", "measure"] as const;
@@ -57,7 +58,7 @@ export function provisionsOf(brief: CaseBrief, facts: CaseFacts): Provision[] {
   for (const code of brief.grounds) {
     const spec = GROUNDS.find((g) => g?.id === code);
     if (!spec || spec.act === "contract") continue;
-    const source = (spec.act === "payment_system" ? paymentGrounds() : amlReasons()).find((g) => g.code === code)?.source;
+    const source = groundSource(code);
     if (source) out.push({ source, article: spec.article, parts: partsOf(spec.part), role: "ground", of: code });
   }
   if (brief.reason !== null) {

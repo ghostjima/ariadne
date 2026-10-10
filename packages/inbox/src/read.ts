@@ -51,9 +51,10 @@ const ACTS: Record<string, Record<Lang, string>> = {
   aml_law_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_8: { ru: "115-ФЗ", en: "115-FZ" },
+  directive_6748_u: { ru: "Указание Банка России № 6748-У", en: "Bank of Russia Directive No. 6748-U" },
 };
 /* Acts whose articles are divided into items rather than parts */
-const ITEMS = new Set(["aml_law_7", "aml_law_7_7", "aml_law_7_8"]);
+const ITEMS = new Set(["aml_law_7", "aml_law_7_7", "aml_law_7_8", "directive_6748_u"]);
 
 const RU_WORDS: [RegExp, string][] = [
   [/\bsubitem\b/g, "подп."],
@@ -99,10 +100,17 @@ export type CaseSheet = {
   nextSteps: NextStep[];
 };
 
+/* The source a ground rests on, as ariadne-rules names it: the 161-FZ
+   grounds and the directive under them are its payment grounds, the
+   115-FZ ones its reason categories; null for the contract */
+export function groundSource(code: GroundCode): string | null {
+  return paymentGrounds().find((g) => g.code === code)?.source ?? amlReasons().find((g) => g.code === code)?.source ?? null;
+}
+
 function groundCitation(code: GroundCode, lang: Lang): string | null {
   const spec = GROUNDS.find((g) => g?.id === code);
   if (!spec || spec.act === "contract") return null;
-  const source = (spec.act === "payment_system" ? paymentGrounds() : amlReasons()).find((g) => g.code === code)?.source;
+  const source = groundSource(code);
   return source ? citationText(source, spec.article, spec.part, lang) : null;
 }
 

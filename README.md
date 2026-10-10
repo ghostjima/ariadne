@@ -37,9 +37,10 @@ the browser, in Russian (the default) and English:
   database, the bank's own application to remove them, with its reasons
   and the Bank of Russia's term, and the Bank of Russia's request on an
   application the client filed with it directly, with the bank's 3
-  working days and its answer, and the lift of a suspension the bank
+  working days and its answer, the lift of a suspension the bank
   chose under 161-FZ art. 9 part 11.6, never of one that is a duty under
-  part 11.7.
+  part 11.7, and the client's application through the bank, refused when
+  it lacks mandatory data, with the notice and its 5 working days.
 - **The assistant** beside the case: a run a person can stop. For the
   open case it proposes a plan: classify the complaint, request the facts
   from antifraud, AML compliance or operations with a deadline of their
@@ -171,7 +172,9 @@ The workflows the desk is built around, and what exists of each today:
   Order No. OD-2506 and the 115-FZ refusal grounds as reason codes; the
   161-FZ grounds a reply names, among them art. 9 parts 11.6 and 11.7 for
   a reply about removing the client's data from the Bank of Russia's
-  database, with the bank's choice under part 11.6 between suspending the
+  database, and item 1.3 of the Bank of Russia's Directive No. 6748-U
+  for a refusal to forward an incomplete application to remove them,
+  with the bank's choice under part 11.6 between suspending the
   client's card and capping the client's transfers, and the ATM cash cap
   of the Banking Law art. 30 part 16; and a rubric that returns coded
   findings on a structured reply.

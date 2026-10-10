@@ -72,6 +72,8 @@ const GROUNDS: Record<GroundCode, string> = {
   payment_9_11_6:
     "161-FZ art. 9 part 11.6: the client's own details are in the Bank of Russia's database, and the bank suspended the client's card and online banking, or capped the client's transfers instead; no information from the Ministry of Internal Affairs is mentioned",
   payment_9_11_7: "161-FZ art. 9 part 11.7: the same suspension, where the details came with information from the Ministry of Internal Affairs on unlawful acts",
+  directive_6748_u_1_3:
+    "Bank of Russia Directive No. 6748-U item 1.3: the bank refused to forward to the Bank of Russia the client's application to be removed from the database, because the application lacked mandatory data. Named after payment_9_11_6 or payment_9_11_7, never alone",
   aml_operation_refused: "115-FZ art. 7 item 11: the bank refused to carry out an operation",
   aml_account_refused: "115-FZ art. 7 item 5.2: the bank refused to open an account",
   aml_account_terminated: "115-FZ art. 7 item 5.2: the bank terminated the account contract after refused operations",

@@ -781,6 +781,7 @@ pub enum ActCode {
     ComplaintLaw = "complaint_law",
     OtherLaw = "other_law",
     Contract = "contract",
+    BankOfRussiaAct = "bank_of_russia_act",
 }
 
 /// A legal ground a reply names.
@@ -887,6 +888,7 @@ fn to_reply(r: &ReplyInput) -> Result<Reply, Error> {
                         ActCode::ComplaintLaw => rubric::Act::ComplaintLaw,
                         ActCode::OtherLaw => rubric::Act::OtherLaw,
                         ActCode::Contract => rubric::Act::Contract,
+                        ActCode::BankOfRussiaAct => rubric::Act::BankOfRussiaAct,
                         ActCode::__Invalid => return Err(Error::UnknownCode),
                     },
                     article: g.article.clone(),
@@ -1309,8 +1311,20 @@ mod tests {
                 "payment_8_3_4",
                 "payment_8_3_10",
                 "payment_9_11_6",
-                "payment_9_11_7"
+                "payment_9_11_7",
+                "directive_6748_u_1_3"
             ]
+        );
+        // The directive's ground has no article: its item is the part.
+        let d = &grounds[4];
+        assert_eq!(
+            (
+                d.source.as_str(),
+                d.article.as_str(),
+                d.part.as_str(),
+                d.revision.as_str()
+            ),
+            ("directive_6748_u", "", "1.3", "2026-01-19")
         );
         let g = &grounds[3];
         assert_eq!(

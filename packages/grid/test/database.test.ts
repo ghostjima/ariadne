@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { clock } from "@ariadne/rules";
 import { generateAll } from "../src/generator.js";
 import { isoDay } from "../src/days.js";
-import { caseFacts, queryAnsweredOn, queryReceivedOn, removalAppliedOn } from "../src/legal.js";
+import { applicationReceivedOn, caseFacts, forwardingRefusedOn, queryAnsweredOn, queryReceivedOn, removalAppliedOn } from "../src/legal.js";
 import { selfActor } from "../src/history.js";
 import { Applicant, CORPUS_CHUNK, CORPUS_ROWS, DEFAULT_SEED, Database, Path, Restriction, Stream } from "../src/schema.js";
 import { AS_OF_DAY } from "../src/store.js";
@@ -15,6 +15,9 @@ import {
   REMOVAL_REASON_MIN,
   answerQuery,
   applyForRemoval,
+  applicationForwarded,
+  checkApplicationIntake,
+  checkForwardingRefusal,
   checkLift,
   checkQueryAnswer,
   checkQueryIntake,
@@ -22,9 +25,13 @@ import {
   isClientDataCase,
   liftAllowed,
   liftSuspension,
+  forwardingRefusalOf,
   liftedOn,
+  mandatoryData,
   queryAnswerOf,
+  recordApplication,
   recordQuery,
+  refuseForwarding,
 } from "../src/database.js";
 
 /*
@@ -202,5 +209,101 @@ describe("lifting a suspension the bank chose under 161-FZ art. 9 part 11.6", ()
     expect(store.journal.get(police)).toBeUndefined();
     expect(store.restriction[police]).toBe(Restriction.InstrumentSuspended);
     expect(caseFacts(store, police).database?.suspensionLiftedOn).toBeUndefined();
+  });
+});
+
+describe("the client's application through the bank, and the refusal to forward one that lacks mandatory data", () => {
+  // Directive No. 6748-U item 1.3: "оператор ... при отсутствии в
+  // заявлении клиента обязательных сведений отказывает клиенту в передаче
+  // такого заявления клиента в Банк России"; item 1.4: the notice of the
+  // refusal "в срок, не превышающий 5 рабочих дней со дня поступления
+  // заявления клиента ... оператору ..., с указанием основания отказа".
+  const operatorOf = () => ({ role: "operator" as const, actor: selfActor("operator"), at: NOW });
+
+  it("is recorded the day it arrives, to be forwarded by the next working day; refused for missing data, it owes the notice in 5 working days instead", () => {
+    const store = fresh();
+    const row = rows(store, (i) => isClientDataCase(store, i) && store.path[i] !== Path.DatabaseRemoval)[0]!;
+    const stage = store.stage[row];
+    expect(applicationReceivedOn(store, row)).toBe(-1);
+    expect(checkForwardingRefusal(store, row, "supervisor", ["accounts"])).toEqual({ code: "application-not-received" });
+    expect(recordApplication(store, row, operatorOf())).toBeNull();
+    expect(caseJournal(store, row).at(-1)).toMatchObject({ action: "application_received", from: stage, to: stage });
+    expect(applicationReceivedOn(store, row)).toBe(AS_OF_DAY);
+    expect(recordApplication(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW })).toEqual({ code: "application-already-received" });
+    // Tuesday 6 October 2026: forwarded by Wednesday 7 October (item 1.5).
+    let c = clock(caseFacts(store, row));
+    const forwarding = c.deadlines.find((d) => d.kind === "exclusion_forwarding")!;
+    expect([forwarding.from, forwarding.due, forwarding.basis.part]).toEqual(["2026-10-06", "2026-10-07", "1.5"]);
+    expect(c.deadlines.map((d) => d.kind)).not.toContain("exclusion_refusal_notice");
+    // The Bank of Russia's request is for an application the client filed
+    // with it directly: not while one through the bank is on its way.
+    expect(checkQueryIntake(store, row, "supervisor")).toEqual({ code: "query-through-bank" });
+    // Mandatory data missing: the bank refuses to forward it, naming them.
+    const individual = store.applicant[row] === Applicant.Individual;
+    const missing = individual ? ["operators", "identity_documents"] : ["accounts", "inn"];
+    expect(refuseForwarding(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, missing })).toBeNull();
+    expect(store.stage[row]).toBe(stage);
+    // In the directive's order, whatever order they were given in.
+    const ordered = individual ? ["identity_documents", "operators"] : ["accounts", "inn"];
+    expect(caseJournal(store, row).at(-1)).toMatchObject({ action: "forwarding_refused", from: stage, to: stage, missing: ordered });
+    expect(forwardingRefusedOn(store, row)).toBe(AS_OF_DAY);
+    expect(forwardingRefusalOf(store, row)).toEqual({ on: AS_OF_DAY, missing: ordered });
+    const facts = caseFacts(store, row);
+    expect(facts.database).toMatchObject({ exclusionReceivedByOperatorOn: "2026-10-06", exclusionDataMissing: true });
+    // 7, 8, 9, 12 and 13 October: the notice by Tuesday 13 October (item
+    // 1.4), and nothing to forward.
+    c = clock(facts);
+    const notice = c.deadlines.find((d) => d.kind === "exclusion_refusal_notice")!;
+    expect([notice.from, notice.due, notice.count, notice.countValue, notice.forOthers, notice.basis.source, notice.basis.part]).toEqual([
+      "2026-10-06",
+      "2026-10-13",
+      "working_days",
+      5,
+      false,
+      "directive_6748_u",
+      "1.4",
+    ]);
+    expect(c.deadlines.map((d) => d.kind)).not.toContain("exclusion_forwarding");
+    expect(refuseForwarding(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, missing })).toEqual({ code: "application-already-refused" });
+    // The client may now apply to the Bank of Russia directly: its
+    // request is taken again.
+    expect(checkQueryIntake(store, row, "supervisor")).toBeNull();
+  });
+
+  it("asks of each kind of applicant the mandatory data the directive lists, and refuses any other", () => {
+    // Item 1.1.1, paragraphs 2 to 5: the name, the identity documents,
+    // the operators, the accounts. Items 1.1.2 and 1.1.3: the INN, the
+    // accounts, and a sole trader's identity documents.
+    expect(mandatoryData(Applicant.Individual)).toEqual(["name", "identity_documents", "operators", "accounts"]);
+    expect(mandatoryData(Applicant.LegalEntity)).toEqual(["inn", "accounts", "identity_documents"]);
+    const store = fresh();
+    const person = rows(store, (i) => isClientDataCase(store, i) && store.path[i] !== Path.DatabaseRemoval && store.applicant[i] === Applicant.Individual)[0]!;
+    expect(recordApplication(store, person, { role: "supervisor", actor: selfActor("supervisor"), at: NOW })).toBeNull();
+    expect(checkForwardingRefusal(store, person, "supervisor", [])).toEqual({ code: "application-data-required" });
+    expect(checkForwardingRefusal(store, person, "supervisor", ["inn"])).toEqual({ code: "application-data-unknown" });
+    expect(checkForwardingRefusal(store, person, "supervisor", ["phone"])).toEqual({ code: "application-data-unknown" });
+    expect(checkForwardingRefusal(store, person, "supervisor", ["name"])).toBeNull();
+  });
+
+  it("is not recorded twice, for another case or by the legal reviewer or the signatory; an application already forwarded is not refused", () => {
+    const store = fresh();
+    const forwarded = rows(store, (i) => store.path[i] === Path.DatabaseRemoval && store.pathThen[i]! >= 0)[0]!;
+    const block = rows(store, (i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None)[0]!;
+    const row = rows(store, (i) => isClientDataCase(store, i) && store.path[i] !== Path.DatabaseRemoval)[0]!;
+    // The register's own application: received on its day, forwarded.
+    expect(applicationReceivedOn(store, forwarded)).toBe(store.pathOn[forwarded]);
+    expect(applicationForwarded(store, forwarded)).toBe(true);
+    expect(checkApplicationIntake(store, forwarded, "supervisor")).toEqual({ code: "application-already-received" });
+    expect(checkForwardingRefusal(store, forwarded, "supervisor", ["accounts"])).toEqual({ code: "application-already-forwarded" });
+    expect(checkApplicationIntake(store, block, "supervisor")).toEqual({ code: "application-not-client-data" });
+    expect(checkForwardingRefusal(store, block, "supervisor", ["accounts"])).toEqual({ code: "application-not-client-data" });
+    for (const role of ["reviewer", "signatory"] as const) {
+      expect(checkApplicationIntake(store, row, role)).toEqual({ code: "application-role" });
+      expect(checkForwardingRefusal(store, row, role, ["accounts"])).toEqual({ code: "application-role" });
+    }
+    expect(recordApplication(store, row, { role: "reviewer", actor: selfActor("reviewer"), at: NOW })).toEqual({ code: "application-role" });
+    expect(store.journal.get(row)).toBeUndefined();
+    expect(caseFacts(store, row).database?.exclusionReceivedByOperatorOn).toBeUndefined();
+    expect(forwardingRefusalOf(store, row)).toBeNull();
   });
 });
