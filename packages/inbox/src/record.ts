@@ -54,11 +54,16 @@ export type RecordOptions = {
   temperature?: number;
   seed?: number;
   maxTokens?: Partial<Record<ProposalTask, number>>;
+  /* The longest one call to the model may take, in ms */
+  timeoutMs?: number;
   autonomy?: Autonomy;
   /* The decision for a pause; by default the run goes on (goOn) */
   decide?: DriveOptions["decide"];
   /* Stop */
   signal?: AbortSignal;
+  /* Called before the model is asked for a step's proposal and after it
+     answered */
+  onProposal?: DriveOptions["onProposal"];
   /* What the recorder knows of itself */
   stamp: Pick<TranscriptStamp, "commit" | "build" | "machine" | "recordedAt" | "contextTokens">;
   now?: () => number;
@@ -82,6 +87,7 @@ export async function recordRun(options: RecordOptions): Promise<Recorded> {
     seed,
     think,
     maxTokens: options.maxTokens ?? (think === true ? THINKING_MAX_TOKENS : {}),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     record: (exchange) => exchanges.push(exchange),
   });
   /* The step each task belongs to, to file its exchanges under */
@@ -94,7 +100,10 @@ export async function recordRun(options: RecordOptions): Promise<Recorded> {
     decide: options.decide ?? goOn,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.now ? { now: options.now } : {}),
-    onProposal: (need) => stepOf.set(need.task, need.stepId),
+    onProposal: (need, phase) => {
+      stepOf.set(need.task, need.stepId);
+      options.onProposal?.(need, phase);
+    },
   });
   const transcript: Transcript = {
     format: TRANSCRIPT_FORMAT,

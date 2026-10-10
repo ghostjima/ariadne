@@ -27,7 +27,7 @@ Stoa, Ariadne and Tyche; the Ariadne specifics follow them.
 ```
 
 Types: feat, fix, refactor, test, docs, chore. Scopes: desk, agent, grid,
-runner, rules, inbox, ariadne (repository-wide).
+runner, rules, inbox, bench, ariadne (repository-wide).
 
 - Work on a branch; `main` changes only through a pull request with green
   CI, merged with a merge commit; the branch is deleted after the merge.
@@ -47,6 +47,10 @@ runner, rules, inbox, ariadne (repository-wide).
 - `packages/inbox` (`@ariadne/inbox`): what an assistant reads about a
   complaint: the case brief of codes, seeded complaint texts and their
   ground truth.
+- `packages/bench` (`@ariadne/bench`): the bench of the assistant's
+  proposers (the script, a baseline, local models) against that ground
+  truth. Its tests run no model; a bench with models is run by hand, on a
+  quiet machine, and its results are committed with their stamps.
 - `crates/ariadne-rules`: the legal rules engine, in Rust compiled to
   WebAssembly. Every rule cites the act, article, part and revision it
   encodes, and the crate's README lists every source.

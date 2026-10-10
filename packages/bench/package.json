@@ -1,0 +1,39 @@
+{
+  "name": "@ariadne/bench",
+  "version": "0.1.0",
+  "description": "A bench of the assistant's proposers on the inbox: the scripted oracle, a naive baseline and local models through ollama, scored against the register and the rules engine with deterministic checks only",
+  "type": "module",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "bench": "pnpm build && node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "@ariadne/grid": "workspace:*",
+    "@ariadne/inbox": "workspace:*",
+    "@ariadne/rules": "workspace:*",
+    "@ariadne/runner": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "6.0.3",
+    "vitest": "5.0.2"
+  }
+}

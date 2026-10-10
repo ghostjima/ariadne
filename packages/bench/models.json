@@ -1,0 +1,11 @@
+{
+  "note": "The manifest digest of each model tag as ollama reported it when the bench was written (GET /api/tags, 2026-10-10). A run names the digest it found; one that differs from this file says so.",
+  "digests": {
+    "qwen3:8b": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+    "qwen2.5:14b": "7cdf5a0187d5c58cc5d369b255592f7841d1c4696d45a8c8a9489440385b22f6",
+    "qwen3:1.7b": "8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7",
+    "gemma4-26a4b:latest": "5ce5abb82e5f423995846d74222417c6ae632eab794ccb8f0815c11219dee61a",
+    "gigachat3.1-lightning:q4_K_M": "205d59ce7151eaf765614b6ae98675ebb6028f1b05da5f56da1185c4327c4b7d",
+    "t-tech/T-lite-it-2.1:q4_k_m": "c761c8a7fbed826d22e85ccfbad95b3a3db1a2c60d5d6884a0d3b9d866d3e454"
+  }
+}
