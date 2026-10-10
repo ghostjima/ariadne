@@ -15,9 +15,14 @@ const isAml = (code: string): code is AmlReasonCode => (AML_REASON_CODES as read
 export function groundCitation(x: Text, code: string): string | null {
   const spec = GROUNDS.find((g) => g?.id === code);
   if (!spec || spec.act === "contract") return null;
-  // The source of a 161-FZ ground is the crate's: art. 8 or art. 9.
+  // The source of a 161-FZ ground is the crate's: art. 8 or art. 9, or the
+  // Bank of Russia's directive under art. 9.
   const source =
-    spec.act === "payment_system" ? (paymentGrounds().find((g) => g.code === code)?.source ?? "payment_law_8") : spec.article === "7.7" ? "aml_law_7_7" : "aml_law_7";
+    spec.act === "payment_system" || spec.act === "bank_of_russia_act"
+      ? (paymentGrounds().find((g) => g.code === code)?.source ?? "payment_law_8")
+      : spec.article === "7.7"
+        ? "aml_law_7_7"
+        : "aml_law_7";
   const basis: Basis = { source, act: "", article: spec.article, part: spec.part, revision: "", url: "", reading: "text" };
   return basisName(basis, x.lang);
 }
@@ -47,7 +52,10 @@ export function replyLines(x: Text, draft: ReplyDraft): string[] {
   for (const measure of draft.measures) lines.push(r.measure[measure]);
   for (const ground of draft.grounds) {
     const citation = groundCitation(x, ground);
-    lines.push(citation === null ? r.contract : r.ground(citation));
+    // A ground that is itself what the bank did (a refusal to forward an
+    // application) has a sentence of its own, with its citation.
+    const own = r.groundStatement[ground];
+    lines.push(citation === null ? r.contract : own ? own(citation) : r.ground(citation));
   }
   for (const option of draft.clientOptions) lines.push(r.option[option]);
   for (const d of draft.deadlines) lines.push(r.deadline[d.kind](f.date(d.due)));

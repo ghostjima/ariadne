@@ -36,8 +36,17 @@ describe("the words of a case's work", () => {
     }
   });
 
-  it("the Russian table has no Latin words, but for the file type and the file name", () => {
+  it("the Russian table has no Latin words, but for the file type, the file name and the address of the Bank of Russia's page", () => {
     const allowed = new Set(["CSV", "proverka", "txt"]);
-    expect(texts(workflowStrings.ru).flatMap((s) => s.match(/[A-Za-z]+/g) ?? []).filter((w) => !allowed.has(w))).toEqual([]);
+    // The notice of a refusal to forward an application gives the client
+    // the page to apply through, as the Bank of Russia's letter No.
+    // IN-03-59/11 recommends.
+    const page = /cbr\.ru\/contactBR\/161-FZ/g;
+    expect(workflowStrings.ru.database.noticeLines("", "", "").join(" ")).toMatch(page);
+    expect(
+      texts(workflowStrings.ru)
+        .flatMap((s) => s.replace(page, "").match(/[A-Za-z]+/g) ?? [])
+        .filter((w) => !allowed.has(w)),
+    ).toEqual([]);
   });
 });

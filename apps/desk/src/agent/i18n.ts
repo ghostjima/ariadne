@@ -21,6 +21,7 @@ import type {
   MeasureCode,
   ErrorCode,
   FactQuestion,
+  GroundCode,
   LinkStatus,
   NextStep,
   ObjectKind,
@@ -304,6 +305,10 @@ export type Strings = {
      * Russia's database: which apply, each on its ground. */
     measure: Record<MeasureCode, string>;
     ground: (citation: string) => string;
+    /** A ground that is itself what the bank did, said with its citation:
+     * the refusal to forward an incomplete application to remove the
+     * client's data. */
+    groundStatement: Partial<Record<GroundCode, (citation: string) => string>>;
     contract: string;
     option: Record<ClientOption, string>;
     deadline: Record<ClientDeadlineKind, (day: string) => string>;
@@ -721,6 +726,9 @@ const en: Strings = {
       cap_atm_cash: "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there, under the Banking Law, art. 30, part 16.",
     },
     ground: (citation) => `The ground is ${citation}.`,
+    groundStatement: {
+      directive_6748_u_1_3: (citation) => `We did not forward your removal application to the Bank of Russia: mandatory data are missing (${citation}).`,
+    },
     contract: "Our position rests on the terms of your contract with the bank.",
     option: {
       confirm_order: "You can confirm the transfer order, and we will carry it out.",
@@ -1163,6 +1171,9 @@ const ruStrings: Strings = {
       cap_atm_cash: "На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.",
     },
     ground: (citation) => `Основание: ${citation}.`,
+    groundStatement: {
+      directive_6748_u_1_3: (citation) => `Мы не передали ваше заявление об исключении сведений в Банк России: в нём нет обязательных сведений (${citation}).`,
+    },
     contract: "Наша позиция основана на условиях вашего договора с банком.",
     option: {
       confirm_order: "Вы можете подтвердить распоряжение о переводе, и мы его исполним.",
