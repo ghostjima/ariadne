@@ -163,6 +163,13 @@ The workflows the desk is built around, and what exists of each today:
   inside the complaint), and the ground truth of each; and what a model
   is told about a complaint and its case. The desk takes the brief from
   it; nothing in the desk reads the texts yet.
+- [`packages/bench`](packages/bench/README.md) (`@ariadne/bench`): a
+  bench of whoever proposes for the assistant's run (the script, a naive
+  baseline, local models through ollama) on the inbox, scored with
+  deterministic checks only: equality with the register's codes, the
+  rules engine's rubric, a parser of legal citations in Russian and
+  English, and string tests for what an insertion asked for. Its method
+  and its tests are in; no full run is recorded yet.
 - [`crates/ariadne-rules`](crates/ariadne-rules/README.md): the legal
   rules engine in Rust compiled to WebAssembly; so far the Russian
   production calendar for 2025 to 2027, counting in working days, and

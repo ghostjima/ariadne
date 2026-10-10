@@ -59,6 +59,9 @@ export type RecordOptions = {
   decide?: DriveOptions["decide"];
   /* Stop */
   signal?: AbortSignal;
+  /* Called before the model is asked for a step's proposal and after it
+     answered */
+  onProposal?: DriveOptions["onProposal"];
   /* What the recorder knows of itself */
   stamp: Pick<TranscriptStamp, "commit" | "build" | "machine" | "recordedAt" | "contextTokens">;
   now?: () => number;
@@ -94,7 +97,10 @@ export async function recordRun(options: RecordOptions): Promise<Recorded> {
     decide: options.decide ?? goOn,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.now ? { now: options.now } : {}),
-    onProposal: (need) => stepOf.set(need.task, need.stepId),
+    onProposal: (need, phase) => {
+      stepOf.set(need.task, need.stepId);
+      options.onProposal?.(need, phase);
+    },
   });
   const transcript: Transcript = {
     format: TRANSCRIPT_FORMAT,
