@@ -110,6 +110,11 @@ export type Columns = {
   /* Restriction code: the suspension, or the transfer cap the bank chose
      instead, for the client's own data in the database */
   restriction: Uint8Array;
+  /* the day the bank received from the Bank of Russia the database
+     information that holds the client's data (161-FZ art. 27 part 7), or
+     -1 for a case that is not about them: the ATM cash cap runs from it
+     (Banking Law art. 30 part 16) */
+  recordOn: Int32Array;
 };
 
 export type ColumnStore = Columns & {
@@ -188,6 +193,7 @@ export function allocColumns(size: number): Columns {
     pathTerm: new Uint8Array(size),
     database: new Uint8Array(size),
     restriction: new Uint8Array(size),
+    recordOn: new Int32Array(size),
   };
 }
 
