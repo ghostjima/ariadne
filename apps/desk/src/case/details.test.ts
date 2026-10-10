@@ -127,6 +127,29 @@ describe("the paths beyond the first step, on the card", () => {
     }
   });
 
+  it("the ATM cash cap is flagged on the day the bank received the database information, and the transfer cap before a later suspension with the day it ended", () => {
+    // Banking Law art. 30 part 16: "если от Банка России получена
+    // информация". The register stores that day; the card dates the cap
+    // by it, not by the day the bank suspended the card.
+    const clientData = rows((i) => store.database[i] !== Database.None);
+    for (const row of clientData) {
+      const d = caseDetails(store, row);
+      const atm = d.flags.find((f) => f.kind === "measure" && f.measure.kind === "cap_atm_cash");
+      expect(atm?.day, `row ${row}`).toBe(store.recordOn[row]);
+      expect(d.warnings, `row ${row}`).not.toContain("database_information_date_assumed");
+    }
+    const later = clientData.filter((i) => store.recordOn[i]! < store.opOn[i]! && store.applicant[i] === 0);
+    expect(later.length).toBeGreaterThan(0);
+    for (const row of later) {
+      const cap = caseDetails(store, row).flags.find((f) => f.kind === "measure" && f.measure.kind === "cap_transfers");
+      expect(cap?.kind === "measure" && [cap.day, cap.measure.until], `row ${row}`).toEqual([store.recordOn[row], isoDay(store.opOn[row]!)]);
+    }
+    for (const lang of ["ru", "en"] as const) {
+      expect(strings[lang].case.measureEnded("x")).toContain("x");
+      expect(strings[lang].case.monthNote.length).toBeGreaterThan(20);
+    }
+  });
+
   it("an application to remove the client's data: the card suspended under art. 9, the same-day notice, the right to apply, and the bank's and the Bank of Russia's terms", () => {
     for (const row of withPath(Path.DatabaseRemoval)) {
       const d = caseDetails(store, row);
@@ -196,7 +219,7 @@ describe("the card's words for what the rules give", () => {
     "ombudsman_participation_unknown", "breach_date_unknown", "confirmation_late", "confirmation_date_missing",
     "refund_for_individuals_only", "high_risk_for_legal_entities_only", "documents_answer_beyond_text", "sro_copy_not_applicable",
     "ombudsman_term_may_have_passed", "storage_term_not_set", "commission_term_below_minimum", "commission_term_assumed",
-    "transfer_cap_for_individuals_only",
+    "transfer_cap_for_individuals_only", "database_information_date_assumed",
   ];
 
   it("names every term, measure, duty and note in Russian and English", () => {

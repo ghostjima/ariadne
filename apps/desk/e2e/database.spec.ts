@@ -25,7 +25,14 @@ const REASONS = "The payer's bank confirmed the transfer was the client's own.";
  * waiting for facts, with no application through the bank. */
 const DIRECT = "C-001183";
 
+/** A case about an individual's own data, without the Ministry's
+ * information: the bank received the record on 22 September 2026 and
+ * suspended the card on 23 September; in drafting. */
+const RECEIVED_EARLIER = "C-001063";
+
 const panel = (page: Page) => page.locator(".database-panel");
+/** The flags of one day on the card, by the day's heading. */
+const flagsOn = (page: Page, region: string, day: string) => page.getByRole("region", { name: region }).locator(".stoa-timeline__day").filter({ hasText: day });
 const lastEntry = (page: Page) => page.locator(".case-work .stoa-timeline__entry").last();
 /** The confirmation: Stoa's AlertDialog (a toast has the role alertdialog too). */
 const confirmation = (page: Page) => page.locator('section.stoa-dialog[role="alertdialog"]');
@@ -79,6 +86,32 @@ test("the supervisor applies to the Bank of Russia to remove the client's data: 
   const body = await readFile((await (await download).path())!, "utf8");
   expect(body).toContain(w.action.removal_applied);
   expect(body).toContain(REASONS);
+});
+
+test("the ATM cash cap is dated by the day the bank received the record, not by the day it suspended the card; the transfer cap in between has its end", async ({ page }) => {
+  await openAs(page, RECEIVED_EARLIER, "supervisor");
+  await expect(panel(page).locator("dl")).toContainText(`${b.received}Sep 22, 2026`);
+  // Received on 22 September: ATM cash capped from that day (Banking Law
+  // art. 30 part 16), and the transfers capped until the suspension (161-FZ
+  // art. 9 part 11.6, sentence 2).
+  const received = flagsOn(page, "Flags", "September 22, 2026");
+  await expect(received).toContainText("ATM cash capped at 100,000 roubles a month from the day the bank received the database information");
+  await expect(received).toContainText("Ground: Banking Law No. 395-1, art. 30, part 16");
+  await expect(received).toContainText("Ground: 161-FZ, art. 9, part 11.6, sentence 2");
+  await expect(received).toContainText("Ended on Sep 23, 2026");
+  await expect(received).toContainText("The law says \"a month\" and not how the month is counted.");
+  await expect(received).not.toContainText("card or online banking suspended");
+  const suspended = flagsOn(page, "Flags", "September 23, 2026");
+  await expect(suspended).toContainText("The client's card or online banking suspended");
+  await expect(suspended).not.toContainText("ATM cash");
+  await expect(page.getByRole("region", { name: "Duties and storage" })).not.toContainText("The day the bank received the database information is not known");
+  // In Russian, with the same days.
+  await openAs(page, RECEIVED_EARLIER, "supervisor", "lang=ru");
+  await expect(panel(page).locator("dl")).toContainText(workflowStrings.ru.database.received);
+  const ru = flagsOn(page, "Признаки и решения", "22 сентября 2026");
+  await expect(ru).toContainText("со дня, когда банк получил информацию из базы Банка России");
+  await expect(ru).toContainText("Основание: Закон о банках № 395-1, ст. 30, ч. 16");
+  await expect(ru).toContainText("Прекращено 23 сент. 2026");
 });
 
 test("the operator and the signatory see who files it; a block on a sign has no database panel", async ({ page }) => {

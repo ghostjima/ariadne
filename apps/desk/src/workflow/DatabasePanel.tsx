@@ -1,11 +1,12 @@
 // The client's own data in the Bank of Russia's database, on the case: what
-// the bank's copy of the record holds; the bank's own reasoned application
-// to remove the data (161-FZ art. 9 part 11.9), which the legal reviewer or
-// the supervisor writes the bank's reasons for and sends after a
-// confirmation, since it is not recalled, then shows when it went and when
-// the Bank of Russia decides, as ariadne-rules counts it; and the Bank of
-// Russia's request about an application the client filed with it
-// directly (Directive No. 6748-U items 2.2, 2.9), recorded the day it
+// the bank's copy of the record holds and the day the bank received it,
+// from which the ATM cash cap runs (Banking Law art. 30 part 16); the
+// bank's own reasoned application to remove the data (161-FZ art. 9 part
+// 11.9), which the legal reviewer or the supervisor writes the bank's
+// reasons for and sends after a confirmation, since it is not recalled,
+// then shows when it went and when the Bank of Russia decides, as
+// ariadne-rules counts it; and the Bank of Russia's request about an
+// application the client filed with it directly (Directive No. 6748-U items 2.2, 2.9), recorded the day it
 // arrives with the bank's 3 working days from ariadne-rules, and answered
 // with the bank's view and reasons. Shown only for a case about the
 // client's own data.
@@ -94,6 +95,7 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
   if (!isClientDataCase(store, row)) return null;
   const id = rowId(row);
   const day = (n: number) => fmt.date(n * DAY_MS);
+  const recordOn = store.recordOn[row] ?? -1;
   const applied = removalAppliedOn(store, row);
   const decision = applied >= 0 ? clock(caseFacts(store, row)).deadlines.find((d) => d.kind === "operator_application_decision") : undefined;
   const errorText = (e: RemovalError) =>
@@ -138,7 +140,12 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
   return (
     <div ref={box} className="database-panel">
       <Panel title={b.panel} level={3}>
-        <DescriptionList items={[{ id: "record", term: b.record, description: labels.database[store.database[row] ?? 0] ?? "" }]} />
+        <DescriptionList
+          items={[
+            { id: "record", term: b.record, description: labels.database[store.database[row] ?? 0] ?? "" },
+            ...(recordOn >= 0 ? [{ id: "received", term: b.received, description: day(recordOn) }] : []),
+          ]}
+        />
         <h4>{b.own}</h4>
         <p className="muted">{b.ownHelp}</p>
         {applied >= 0 ? (

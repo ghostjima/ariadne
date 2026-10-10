@@ -24,6 +24,7 @@ const NAMES: Record<string, Record<Lang, string>> = {
   payment_law_9: { ru: "161-ФЗ", en: "161-FZ" },
   letter_010_31_7975: { ru: "Письмо Банка России № 010-31/7975", en: "Bank of Russia letter No. 010-31/7975" },
   directive_6748_u: { ru: "Указание Банка России № 6748-У", en: "Bank of Russia Directive No. 6748-U" },
+  directive_7282_u: { ru: "Указание Банка России № 7282-У", en: "Bank of Russia Directive No. 7282-U" },
   cbr_exclusion_page: { ru: "Банк России, исключение из базы данных", en: "Bank of Russia, exclusion from its database" },
   aml_law_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_7: { ru: "115-ФЗ", en: "115-FZ" },
@@ -46,7 +47,7 @@ export function sourceName(source: string, lang: Lang): string {
 /** Acts whose articles are divided into items rather than parts, and the
  * Bank of Russia's directives and regulations, which have no articles and
  * are cited by item. */
-const ITEMS = new Set(["insurance_law_6_2", "securities_law_15_11", "aml_law_7", "aml_law_7_7", "aml_law_7_8", "directive_6748_u", "regulation_842_p"]);
+const ITEMS = new Set(["insurance_law_6_2", "securities_law_15_11", "aml_law_7", "aml_law_7_7", "aml_law_7_8", "directive_6748_u", "directive_7282_u", "regulation_842_p"]);
 
 const RU_WORDS: [RegExp, string][] = [
   [/\bsubitem\b/g, "подп."],
