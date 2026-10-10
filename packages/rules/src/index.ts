@@ -141,6 +141,10 @@ export type CaseFacts = {
   /* The client's own data in the Bank of Russia's database (161-FZ
      art. 9, Directive No. 6748-U) */
   database?: {
+    /* The day the bank received from the Bank of Russia the database
+       information that holds the client's data: the ATM cash cap runs
+       from it (Banking Law art. 30 part 16) */
+    informationReceivedOn?: Day;
     instrumentSuspendedOn?: Day;
     /* Not suspended: the client's transfers to individuals capped at
        100,000 roubles a month from this day (161-FZ art. 9 part 11.6,
@@ -195,8 +199,9 @@ export type Deadline = {
 export type Duty = { kind: string; when: string; basis: Basis };
 
 /* A measure taken (`suspend_order`, `refuse_operation`, ...), the day it
-   takes effect, and its ground */
-export type Measure = { kind: string; on: Day; basis: Basis };
+   takes effect, the first day it no longer applies (null while it does,
+   or when the facts give no end), and its ground */
+export type Measure = { kind: string; on: Day; until: Day | null; basis: Basis };
 
 export type Clock = {
   regime: "complaint" | "ombudsman_claim";
@@ -236,6 +241,7 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
   }
   if (f.database !== undefined) {
     const db = f.database;
+    if (db.informationReceivedOn !== undefined) i.informationReceivedOn = db.informationReceivedOn;
     if (db.instrumentSuspendedOn !== undefined) i.instrumentSuspendedOn = db.instrumentSuspendedOn;
     if (db.transfersCappedOn !== undefined) i.transfersCappedOn = db.transfersCappedOn;
     if (db.policeInformation !== undefined) i.policeInformation = db.policeInformation;
@@ -309,7 +315,7 @@ export function clock(facts: CaseFacts): Clock {
           return duty;
         }),
         measures: c.measures.map((m) => {
-          const measure: Measure = { kind: m.kind, on: m.on, basis: basis(m.basis) };
+          const measure: Measure = { kind: m.kind, on: m.on, until: m.until ?? null, basis: basis(m.basis) };
           m.free();
           return measure;
         }),

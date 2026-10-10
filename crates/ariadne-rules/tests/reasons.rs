@@ -231,6 +231,7 @@ fn a_suspended_card_rests_on_part_11_6_or_with_the_police_information_on_11_7() 
         assert_eq!(PaymentGround::of_instrument_suspension(police), ground);
         let mut case = Case::new(Stream::Antifraud, Date::parse("2026-05-12").unwrap());
         case.database = Some(DatabaseFacts {
+            information_received_on: None,
             instrument_suspended_on: Some(Date::parse("2026-05-09").unwrap()),
             transfers_capped_on: None,
             police_information: police,
