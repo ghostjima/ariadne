@@ -370,6 +370,48 @@ describe("the paths beyond the first action or decision", () => {
     expect(capped.some((i) => store.outcome[i] === Outcome.Refused && GROUNDS[store.ground[i]!]?.id === "payment_9_11_6")).toBe(true);
   });
 
+  it("the register stores the day the bank received the database information: the ATM cash cap runs from it, and it is the day the bank acted except for some suspensions chosen under part 11.6", () => {
+    // Banking Law art. 30 part 16: "если от Банка России получена
+    // информация ..., на период нахождения сведений в указанной базе
+    // данных". With the Ministry's information the suspension is a duty
+    // from the receipt (161-FZ art. 9 part 11.7), and the transfer cap of
+    // part 11.6 runs from it too; only a suspension the bank chose may
+    // come later.
+    const clientData = rows((i) => store.database[i] !== Database.None);
+    for (const i of rows((k) => store.database[k] === Database.None)) expect(store.recordOn[i], `row ${i}`).toBe(-1);
+    const later = clientData.filter((i) => store.recordOn[i]! < store.opOn[i]!);
+    expect(later.length).toBeGreaterThan(2);
+    expect(clientData.length - later.length).toBeGreaterThan(later.length);
+    for (const i of clientData) {
+      const gap = store.opOn[i]! - store.recordOn[i]!;
+      expect(gap, `row ${i}`).toBeGreaterThanOrEqual(0);
+      expect(gap, `row ${i}`).toBeLessThanOrEqual(3);
+      const chosen = store.database[i] === Database.ClientData && store.restriction[i] === Restriction.InstrumentSuspended;
+      if (!chosen) expect(gap, `row ${i}`).toBe(0);
+      const facts = caseFacts(store, i);
+      expect(facts.database?.informationReceivedOn, `row ${i}`).toBe(isoDay(store.recordOn[i]!));
+      const c = clock(facts);
+      const atm = c.measures.find((m) => m.kind === "cap_atm_cash")!;
+      expect([atm.on, atm.until, atm.basis.source, atm.basis.article, atm.basis.part, atm.basis.reading], `row ${i}`).toEqual([
+        isoDay(store.recordOn[i]!),
+        null,
+        "banking_law_30",
+        "30",
+        "16",
+        "text",
+      ]);
+      expect(c.warnings, `row ${i}`).not.toContain("database_information_date_assumed");
+      const cap = c.measures.find((m) => m.kind === "cap_transfers");
+      if (gap > 0 && store.applicant[i] === Applicant.Individual)
+        expect([cap?.on, cap?.until, cap?.basis.part], `row ${i}`).toEqual([isoDay(store.recordOn[i]!), isoDay(store.opOn[i]!), "11.6, sentence 2"]);
+      else if (store.restriction[i] !== Restriction.TransfersCapped) expect(cap, `row ${i}`).toBeUndefined();
+    }
+    /* A legal entity suspended later has no cap in between */
+    expect(later.some((i) => store.applicant[i] === Applicant.Individual)).toBe(true);
+    /* A linked case is the same client's: the same record, the same day */
+    for (const i of clientData.filter((k) => store.linked[k]! >= 0)) expect(store.recordOn[i], `row ${i}`).toBe(store.recordOn[store.linked[i]!]);
+  });
+
   it("the client's own data in the database is a case of its own, not a block on sign 1.1: no operation blocked, the card or online banking suspended under 161-FZ art. 9 part 11.6, or 11.7 with the Ministry of Internal Affairs' information, a refusal resting on it, and only there an application to remove the data", () => {
     const clientData = rows((i) => store.database[i] !== Database.None);
     const signOne = rows((i) => store.stream[i] === Stream.Antifraud && store.reason[i] === 1);
@@ -380,7 +422,11 @@ describe("the paths beyond the first action or decision", () => {
       const police = store.database[i] === Database.ClientDataWithPoliceInformation;
       expect(facts.blocked, `row ${i}`).toBeUndefined();
       expect(facts.database, `row ${i}`).toMatchObject({ instrumentSuspendedOn: isoDay(store.opOn[i]!), policeInformation: police });
-      expect(measures(i), `row ${i}`).toEqual(["suspend_instrument", "cap_atm_cash"]);
+      /* Where the bank suspended an individual's card under part 11.6
+         some days after it received the record, the transfer cap of the
+         second sentence ran in between */
+      const between = !police && store.applicant[i] === Applicant.Individual && store.recordOn[i]! < store.opOn[i]!;
+      expect(measures(i), `row ${i}`).toEqual(between ? ["suspend_instrument", "cap_transfers", "cap_atm_cash"] : ["suspend_instrument", "cap_atm_cash"]);
       expect(clock(facts).measures[0]?.basis, `row ${i}`).toMatchObject({ source: "payment_law_9", article: "9", part: police ? "11.7" : "11.6" });
       expect(kinds(i), `row ${i}`).toContain("instrument_suspension_notice");
       if (store.outcome[i] === Outcome.Refused && store.ground[i] !== Ground.None)

@@ -62,6 +62,10 @@ export const ACTIONS = [
      6748-U items 2.2, 2.9; database.ts) */
   "query_received",
   "query_answered",
+  /* Recorded without a stage change: a suspension the bank chose under
+     161-FZ art. 9 part 11.6 lifted while the client's data stay in the
+     Bank of Russia's database, with the bank's reasons (database.ts) */
+  "suspension_lifted",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 

@@ -28,7 +28,7 @@ export const POOLS: Record<Lang, { pools: TextPools; labels: Labels }> = {
  * language. */
 const TEXT_SORT = new Set(["client", "subject", "assignee", "signatory", "note"]);
 /** Columns an edit can change, so a sort by them goes stale. */
-const EDITED_SORT = new Set(["stage", "outcome", "ground", "extension", "assignee", "left", "due", "updatedAt", "note"]);
+const EDITED_SORT = new Set(["stage", "outcome", "ground", "extension", "assignee", "left", "due", "updatedAt", "note", "restriction"]);
 
 export type Query = { criteria: Criteria; sort: Sort; lang: Lang };
 

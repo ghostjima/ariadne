@@ -235,6 +235,10 @@ export type CaseStrings = {
   flagDeadline: Record<string, string>;
   /** The measures taken, by code */
   measure: Record<string, string>;
+  /** The day a measure stopped applying, under it */
+  measureEnded: (day: string) => string;
+  /** Under a monthly limit: what the law leaves open about the month */
+  monthNote: string;
   /** The provision a measure or a term rests on, under it */
   basisLine: (basis: string) => string;
   /** The duties tied to an event, the storage term and the rules' notes */
@@ -505,8 +509,11 @@ const en: Strings = {
       order_not_accepted: "The order counts as not accepted: it was confirmed after its window",
       suspend_instrument: "The client's card or online banking suspended: the client's own data are in the Bank of Russia's database",
       cap_transfers: "Not suspended: the client's transfers to individuals capped at 100,000 roubles a month while the client's own data are in the Bank of Russia's database",
-      cap_atm_cash: "ATM cash capped at 100,000 roubles a month while the client's data are in the Bank of Russia's database",
+      cap_atm_cash:
+        "ATM cash capped at 100,000 roubles a month from the day the bank received the database information, while the client's data are in the Bank of Russia's database",
     },
+    measureEnded: (day) => `Ended on ${day}`,
+    monthNote: "The law says \"a month\" and not how the month is counted. The desk states the limit and its first day; it counts no month.",
     basisLine: (basis) => `Ground: ${basis}`,
     duties: "Duties and storage",
     noDuties: "No duty tied to an event.",
@@ -545,6 +552,8 @@ const en: Strings = {
       commission_term_below_minimum: "The commission's request gives less than the 3 working days 115-FZ art. 7 item 13.6 guarantees: its own, earlier day is kept.",
       commission_term_assumed: "The commission's request gives no term: the least the law allows, 3 working days, is taken.",
       transfer_cap_for_individuals_only: "The transfer cap of 161-FZ art. 9 part 11.6 is an individual's: a company whose card is not suspended has none.",
+      database_information_date_assumed:
+        "The day the bank received the database information is not known. The ATM cash cap runs from that day (Banking Law art. 30 part 16); it is dated here by the day the bank acted on the data, the latest it can have started.",
     },
     timeline: "Channel timeline",
     event: {
@@ -842,8 +851,11 @@ const ruStrings: Strings = {
       order_not_accepted: "Распоряжение считается не принятым к исполнению: подтверждено после срока",
       suspend_instrument: "Карта или онлайн-банк клиента приостановлены: данные самого клиента есть в базе Банка России",
       cap_transfers: "Без приостановления: переводы клиента физическим лицам ограничены 100 000 ₽ в месяц, пока данные самого клиента в базе Банка России",
-      cap_atm_cash: "Выдача наличных в банкоматах ограничена 100 000 ₽ в месяц, пока данные клиента в базе Банка России",
+      cap_atm_cash:
+        "Выдача наличных в банкоматах ограничена 100 000 ₽ в месяц со дня, когда банк получил информацию из базы Банка России, пока данные клиента в этой базе",
     },
+    measureEnded: (day) => `Прекращено ${day}`,
+    monthNote: "Закон говорит «в месяц» и не говорит, как считать месяц. Здесь указаны предел и его первый день; месяц не отсчитывается.",
     basisLine: (basis) => `Основание: ${basis}`,
     duties: "Обязанности и хранение",
     noDuties: "Обязанностей, привязанных к событию, нет.",
@@ -882,6 +894,8 @@ const ruStrings: Strings = {
       commission_term_below_minimum: "Запрос комиссии даёт меньше трёх рабочих дней, гарантированных 115-ФЗ, ст. 7, п. 13.6: сохранён его собственный, более ранний срок.",
       commission_term_assumed: "В запросе комиссии нет срока: взят наименьший по закону, три рабочих дня.",
       transfer_cap_for_individuals_only: "Ограничение переводов по ч. 11.6 ст. 9 161-ФЗ касается физических лиц: у компании без приостановления его нет.",
+      database_information_date_assumed:
+        "День, когда банк получил информацию из базы данных, неизвестен. Ограничение выдачи наличных в банкоматах действует с этого дня (ч. 16 ст. 30 Закона о банках); здесь оно датировано днём, когда банк применил сведения, то есть самым поздним возможным.",
     },
     timeline: "Каналы и события",
     event: {

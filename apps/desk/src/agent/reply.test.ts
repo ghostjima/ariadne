@@ -5,7 +5,7 @@
 // the law gives the client, and keeps its sentences short. A finding here
 // would be the draft's fault, not the reviewer's to catch.
 import { describe, expect, it } from "vitest";
-import { Database, Path, Restriction, Stage, caseFacts, generateAll } from "@ariadne/grid";
+import { Applicant, Database, Path, Restriction, Stage, caseFacts, deskNow, generateAll, liftSuspension, selfActor } from "@ariadne/grid";
 import { generatePlan, type ReplyDraft } from "@ariadne/runner";
 import { POOLS } from "../data/query";
 import { caseBrief } from "../case/brief";
@@ -24,6 +24,51 @@ function draftOf(row: number): ReplyDraft {
   if (draft.kind !== "reply") throw new Error("not a reply");
   return draft;
 }
+
+describe("the drafted reply after a suspension is lifted", () => {
+  it("states the transfer cap and the ATM cash cap, not the suspension, keeps the right to apply for removal, and leaves the rubric nothing to flag", () => {
+    // A suspension the bank chose under 161-FZ art. 9 part 11.6, lifted
+    // today with the data still in the database: the cap of the part's
+    // second sentence applies from today (a conservative reading).
+    const lifted = generateAll(20261006, 1_200, 400);
+    const row = open.find((i) => lifted.database[i] === Database.ClientData && lifted.restriction[i] === Restriction.InstrumentSuspended && lifted.applicant[i] === Applicant.Individual)!;
+    const before = caseBrief(lifted, row);
+    expect(before.measures).toEqual(["suspend_instrument", "cap_atm_cash"]);
+    expect(
+      liftSuspension(lifted, row, { role: "reviewer", actor: selfActor("reviewer"), at: deskNow(Date.UTC(2026, 9, 6, 9)), reason: "Antifraud agreed to the cap instead." }),
+    ).toBeNull();
+    const brief = caseBrief(lifted, row);
+    expect(brief.measures).toEqual(["cap_transfers", "cap_atm_cash"]);
+    expect(brief.grounds).toEqual(["payment_9_11_6"]);
+    expect(brief.clientOptions).toContain("apply_for_removal");
+    const draft = generatePlan(7, brief).find((s) => s.type === "draft_reply")!.draft;
+    if (draft.kind !== "reply") throw new Error("not a reply");
+    for (const lang of ["ru", "en"] as const) {
+      const x = text(lang);
+      const lines = replyLines(x, draft);
+      expect(lines).toContain(x.t.reply.measure.cap_transfers);
+      expect(lines).toContain(x.t.reply.measure.cap_atm_cash);
+      expect(lines).not.toContain(x.t.reply.measure.suspend_instrument);
+      expect(lines).toContain(x.t.reply.option.apply_for_removal);
+      expect(checkReply(draft, replyText(x, draft), caseFacts(lifted, row)), lang).toEqual([]);
+    }
+    // The sentence does not say the card was never suspended.
+    expect(text("en").t.reply.measure.cap_transfers).toMatch(/^Your card and online banking are not suspended\./);
+    expect(text("ru").t.reply.measure.cap_transfers).toMatch(/^Ваша карта и онлайн-банк не приостановлены\./);
+    // The draft written before the lift, stating the suspension, is now
+    // flagged.
+    const stale = generatePlan(7, before).find((s) => s.type === "draft_reply")!.draft;
+    if (stale.kind !== "reply") throw new Error("not a reply");
+    expect(
+      checkReply(stale, replyText(text("en"), stale), caseFacts(lifted, row))
+        .filter((f) => f.code.startsWith("measure_"))
+        .map((f) => [f.code, f.subject]),
+    ).toEqual([
+      ["measure_not_taken", "suspend_instrument"],
+      ["measure_missing", "cap_transfers"],
+    ]);
+  });
+});
 
 describe("the drafted reply", () => {
   it("has nothing for the rubric to flag, in either language, for every open case", () => {
@@ -98,7 +143,7 @@ describe("the drafted reply", () => {
       if (cap) expect(lines.en, `row ${row}`).toContain("The ground is 161-FZ, art. 9, part 11.6.");
     }
     expect(en.cap_transfers).toBe(
-      "We did not suspend your card or online banking. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
+      "Your card and online banking are not suspended. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
     );
     expect(ru.cap_atm_cash).toBe("На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.");
     // A letter that says the card is suspended where the transfers are

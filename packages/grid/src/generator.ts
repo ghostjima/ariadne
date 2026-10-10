@@ -127,6 +127,20 @@ const POLICE_INFORMATION_SHARE = 0.35;
    the choice was drawn; the share is this generator's own. */
 const TRANSFERS_CAPPED_SHARE = 0.4;
 const RESTRICTION_SALT = 0x11e6c4;
+/* The day the bank received the database information with the client's
+   data (`recordOn`). The ATM cash cap of the Banking Law art. 30 part 16
+   runs from it, and so does the transfer cap of an individual not
+   suspended (161-FZ art. 9 part 11.6), so a case with the cap received
+   the information on the day the cap began; with the Ministry of Internal
+   Affairs' information the suspension is a duty from the receipt (part
+   11.7), the same day. A suspension the bank chose under part 11.6 may
+   follow the receipt by a day to RECORD_GAP_DAYS: for this share of them
+   it came the same day. Drawn from a stream of its own (RECORD_SALT), so
+   every other column is what it was before the day was stored; the share
+   and the gap are this generator's own. */
+const RECORD_SAME_DAY_SHARE = 0.6;
+const RECORD_GAP_DAYS = 3;
+const RECORD_SALT = 0x7ec02d;
 /* 115-FZ categories in ariadne-rules' order */
 const AML_WEIGHTS = [0.42, 0.08, 0.16, 0.12, 0.04, 0.04, 0.14];
 const AML_OPERATION = [
@@ -290,6 +304,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     let template = 0;
     let database: number = Database.None;
     let restriction: number = Restriction.None;
+    let recordOn = -1;
 
     if (stream === Stream.Antifraud) {
       applicant = rng() < 0.97 ? Applicant.Individual : Applicant.LegalEntity;
@@ -318,6 +333,11 @@ export function generateChunk(seed: number, start: number, count: number, total:
           database === Database.ClientData && applicant === Applicant.Individual && choice() < TRANSFERS_CAPPED_SHARE
             ? Restriction.TransfersCapped
             : Restriction.InstrumentSuspended;
+        /* The bank acted on the record the day it came, or, choosing to
+           suspend under part 11.6, a few days later */
+        const got = makeRng(mixSeed(seed ^ RECORD_SALT, r));
+        const chosen = database === Database.ClientData && restriction === Restriction.InstrumentSuspended;
+        recordOn = chosen && got() >= RECORD_SAME_DAY_SHARE ? opOn - 1 - Math.floor(got() * RECORD_GAP_DAYS) : opOn;
         reason = 0;
         operation = Operation.None;
         opAmount = 0;
@@ -370,6 +390,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
       template = c.template[j] ?? 0;
       database = c.database[j] ?? Database.None;
       restriction = c.restriction[j] ?? Restriction.None;
+      recordOn = c.recordOn[j] ?? -1;
     }
 
     /* The organisation of the group, from a draw of its own so the rest of
@@ -569,6 +590,7 @@ export function generateChunk(seed: number, start: number, count: number, total:
     c.pathTerm[i] = pathTerm;
     c.database[i] = database;
     c.restriction[i] = restriction;
+    c.recordOn[i] = recordOn;
   }
   return c;
 }

@@ -144,7 +144,9 @@ fn next_steps_and_the_clients_options() {
 fn database_case(police_information: bool) -> Case {
     let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
     case.database = Some(DatabaseFacts {
+        information_received_on: None,
         instrument_suspended_on: Some(d("2026-05-09")),
+        suspension_lifted_on: None,
         transfers_capped_on: None,
         police_information,
         data_removed_on: None,
@@ -281,6 +283,94 @@ fn a_reply_about_the_clients_data_in_the_database_says_which_restriction_applies
     assert_eq!(rubric(&good, &case, &c), []);
     good.measures = vec![MeasureKind::SuspendOrder];
     assert_eq!(rubric(&good, &case, &c), []);
+}
+
+#[test]
+fn a_reply_states_the_restrictions_in_force_on_its_day_not_one_that_has_ended() {
+    // The bank received the database information on Thursday 7 May 2026
+    // and suspended the card under part 11.6 on Saturday 9 May. Until the
+    // suspension the client's transfers were capped (part 11.6, sentence
+    // 2); ATM cash is capped from the receipt (Banking Law art. 30 part
+    // 16). A reply of 12 May states the suspension and the ATM cash cap:
+    // the transfer cap ended with the suspension, and stating it is a
+    // restriction that does not apply.
+    let mut case = database_case(false);
+    if let Some(f) = case.database.as_mut() {
+        f.information_received_on = Some(d("2026-05-07"));
+    }
+    let c = clock(&case).unwrap();
+    let mut reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![ground(Act::PaymentSystem, "9", "11.6")],
+        reasons: vec![],
+        next_steps: vec!["Ответьте на это письмо, если остались вопросы.".into()],
+        client_options: vec![ClientOption::ApplyForRemoval],
+        stated_deadlines: vec![],
+        measures: vec![MeasureKind::SuspendInstrument, MeasureKind::CapAtmCash],
+        text: "Карта приостановлена. Сведения о вас есть в базе данных Банка России.".into(),
+    };
+    assert_eq!(rubric(&reply, &case, &c), []);
+    reply.measures.push(MeasureKind::CapTransfers);
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [("measure_not_taken", Some("cap_transfers"))]
+    );
+    // A reply written on 8 May, before the suspension, would state the
+    // cap and not the suspension.
+    reply.replied_on = d("2026-05-08");
+    reply.measures = vec![MeasureKind::SuspendInstrument, MeasureKind::CapAtmCash];
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [
+            ("measure_not_taken", Some("suspend_instrument")),
+            ("measure_missing", Some("cap_transfers")),
+        ]
+    );
+}
+
+#[test]
+fn after_a_lifted_suspension_a_reply_states_the_cap_and_keeps_the_right_to_apply_for_removal() {
+    // The card was suspended under part 11.6 on Saturday 9 May 2026 and the
+    // bank lifted the suspension on Monday 11 May, the data still in the
+    // database. A reply of 12 May states the transfer cap and the ATM cash
+    // cap, not the suspension, and still tells of the right to apply for
+    // the removal of the data (the Bank of Russia's letter No.
+    // IN-03-59/11, for restrictions under part 11.6).
+    let mut case = database_case(false);
+    if let Some(f) = case.database.as_mut() {
+        f.suspension_lifted_on = Some(d("2026-05-11"));
+    }
+    let c = clock(&case).unwrap();
+    let mut reply = Reply {
+        replied_on: d("2026-05-12"),
+        grounds: vec![ground(Act::PaymentSystem, "9", "11.6")],
+        reasons: vec![],
+        next_steps: vec!["Ответьте на это письмо, если остались вопросы.".into()],
+        client_options: vec![],
+        stated_deadlines: vec![],
+        measures: vec![MeasureKind::SuspendInstrument, MeasureKind::CapAtmCash],
+        text: "Карта снова доступна. Переводы физическим лицам ограничены.".into(),
+    };
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [
+            ("client_option_missing", Some("apply_for_removal")),
+            ("measure_not_taken", Some("suspend_instrument")),
+            ("measure_missing", Some("cap_transfers")),
+        ]
+    );
+    reply.measures = vec![MeasureKind::CapTransfers, MeasureKind::CapAtmCash];
+    reply.client_options = vec![ClientOption::ApplyForRemoval];
+    assert_eq!(rubric(&reply, &case, &c), []);
+    // The day before the lift the suspension was what applied.
+    reply.replied_on = d("2026-05-10");
+    assert_eq!(
+        codes(&rubric(&reply, &case, &c)),
+        [
+            ("measure_missing", Some("suspend_instrument")),
+            ("measure_not_taken", Some("cap_transfers")),
+        ]
+    );
 }
 
 #[test]
