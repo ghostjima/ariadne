@@ -51,9 +51,10 @@ const ACTS: Record<string, Record<Lang, string>> = {
   aml_law_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_7: { ru: "115-ФЗ", en: "115-FZ" },
   aml_law_7_8: { ru: "115-ФЗ", en: "115-FZ" },
+  directive_6748_u: { ru: "Указание Банка России № 6748-У", en: "Bank of Russia Directive No. 6748-U" },
 };
 /* Acts whose articles are divided into items rather than parts */
-const ITEMS = new Set(["aml_law_7", "aml_law_7_7", "aml_law_7_8"]);
+const ITEMS = new Set(["aml_law_7", "aml_law_7_7", "aml_law_7_8", "directive_6748_u"]);
 
 const RU_WORDS: [RegExp, string][] = [
   [/\bsubitem\b/g, "подп."],

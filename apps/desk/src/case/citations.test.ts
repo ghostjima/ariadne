@@ -19,7 +19,7 @@ describe("the inbox cites a provision as the desk does", () => {
     for (const lang of LANGS) {
       for (const spec of GROUNDS) {
         if (!spec || spec.act === "contract") continue;
-        const source = (spec.act === "payment_system" ? paymentGrounds() : amlReasons()).find((g) => g.code === spec.id)!.source;
+        const source = (spec.act === "anti_money_laundering" ? amlReasons() : paymentGrounds()).find((g) => g.code === spec.id)!.source;
         expect(citationText(source, spec.article, spec.part, lang), `${spec.id} ${lang}`).toBe(groundCitation({ lang } as Text, spec.id));
       }
     }
