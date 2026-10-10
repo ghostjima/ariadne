@@ -100,3 +100,20 @@ export async function dialog(page: Page) {
   await expect(alert).toBeVisible({ timeout: 20_000 });
   return alert;
 }
+
+/**
+ * The confirmation open now, as a locator of that dialog alone, by its own
+ * label. `confirmation(page)` is any open confirmation: in a run where
+ * every step asks, the next step's confirmation opens a few tens of
+ * milliseconds after this one closes (8 ms after the agent's request on
+ * the same step), so "no confirmation is visible" may never be seen by a
+ * test that looks a moment late, and a check on it passes or fails by when
+ * it looks. Whether this confirmation has closed is asked of this locator,
+ * which the next one does not match: each dialog is mounted anew, with a
+ * label id of its own.
+ */
+export async function openConfirmation(page: Page) {
+  const label = await (await dialog(page)).getAttribute("aria-labelledby");
+  expect(label, "the confirmation's label").toBeTruthy();
+  return page.locator(`section.stoa-dialog[aria-labelledby="${label}"]`);
+}

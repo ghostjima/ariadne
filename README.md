@@ -152,6 +152,13 @@ The workflows the desk is built around, and what exists of each today:
   the agent's run engine for a complaint: seeded plan over a case brief
   of codes, consent rule, confirmations, undo windows, replay and the
   versioned event stream.
+- [`packages/inbox`](packages/inbox/README.md) (`@ariadne/inbox`): what
+  an assistant reads about a complaint: the case brief of codes built from
+  the register and the rules engine, complaint texts written from
+  templates for register cases in Russian and English, in three sets
+  (clean, hard, and adversarial, with text addressed to an assistant
+  inside the complaint), and the ground truth of each. The desk takes the
+  brief from it; nothing in the desk reads the texts yet.
 - [`crates/ariadne-rules`](crates/ariadne-rules/README.md): the legal
   rules engine in Rust compiled to WebAssembly; so far the Russian
   production calendar for 2025 to 2027, counting in working days, and

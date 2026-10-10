@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ariadne/grid": "workspace:*",
+    "@ariadne/inbox": "workspace:*",
     "@ariadne/rules": "workspace:*",
     "@ariadne/runner": "workspace:*",
     "@fontsource/ibm-plex-mono": "5.3.0",
