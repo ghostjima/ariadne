@@ -10,15 +10,19 @@
   itself: nothing a proposer answers sets them.
 
   ScriptedProposer (scripted.ts) is the seeded script the engine has always
-  run. Another proposer may take time and may fail, so the interface is
-  asynchronous and every call carries an AbortSignal; one whose answers are
-  known at once also answers synchronously, which is what lets the engine
-  plan and replay a run without waiting.
+  run. Another proposer may take time and may fail (ModelProposer,
+  model/proposer.ts, asks a model), so the interface is asynchronous, every
+  call carries an AbortSignal, and an answer is a proposal or a coded
+  failure. A proposer whose answers are known at once also answers
+  synchronously, which is what lets the engine plan and replay a scripted
+  run without waiting; a run whose proposals come later is replayed from
+  the log of them (proposal.ts, runner.ts).
 */
 
 import type {
   ActionType,
   ClientOption,
+  ProposalError,
   FactQuestion,
   GroundCode,
   MeasureCode,
@@ -71,23 +75,33 @@ export type ProposalFor<T extends ProposalTask> = Extract<Proposal, { task: T }>
 /* One proposal per task: everything the engine needs to build a plan */
 export type ProposalSet = { [T in ProposalTask]: ProposalFor<T> };
 
-/* What a proposer is asked: the task, for which case, under which seed.
-   Codes, numbers and dates only, as the brief is. */
+/* What a proposer is asked: the task, for which case, under which seed,
+   and which attempt this is (1, then one more for each retry a person
+   asks for after a failure). Codes, numbers and dates only, as the brief
+   is. */
 export type ProposalRequest<T extends ProposalTask = ProposalTask> = {
   task: T;
   seed: number;
   brief: CaseBrief;
+  attempt?: number;
 };
+
+/*
+  What a proposer answers: a proposal in codes with the proposer's own flag
+  that a person should look first, or a failure as a code. `text` is the
+  letter of a reply, for a proposer that writes one: untrusted text for the
+  application to show, which the engine never takes.
+*/
+export type ProposalOutcome<T extends ProposalTask = ProposalTask> =
+  | { ok: true; proposal: ProposalFor<T>; askFirst: boolean; text: string | null }
+  | { ok: false; error: ProposalError };
 
 export interface Proposer {
   /* Rejects when the signal aborts: an aborted call proposes nothing */
-  propose<T extends ProposalTask>(
-    request: ProposalRequest<T>,
-    signal: AbortSignal,
-  ): Promise<ProposalFor<T>>;
+  propose<T extends ProposalTask>(request: ProposalRequest<T>, signal: AbortSignal): Promise<ProposalOutcome<T>>;
 }
 
-/* A proposer whose answers are known at once */
+/* A proposer whose answers are known at once, and never fail */
 export interface ImmediateProposer extends Proposer {
   proposeNow<T extends ProposalTask>(request: ProposalRequest<T>): ProposalFor<T>;
 }

@@ -30,7 +30,6 @@ import type {
   DeviationProposalCode,
   DeviationReason,
   DraftStatus,
-  ErrorCode,
   FactQuestion,
   GroundCode,
   LinkStatus,
@@ -38,17 +37,17 @@ import type {
   NextStep,
   OperationCode,
   OutcomeCode,
+  ProposalError,
   ReasonCode,
   Regime,
   RequestStatus,
   Risk,
-  Service,
   StreamCode,
   TaskCode,
   Team,
 } from "./codes.js";
-import { proposeAll, type ImmediateProposer, type ProposalSet, type ReplyProposal } from "./proposer.js";
-import { SCRIPTED } from "./scripted.js";
+import { proposeAll, type ImmediateProposer, type Proposal, type ProposalSet, type ReplyProposal } from "./proposer.js";
+import { SCRIPTED, teamOf } from "./scripted.js";
 
 export const DEFAULT_SEED = 7;
 export const DEFAULT_AUTONOMY: Autonomy = "high_only";
@@ -235,7 +234,12 @@ export type UndoEffect =
   | { code: "clear_check"; caseNo: number }
   | { code: "return_to_drafting"; caseNo: number; stage: CaseStage };
 
-export type StepError = { code: ErrorCode; service: Service; timeoutSec: number };
+/* Why a step failed: the fact request service timed out, or, in a run
+   whose steps a model proposes, the proposal did not validate after its
+   one repair or the model could not be reached */
+export type StepError =
+  | { code: "service_timeout"; service: "fact_requests"; timeoutSec: number }
+  | { code: ProposalError; service: "model" };
 
 /* A proposal to leave the plan, which the user allows or denies */
 export type Deviation = {
@@ -504,6 +508,11 @@ function stepOf(
   }
 }
 
+/* Odd scenario numbers make the fact request service time out once */
+function isOdd(seed: number): boolean {
+  return Math.abs(Math.trunc(seed)) % 2 === 1;
+}
+
 /* The scenario of a seed and a case. What its steps say is proposed
    (proposer.ts); by default the scripted proposer answers. */
 export function generateScenario(
@@ -513,8 +522,7 @@ export function generateScenario(
 ): Scenario {
   const proposals = proposeAll(proposer, seed, brief);
   const rng = createRng(mix(seed, brief.caseNo));
-  /* Odd scenario numbers make the fact request service time out once */
-  const odd = Math.abs(Math.trunc(seed)) % 2 === 1;
+  const odd = isOdd(seed);
   const steps = BLUEPRINT.map((type, i): ScenarioStep => {
     const [lo, hi] = CONFIDENCE_RANGE[type];
     const confidence = round2(lo + rng() * (hi - lo));
@@ -528,6 +536,44 @@ export function generateScenario(
     errorStepId: steps.find((s) => s.error)?.id ?? null,
     deviationStepId: steps.find((s) => s.deviation)?.id ?? null,
   };
+}
+
+/*
+  A planned step with the content of a proposal that came after the plan
+  was made (a run whose steps a model proposes): the same step, pace and
+  scheduled failure, saying what was proposed. The proposal is for the
+  step's own task. The classification a run confirms stays the register's,
+  so a classify proposal leaves its step as it was: what it changes is
+  whether the engine asks (contests).
+*/
+export function stepWith(planned: ScenarioStep, seed: number, brief: CaseBrief, proposal: Proposal): ScenarioStep {
+  if (proposal.task !== planned.type) throw new RangeError(proposal.task);
+  const proposals = { ...proposeAll(SCRIPTED, seed, brief), [proposal.task]: proposal } as ProposalSet;
+  const base = { id: planned.id, confidence: planned.confidence, durationMs: planned.durationMs };
+  return stepOf(planned.type, brief, base, isOdd(seed), proposals);
+}
+
+/*
+  Whether a proposal departs from what the register holds: another stream
+  or other grounds than the brief's, or a fact request to a team that does
+  not hold the facts of the brief's stream. Such a step always waits for a
+  person, at every autonomy level: a proposer cannot move a case to another
+  stream, or a request to another team, on its own. A reply is high risk
+  and waits anyway.
+*/
+export function contests(proposal: Proposal, brief: CaseBrief): boolean {
+  switch (proposal.task) {
+    case "classify":
+      return (
+        proposal.stream !== brief.stream ||
+        proposal.grounds.length !== brief.grounds.length ||
+        proposal.grounds.some((g) => !brief.grounds.includes(g))
+      );
+    case "request_facts":
+      return proposal.team !== teamOf(brief.stream);
+    case "draft_reply":
+      return false;
+  }
 }
 
 export function generatePlan(

@@ -150,7 +150,8 @@ export function undoText(x: Text, undo: UndoEffect): string {
 }
 
 export function errorText({ t, f }: Text, error: StepError): string {
-  return t.errorText[error.code](t.serviceName[error.service], f.int(error.timeoutSec));
+  // Only a service that timed out has a number of seconds to state.
+  return t.errorText[error.code](t.serviceName[error.service], f.int("timeoutSec" in error ? error.timeoutSec : 0));
 }
 
 export type LogText = { level: string; text: string };

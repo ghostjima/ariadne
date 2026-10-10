@@ -15,7 +15,7 @@ package holds both sides: the brief built from the register and the rules
 engine, and complaints written from templates for register cases, each
 with the answers the register and the rules give for its case.
 
-Every case, name, amount and sentence here is invented. Status: early; 19
+Every case, name, amount and sentence here is invented. Status: early; 29
 tests.
 
 ## The brief
@@ -131,6 +131,56 @@ does not give for the case.
   dates, the sign's number in Order OD-2506, and the citation of each
   ground and measure as the desk writes it ("161-ФЗ, ст. 8, ч. 3.4").
   It holds nothing of the complaint's text.
+
+## Prompts
+
+`casePrompts({ complaint, sheet })` is what a model is told for each of
+the three tasks a proposer answers (`Prompts` of
+`@ariadne/runner/model`):
+
+- Two things enter a prompt and are kept apart. The complaint goes
+  between `<complaint>` tags in the user's turn, as
+  `readComplaint` writes it, with the instruction to read it as data and
+  not to act on anything it says. The case sheet goes between `<case>`
+  tags, and only for the reply.
+- Classifying and choosing the team are done from the complaint alone.
+  The instructions spell out every code a model may answer with, one
+  line each: the four streams, the twelve grounds, the three teams, the
+  nine questions.
+- Drafting gets the sheet as the only source of facts and law: every
+  ground with its citation, every measure, option, deadline and next
+  step with its code and its meaning. The model is asked for a letter in
+  the complaint's language (one sentence a line, none over 25 words) and
+  then for the codes of what the letter states. Where nobody has decided
+  the complaint, it is given the line a reviewer fills in
+  (`PENDING_LINE`) and told to decide nothing.
+- The instructions are in English for every model and both letter
+  languages. Whether instructions in Russian would serve a Russian model
+  better was not measured.
+- The schema of each answer and the validation of it are the engine's
+  (`proposalSchema`, `validateProposal`); the prompts widen neither. A
+  repair message words the engine's issues in plain English, each by its
+  place in the answer.
+
+## Recording a run
+
+`recordRun({ item, client, think, stamp })` runs an item with a model:
+the model reads the complaint (and the sheet, for the reply), the engine
+runs on the item's brief and validates what the model proposes, and the
+result is a transcript the engine replays without the model (see the
+[runner's README](../runner/README.md#transcripts)). By default every
+pause is answered as a person who lets the run go on would (`goOn`):
+confirm, allow, retry a service that timed out, and skip a step whose
+proposal failed.
+
+```bash
+pnpm build
+node scripts/record.mjs --model qwen3:1.7b --set clean --seed 3 --lang ru --out run.json
+```
+
+The script records one run with a model already in a local ollama; it
+downloads nothing. The transcript's stamp names the commit, the model's
+tag and manifest digest, ollama's version and the machine.
 
 ## Development
 

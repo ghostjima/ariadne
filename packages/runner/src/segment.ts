@@ -3,7 +3,8 @@
 
   A segment is what one request answers: the run replayed from the plan and the
   decision log, the events after "after", and an end at the first decision the
-  log does not contain (a waiting notice) or at the end of the plan. Both the
+  log does not contain, or at the first proposal the proposal log does not
+  hold (a waiting notice either way), or at the end of the plan. Both the
   Service Worker transport (sse.ts) and the in-process transport
   (in-process.ts) are thin encoders over this generator, so they cannot drift
   apart.
@@ -19,7 +20,7 @@ import {
   type StreamOptions,
   type WaitingNotice,
 } from "./protocol.js";
-import { DROP_AFTER_FRAMES, resolvePlan, runPlan } from "./runner.js";
+import { DROP_AFTER_FRAMES, resolvePlan, runPlan, type ModelRun } from "./runner.js";
 import type { PlanStep } from "./scenario.js";
 
 /* A parsed and resolved request for one segment */
@@ -27,6 +28,8 @@ export type SegmentRequest = {
   steps: PlanStep[];
   autonomy: Autonomy;
   decisions: Decision[];
+  /* The proposal log of a run a model proposes; null for the script */
+  model: ModelRun | null;
   options: StreamOptions;
   /* Id of the last event the application already has; 0 for none */
   after: number;
@@ -67,6 +70,7 @@ export function parseSegmentRequest(
       steps: plan.steps,
       autonomy: plan.autonomy,
       decisions,
+      model: plan.model,
       options: parseStreamOptions(params),
       after: readAfter(lastEventId, params),
     },
@@ -103,6 +107,7 @@ export function* segment(
     steps: request.steps,
     autonomy: request.autonomy,
     decisions: request.decisions,
+    model: request.model,
     undoWindowSec: request.options.undoWindowSec,
     timeScale: options.timeScale ?? timeScaleFor(request.options),
     ...(options.now ? { now: options.now } : {}),
@@ -117,7 +122,8 @@ export function* segment(
       continue;
     }
     if (item.kind === "pause") {
-      yield { kind: "waiting", notice: { stepId: item.stepId, accepts: item.accepts } };
+      const notice: WaitingNotice = { stepId: item.stepId, accepts: item.accepts };
+      yield { kind: "waiting", notice: item.proposal ? { ...notice, proposal: item.proposal } : notice };
       return;
     }
     nextId = item.id + 1;

@@ -17,6 +17,7 @@ import {
   encodePlanPayload,
   generatePlan,
   generateScenario,
+  PROTOCOL_VERSION,
   resolvePlan,
   runPlan,
   type CaseBrief,
@@ -87,7 +88,7 @@ export function streamLines(seed: number, brief: CaseBrief, engine: Engine = ENG
   for (const autonomy of AUTONOMIES) {
     for (const askFirst of ASK_FIRST) {
       const payload: PlanPayload = {
-        v: 5,
+        v: 6,
         seed,
         autonomy,
         brief,
@@ -110,7 +111,7 @@ export function streamLines(seed: number, brief: CaseBrief, engine: Engine = ENG
   }
   /* A stop placed after every event of the run that asks for the least */
   const payload: PlanPayload = {
-    v: 5,
+    v: 6,
     seed,
     autonomy: "ask_none",
     brief,
@@ -122,9 +123,17 @@ export function streamLines(seed: number, brief: CaseBrief, engine: Engine = ENG
   return lines;
 }
 
+/* The fixtures were taken under protocol version 5. A later version that
+   leaves the scripted run as it was changes one number in it: the
+   `protocol` of plan.started. Written back as 5, the bytes must be the
+   fixtures'. */
+export function asVersion5(text: string): string {
+  return text.replaceAll(`,"protocol":${PROTOCOL_VERSION}}`, `,"protocol":5}`);
+}
+
 export function digestOf(lines: readonly string[]): string {
   const hash = createHash("sha256");
-  for (const line of lines) hash.update(line).update("\n");
+  for (const line of lines) hash.update(asVersion5(line)).update("\n");
   return hash.digest("hex");
 }
 
@@ -142,7 +151,7 @@ export function streamDigests(engine: Engine = ENGINE): Record<string, string> {
    request with the whole decision log */
 export async function completeRunStream(seed: number, brief: CaseBrief, engine: Engine = ENGINE): Promise<string> {
   const payload: PlanPayload = {
-    v: 5,
+    v: 6,
     seed,
     autonomy: "high_only",
     brief,

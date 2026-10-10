@@ -203,7 +203,7 @@ describe("a session", () => {
 
 describe("stream errors", () => {
   const fetcher = (async (input: RequestInfo | URL) => handleAgentRequest(new Request(new URL(String(input), "http://app.test")))!) as typeof fetch;
-  const base = { v: 5, seed: 7, autonomy: "high_only", brief: SAMPLE_BRIEF } as const;
+  const base = { v: 6, seed: 7, autonomy: "high_only", brief: SAMPLE_BRIEF } as const;
   const plan = encodePlanPayload({ ...base, steps: [{ id: "s1", askFirst: false }] });
 
   it("reads the engine's code from a refused request", async () => {

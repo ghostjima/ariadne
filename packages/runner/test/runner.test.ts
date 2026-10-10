@@ -20,12 +20,12 @@ import { decide, find, payloadFor, run } from "./helpers.js";
 
 describe("plan resolution", () => {
   it("rejects unknown steps and empty plans", () => {
-    expect(resolvePlan({ v: 5, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
+    expect(resolvePlan({ v: 6, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
       ok: false,
       error: "empty_plan",
     });
     expect(
-      resolvePlan({ v: 5, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
+      resolvePlan({ v: 6, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
     ).toEqual({ ok: false, error: "unknown_step", stepId: "zz" });
     expect(resolvePlan(payloadFor(["s1"])).ok).toBe(true);
   });
@@ -45,7 +45,7 @@ describe("runner: one segment per decision", () => {
     ]);
     expect(segment.events.map((e) => e.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(segment.pause).toBeNull();
-    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 5 });
+    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 6 });
     const phases = segment.events.flatMap((e) =>
       e.event.type === "step.progress" ? [[e.event.percent, e.event.phase]] : [],
     );
@@ -264,10 +264,10 @@ describe("protocol helpers", () => {
      stream tests were removed with it: the scenario no longer exists, so
      there is nothing to keep them for. What remains of version 1 is that it
      is refused, with a code the application can show. */
-  it("refuses a version 1 payload, and any version but 5", () => {
+  it("refuses a version 1 payload, and any version but 6", () => {
     const v1 = encodePlanPayload({ seed: 7, autonomy: "high_only", steps: [{ id: "s1", askFirst: false }] } as never);
     expect(decodePlanPayload(v1)).toEqual({ ok: false, error: "unsupported_version" });
-    for (const v of [2, 3, 4, 6]) {
+    for (const v of [2, 3, 4, 5, 7]) {
       const other = encodePlanPayload({ ...payloadFor(["s1"]), v } as never);
       expect(decodePlanPayload(other), `v ${v}`).toEqual({ ok: false, error: "unsupported_version" });
     }
@@ -306,9 +306,8 @@ describe("protocol helpers", () => {
      version 4 would drop the field it does not know and draft a reply
      that does not say which applies; the version tells the two apart
      first. The field is required, and only its codes are taken. */
-  it("takes the restrictions for the client's data in version 5 only, and calls a version 4 payload another version", () => {
+  it("takes the restrictions for the client's data from version 5 on, and calls a version 4 payload another version", () => {
     const capped = payloadFor(["s1"], "high_only", [], 7, CAPPED);
-    expect(PROTOCOL_VERSION).toBe(5);
     expect(decodePlanPayload(encodePlanPayload(capped))).toEqual({ ok: true, payload: capped });
     expect(decodePlanPayload(encodePlanPayload({ ...capped, v: 4 } as never))).toEqual({ ok: false, error: "unsupported_version" });
     for (const measures of [["cap_everything"], ["cap_transfers", "cap_transfers"], undefined, "cap_transfers"]) {
@@ -318,7 +317,7 @@ describe("protocol helpers", () => {
     expect(replyDraft(CAPPED).measures).toEqual(["cap_transfers", "cap_atm_cash"]);
     expect(replyDraft(BRIEF).measures).toEqual([]);
     const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief: CAPPED });
-    expect([exported.version, exported.protocol]).toEqual([2, 5]);
+    expect([exported.version, exported.protocol]).toEqual([2, PROTOCOL_VERSION]);
   });
 
   it("refuses a brief with a string that is not a code, and drops fields it does not know", () => {

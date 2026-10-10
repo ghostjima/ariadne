@@ -2,7 +2,7 @@
   Step machine: one actor per plan step during execution.
 
     waiting -> running -> done -> undone
-            -> awaitingConfirmation -> running | skipped
+            -> awaitingConfirmation -> running | skipped | error
             -> awaitingDeviation -> awaitingConfirmation | running
     running -> error -> running (retry) | skipped
 
@@ -138,6 +138,16 @@ export const stepMachine = setup({
           actions: assign({ deviation: ({ event }) => event.deviation }),
         },
         CONFIRM: { target: "running" },
+        /* A step whose content is proposed can fail before it has a draft
+           to confirm: the proposal did not validate, or its model could
+           not be reached */
+        FAILED: {
+          target: "error",
+          actions: assign({
+            error: ({ event }) => event.error,
+            attempt: ({ event }) => event.attempt,
+          }),
+        },
         SKIP: { target: "skipped", actions: assign({ skipReason: "skipped_by_user" }) },
         SKIPPED: {
           target: "skipped",

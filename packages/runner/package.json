@@ -28,6 +28,10 @@
     "./sse": {
       "types": "./dist/sse.d.ts",
       "import": "./dist/sse.js"
+    },
+    "./model": {
+      "types": "./dist/model/index.d.ts",
+      "import": "./dist/model/index.js"
     }
   },
   "sideEffects": false,
