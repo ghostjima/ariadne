@@ -3,7 +3,7 @@
 // would start again at the top of the page. During a run that place is the
 // run's heading, one Tab before Stop.
 import { expect, type Page } from "@playwright/test";
-import { LINKED_CASE, dialog, en, expectPlanState, ready, retryButton, runSteps, test, throttleCpu, agentUrl } from "./agent-helpers";
+import { LINKED_CASE, dialog, en, expectPlanState, openConfirmation, ready, retryButton, runSteps, test, throttleCpu, agentUrl } from "./agent-helpers";
 
 /** What has the focus, in words; "body" when nothing does. */
 const focused = (page: Page) =>
@@ -50,14 +50,6 @@ async function expectSentToRun(page: Page, what: string, act: () => Promise<void
   await act();
   const first = () => page.evaluate((from) => (window as unknown as { focusLandings: string[] }).focusLandings[from] ?? "nowhere yet", start);
   await expect.poll(first, { message: what }).toBe(`h4 ${en.run.panel}`);
-}
-
-/** The confirmation open now, by its own label: the run's next
- * confirmation, which may open as soon as this one closes, does not match
- * it. */
-async function openConfirmation(page: Page) {
-  const label = await (await dialog(page)).getAttribute("aria-labelledby");
-  return page.locator(`section.stoa-dialog[aria-labelledby="${label}"]`);
 }
 
 test("after Run the focus is at the run, and Tab goes on to Stop", async ({ page }) => {
