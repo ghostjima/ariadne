@@ -1,7 +1,9 @@
-import { queryAnsweredOn, queryReceivedOn, removalAppliedOn } from "./legal.js";
+import { clock } from "@ariadne/rules";
+import { isoDay } from "./days.js";
+import { caseFacts, queryAnsweredOn, queryReceivedOn, removalAppliedOn, suspensionLiftedOn } from "./legal.js";
 import type { Role } from "./roles.js";
-import { Database, Path, Stream } from "./schema.js";
-import { rememberOrigin, type ColumnStore } from "./store.js";
+import { Applicant, Database, Path, Restriction, Stream } from "./schema.js";
+import { AS_OF_DAY, dayOf, rememberOrigin, type ColumnStore } from "./store.js";
 import { appendJournal, type Actor, type QueryView } from "./workflow.js";
 
 /*
@@ -28,6 +30,19 @@ import { appendJournal, type Actor, type QueryView } from "./workflow.js";
   email (items 2.1, 2.3, 2.4); the bank passes nothing on. A client who
   applied through the bank has had the bank's view forwarded with the
   application (item 1.5), so no request is recorded on such a case here.
+
+  A suspension the bank chose under 161-FZ art. 9 part 11.6, lifted while
+  the data stay in the database. Part 11.6 gives the bank a right to
+  suspend ("вправе приостановить"), within its risk management and its
+  contract; the law neither describes lifting such a suspension nor
+  obliges the bank to keep it, so the desk records a lift as the bank's
+  own decision, with its reasons, and never where the suspension is a
+  duty: ariadne-rules refuses it with the Ministry of Internal Affairs'
+  information (part 11.7). From the day of the lift an individual's
+  transfers to individuals are capped at 100,000 roubles a month (part
+  11.6, sentence 2, a conservative reading); a legal entity has no cap;
+  ATM cash stays capped either way (Banking Law art. 30 part 16). The
+  legal reviewer or the supervisor records it, once.
 
   Each is journaled and the stage does not move. Errors are codes; the
   interface writes the sentence.
@@ -160,4 +175,62 @@ export function queryAnswerOf(store: ColumnStore, row: number): { on: number; vi
   const entry = (store.journal.get(row) ?? []).find((e) => e.action === "query_answered");
   if (!entry?.view) return null;
   return { on: queryAnsweredOn(store, row), view: entry.view };
+}
+
+/* The roles that record the lift of a suspension chosen under part 11.6 */
+export const LIFT_ROLES: readonly Role[] = ["reviewer", "supervisor"];
+/* The bank's reasons for the lift, in its own words */
+export const LIFT_REASON_MIN = 10;
+export const LIFT_REASON_MAX = 1000;
+
+export type LiftError =
+  | { code: "lift-not-client-data" }
+  | { code: "lift-already-lifted" }
+  | { code: "lift-not-suspended" }
+  | { code: "lift-not-allowed" }
+  | { code: "lift-role" }
+  | { code: "lift-reason-required"; min: number }
+  | { code: "lift-reason-too-long"; max: number; length: number };
+
+/* The day the bank lifted the suspension on a row, or -1 */
+export function liftedOn(store: ColumnStore, row: number): number {
+  return suspensionLiftedOn(store, row);
+}
+
+/* Whether the rules allow lifting the row's suspension today: they refuse
+   it where the suspension is a duty (161-FZ art. 9 part 11.7) */
+export function liftAllowed(store: ColumnStore, row: number): boolean {
+  const facts = caseFacts(store, row);
+  if (!facts.database?.instrumentSuspendedOn) return false;
+  const asked = clock({ ...facts, database: { ...facts.database, suspensionLiftedOn: isoDay(AS_OF_DAY) } });
+  return !asked.refusals.includes("suspension_lift_not_allowed");
+}
+
+/* Whether `role` may record the lift of the suspension on a row now, with
+   these reasons. Null when it may. */
+export function checkLift(store: ColumnStore, row: number, role: Role, reason: string): LiftError | null {
+  if (!isClientDataCase(store, row)) return { code: "lift-not-client-data" };
+  if (suspensionLiftedOn(store, row) >= 0) return { code: "lift-already-lifted" };
+  if (store.restriction[row] !== Restriction.InstrumentSuspended) return { code: "lift-not-suspended" };
+  if (!liftAllowed(store, row)) return { code: "lift-not-allowed" };
+  if (!LIFT_ROLES.includes(role)) return { code: "lift-role" };
+  const text = reason.trim();
+  if (text.length < LIFT_REASON_MIN) return { code: "lift-reason-required", min: LIFT_REASON_MIN };
+  if (text.length > LIFT_REASON_MAX) return { code: "lift-reason-too-long", max: LIFT_REASON_MAX, length: text.length };
+  return null;
+}
+
+/* Records the lift: checks it, journals it with the bank's reasons, and
+   sets what the register shows from now on: the transfer cap for an
+   individual, no restriction of transfers for a legal entity. The stage
+   does not move. */
+export function liftSuspension(store: ColumnStore, row: number, input: { role: Role; actor: Actor; at: number; reason: string }): LiftError | null {
+  const error = checkLift(store, row, input.role, input.reason);
+  if (error) return error;
+  rememberOrigin(store, row);
+  const stage = store.stage[row] ?? 0;
+  appendJournal(store, row, { at: input.at, action: "suspension_lifted", from: stage, to: stage, actor: input.actor, comment: input.reason.trim() });
+  store.restriction[row] = store.applicant[row] === Applicant.LegalEntity ? Restriction.None : Restriction.TransfersCapped;
+  store.updatedAt[row] = dayOf(input.at);
+  return null;
 }

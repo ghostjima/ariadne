@@ -162,7 +162,9 @@ test("the bank's choice under 161-FZ art. 9 part 11.6: the transfers capped inst
     "Not suspended: the client's transfers to individuals capped at 100,000 roubles a month while the client's own data are in the Bank of Russia's database",
   );
   await expect(flags).toContainText("Ground: 161-FZ, art. 9, part 11.6, sentence 2");
-  await expect(flags).toContainText("ATM cash capped at 100,000 roubles a month while the client's data are in the Bank of Russia's database");
+  await expect(flags).toContainText(
+    "ATM cash capped at 100,000 roubles a month from the day the bank received the database information, while the client's data are in the Bank of Russia's database",
+  );
   await expect(flags).toContainText("Ground: Banking Law No. 395-1, art. 30, part 16");
   // No suspension, so no same-day notice of one and no duty of part 11.8.
   await expect(flags).not.toContainText("The client's card or online banking suspended");

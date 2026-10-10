@@ -204,24 +204,36 @@ describe("generator", () => {
        between the suspension and the transfer cap was drawn for the cases
        about an individual's own data without the Ministry's information
        (a stream of its own): one new column, `restriction`, at the end;
-       every other column is byte for byte as it was, which the next test
-       checks against the previous pin. */
+       every other column is byte for byte as it was, which a test below
+       checks against the previous pin.
+       Re-pinned when the day the bank received the database information
+       with the client's data was stored for the cases about them (the
+       ATM cash cap of the Banking Law art. 30 part 16 runs from it, not
+       from the day the bank acted; a stream of its own): one new column,
+       `recordOn`, at the end; every other column is byte for byte as it
+       was, which the next test checks against the previous pin. */
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK))).toBe(GOLDEN_DIGEST);
   });
 
+  it("leaves every column but the new recordOn as it was before the day the bank received the database information was stored", () => {
+    const before = COLUMN_KEYS.filter((key) => key !== "recordOn");
+    expect(COLUMN_KEYS.at(-1)).toBe("recordOn");
+    expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_RECORD_DAY);
+  });
+
   it("leaves every column but the new restriction as it was before the bank's choice under part 11.6 was drawn", () => {
-    const before = COLUMN_KEYS.filter((key) => key !== "restriction");
-    expect(COLUMN_KEYS.at(-1)).toBe("restriction");
+    const before = COLUMN_KEYS.filter((key) => key !== "restriction" && key !== "recordOn");
+    expect(COLUMN_KEYS.slice(-2)).toEqual(["restriction", "recordOn"]);
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_RESTRICTION);
   });
 
   it("leaves every column but the database code and the ground as it was before the Ministry's information was drawn", () => {
-    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground" && key !== "restriction");
+    const before = COLUMN_KEYS.filter((key) => key !== "database" && key !== "ground" && key !== "restriction" && key !== "recordOn");
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_POLICE_INFORMATION);
   });
 
   it("leaves every column but those that tell the client's own data from sign 1.1 as it was before", () => {
-    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database", "restriction"]);
+    const told = new Set<string>(["reason", "operation", "opAmount", "template", "ground", "path", "pathOn", "pathThen", "pathTerm", "database", "restriction", "recordOn"]);
     const before = COLUMN_KEYS.filter((key) => !told.has(key));
     expect(storeDigest(generateAll(DEFAULT_SEED, CORPUS_ROWS, CORPUS_CHUNK), before)).toBe(DIGEST_BEFORE_CLIENT_DATA);
   });
@@ -245,7 +257,10 @@ describe("generator", () => {
   });
 });
 
-const GOLDEN_DIGEST = "097738b3";
+const GOLDEN_DIGEST = "bf3ba74b";
+/* The pin before the day the bank received the database information was
+   stored ("097738b3"), over every column but the new `recordOn` */
+const DIGEST_BEFORE_RECORD_DAY = "097738b3";
 /* The pin before the bank's choice under part 11.6 was drawn ("6d000bb1"),
    over every column but the new `restriction` */
 const DIGEST_BEFORE_RESTRICTION = "6d000bb1";

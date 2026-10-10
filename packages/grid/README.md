@@ -140,6 +140,21 @@ they are taken again with `pnpm measure`.
   of the Banking Law art. 30 part 16 to either. A refusal still rests on
   part 11.6. The column shows the restriction, blank for the other
   cases. The share is the generator's own.
+- **The day the bank received the record** (the store column
+  `recordOn`, a day or -1). The ATM cash cap of the Banking Law art. 30
+  part 16 is owed "если от Банка России получена информация": it runs
+  from the day the bank received the database information that holds the
+  client's data, not from the day the bank acted on it. The register
+  stores that day for every case about the client's own data, drawn from
+  a stream of its own, so every other column is what it was before it
+  was stored: the day of the suspension where the suspension is a duty
+  (part 11.7), the day the cap began where the bank chose the cap (part
+  11.6 runs from the same receipt), and for about two in five of the
+  suspensions the bank chose under part 11.6, one to three days before
+  the suspension. `caseFacts` passes it to ariadne-rules, which dates the
+  ATM cash cap by it and, for an individual suspended later, gives the
+  transfer cap that applied in between with its end. The share and the
+  gap are the generator's own.
 - **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
   `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
   their own so every other column, and every answered case, is what it
@@ -273,7 +288,7 @@ All of it is exported from `@ariadne/grid`.
 | undo | `EditHistory`: `setField(store, rows, field, value, role, now)`, `setNote(store, row, value, role, now)`, `undo(store, { overwrite? })` |
 | colleague | `colleagueSchedule(seed, count)`, `dueTicks`, `planColleagueEdit`, `applyRemoteEdit`, `beginEdit`, `detectConflict` |
 | dispatch | `dispatchReply`, `replyCopies`, `copiesOwed`, `copiesSent`, `markCopySent`, `markBreach`, `extendDeadline`, `copiesDueOn`, `copyClass` |
-| database | `isClientDataCase`, `checkRemoval`, `applyForRemoval` (the bank's own reasoned application to remove the client's data from the Bank of Russia's database, 161-FZ art. 9 part 11.9: the legal reviewer or the supervisor, with the bank's reasons, once, journaled as `removal_applied`; `caseFacts` passes its day to ariadne-rules), `removalAppliedOn`, `REMOVAL_ROLES`, `REMOVAL_REASON_MIN`, `REMOVAL_REASON_MAX`; the Bank of Russia's request on an application the client filed with it directly (Directive No. 6748-U items 2.2, 2.9): `checkQueryIntake`, `recordQuery` (the operator or the supervisor, the day it arrives, not where the client applied through the bank, journaled as `query_received`; `caseFacts` passes its day to ariadne-rules), `checkQueryAnswer`, `answerQuery` (the legal reviewer or the supervisor, with the bank's view, `QUERY_VIEWS`, and its reasons, journaled as `query_answered`), `queryReceivedOn`, `queryAnsweredOn`, `queryAnswerOf` |
+| database | `isClientDataCase`, `checkRemoval`, `applyForRemoval` (the bank's own reasoned application to remove the client's data from the Bank of Russia's database, 161-FZ art. 9 part 11.9: the legal reviewer or the supervisor, with the bank's reasons, once, journaled as `removal_applied`; `caseFacts` passes its day to ariadne-rules), `removalAppliedOn`, `REMOVAL_ROLES`, `REMOVAL_REASON_MIN`, `REMOVAL_REASON_MAX`; the Bank of Russia's request on an application the client filed with it directly (Directive No. 6748-U items 2.2, 2.9): `checkQueryIntake`, `recordQuery` (the operator or the supervisor, the day it arrives, not where the client applied through the bank, journaled as `query_received`; `caseFacts` passes its day to ariadne-rules), `checkQueryAnswer`, `answerQuery` (the legal reviewer or the supervisor, with the bank's view, `QUERY_VIEWS`, and its reasons, journaled as `query_answered`), `queryReceivedOn`, `queryAnsweredOn`, `queryAnswerOf`; the lift of a suspension the bank chose under 161-FZ art. 9 part 11.6: `checkLift`, `liftSuspension` (the legal reviewer or the supervisor, with the bank's reasons, once, journaled as `suspension_lifted`; refused where ariadne-rules refuses it, with the Ministry of Internal Affairs' information, part 11.7, and where the bank chose the cap; the `restriction` column becomes the cap for an individual and none for a legal entity, and `caseFacts` passes the day to ariadne-rules), `liftAllowed`, `liftedOn`, `LIFT_ROLES`, `LIFT_REASON_MIN`, `LIFT_REASON_MAX` |
 | retention | `retentionOf`, `plusYears`, `RETENTION_YEARS` |
 | CSV | `toCsv(store, index, columns, { headers, pools, labels, limit? })`, `cellText`, `csvEscape`, `neutralizeFormula`, `CSV_LIMIT` (5,000) |
 | loading | `DatasetLoader` (worker or main thread, `subscribe` and `getSnapshot`), `createChunkProducer`, `WorkerRequest`, `WorkerResponse` |

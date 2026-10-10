@@ -96,8 +96,9 @@ item is the part.
 | Refused repeat of a card, e-money or Faster Payments operation after a database match | two days from and including the repeat; then the next repeat is carried out | 161-FZ art. 8 parts 3.10, 3.11 |
 | Client's notice of the second step | at once: the reason, the term, a later repeat | 161-FZ art. 8 part 3.10, sentence 2 |
 | Card or online banking suspended for the client's own data in the database | notice with the reason the same day; notice of the right to apply for removal at once; restored at once after removal | 161-FZ art. 9 parts 9.2, 11.8, 11.11 (the suspension under parts 11.6, 11.7) |
-| Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
-| ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, from the day the bank acted on the record | Banking Law art. 30 part 16 |
+| Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap until a later suspension or the removal of the data; where the bank suspended some days after it received the database information, the cap in between; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
+| A suspension chosen under part 11.6, lifted while the data are in the database | the suspension ends on the day of the lift and, for an individual, the transfer cap starts; refused with the Ministry of Internal Affairs' information, where the suspension is a duty for the whole period; no cap follows for a legal entity | 161-FZ art. 9 part 11.6 (a conservative reading of its second sentence); part 11.7 |
+| ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, for an individual and a legal entity alike, from the day the bank received the database information to the day the data leave the database; without the day of receipt, from the day the bank acted on the data, with a warning | Banking Law art. 30 part 16; the information is received as Directive No. 7282-U items 6.1 to 6.3 set |
 | Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it, for an application filed through the operator; on one filed through the Bank of Russia's Internet reception the decision goes to the client by email and the operator passes nothing on | Directive No. 6748-U items 2.1, 2.3, 2.4 |
@@ -144,6 +145,43 @@ credit institution caps ATM cash at 100,000 roubles a month while the
 data are in the database (Banking Law art. 30 part 16, `cap_atm_cash`).
 The notices of parts 9.2 and 11.8 follow a suspension only.
 
+The ATM cash cap does not start with the bank's choice. The duty arises
+"если от Банка России получена информация", so the cap runs from the day
+the bank received the database information that holds the client's data
+(`informationReceivedOn`; operators take the information from the Bank
+of Russia's infrastructure within hours of its provision, Directive No.
+7282-U items 6.1 to 6.3). When that day is not given, the clock dates the
+cap by the day the bank acted on the data, the latest it can have
+started, and adds the warning `database_information_date_assumed`. Part
+11.6 opens with the same receipt: where the bank suspended an
+individual's card some days after it, the transfer cap of the second
+sentence applied in between, and the clock gives it with its end. Each
+of the three measures lasts "на период нахождения сведений ... в базе
+данных": a measure carries `until`, the first day it no longer applies,
+which is the day the data left the database, or for a cap the suspension
+replaced, the day of the suspension. The text caps each amount "в месяц"
+and does not say how the month is counted (a calendar month, or a month
+from the receipt); the clock gives the limit and its first day and
+counts no window. The 48-hour limit of 50,000 roubles a day on an ATM
+withdrawal that matches a sign (Banking Law art. 24.3-1; Bank of Russia
+Order No. OD-1765) is another measure, not tied to the database, and is
+not encoded.
+
+A suspension the bank chose under part 11.6 may be given as lifted
+(`suspensionLiftedOn`) while the data stay in the database. The text
+gives the bank a right to suspend, within its risk management and its
+contract with the client; it neither describes lifting a suspension nor
+obliges the bank to keep one it was free not to impose. The clock takes
+the lift as the bank's decision: the suspension ends that day
+(`until`), and for an individual the transfer cap starts
+(`cap_transfers`, marked conservative); a legal entity gets the warning
+`transfer_cap_for_individuals_only` and no cap. The ATM cash cap runs
+on. With the Ministry of Internal Affairs' information the suspension is
+a duty "на период нахождения указанных сведений в базе данных" (part
+11.7): the clock carries the refusal `suspension_lift_not_allowed` and
+the suspension stands. Once the data leave the database the card is
+restored under part 11.11, which is a duty and not a lift.
+
 #### Conservative readings
 
 Where the text leaves a point open, the engine takes the reading that
@@ -162,6 +200,11 @@ gives the earlier date or the wider duty, marks the basis
   registration of the repeated complaint.
 - The commission's request given without its term: the least the law
   allows, 3 working days, with the warning `commission_term_assumed`.
+- After a suspension chosen under 161-FZ art. 9 part 11.6 is lifted, the
+  transfer cap of the part's second sentence applies from the day of the
+  lift: the sentence speaks of a means of payment that "не было
+  приостановлено", and whether that covers a suspension since lifted the
+  text does not say; the cap is the wider restriction.
 - The operator's own application to remove the client's data is taken
   as received by the Bank of Russia on the day the operator sends it:
   the directive counts from receipt, which the operator does not learn,
@@ -269,9 +312,11 @@ on them:
   `documents_answer_beyond_text`, `sro_copy_not_applicable`,
   `ombudsman_term_may_have_passed`, `storage_term_not_set`,
   `commission_term_below_minimum`, `commission_term_assumed`,
-  `transfer_cap_for_individuals_only`.
+  `transfer_cap_for_individuals_only`,
+  `database_information_date_assumed`.
 - Refusals: `extension_not_allowed`, `extension_ground_not_allowed`,
-  `extension_too_long`, `transfer_cap_not_allowed`.
+  `extension_too_long`, `transfer_cap_not_allowed`,
+  `suspension_lift_not_allowed`.
 - Errors: `invalid_date`, `outside_calendar`, `dates_out_of_order`,
   `invalid_extension`, `invalid_amount`, `unknown_code`, `missing_date`.
 - Rubric: the findings above; client options `confirm_order`,
@@ -380,7 +425,8 @@ the code:
   `deadlines` (each with `kind`, `due`, `from`, `count`, `countValue`,
   `forOthers` and a `basis` of `source`, `act`, `article`, `part`,
   `revision`, `url`, `reading`), `duties`, `measures` (each with `kind`,
-  `on` and a `basis`), `warnings`, `refusals` and `replyDue`.
+  `on`, `until` when the facts give the day it stops applying, and a
+  `basis`), `warnings`, `refusals` and `replyDue`.
 - `factRequestDue(input, sentOn)`: the last day of a fact request sent
   on `sentOn` in the case `input` describes, as a `FactRequestOutput`
   with `due`, `policyDue` and `cappedBy` (a deadline code, or undefined).
@@ -404,7 +450,8 @@ the code:
 
 Each rule cites its source from `src/sources.rs`; every source is listed
 here with the revision its text was checked against, read on 2026-10-06
-or, where `sources.rs` says so, on 2026-10-07, 2026-10-08 or 2026-10-09.
+or, where `sources.rs` says so, on 2026-10-07, 2026-10-08, 2026-10-09 or
+2026-10-10.
 A test fails when this list and the code disagree.
 
 | Source | Revision | Text read at |
@@ -427,6 +474,7 @@ A test fails when this list and the code disagree.
 | National Payment System Law No. 161-FZ, art. 9 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/) |
 | Bank of Russia letter No. 010-31/7975 of 02.09.2024, counting the terms of 161-FZ art. 8 | 2024-09-02 | [garant.ru](https://www.garant.ru/products/ipo/prime/doc/409525913/) |
 | Bank of Russia Directive No. 6748-U of 13.06.2024, the client's application to remove data from the database, as amended by Directive No. 7287-U of 19.01.2026 | 2026-01-19 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/); revision confirmed on [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_480956/) |
+| Bank of Russia Directive No. 7282-U of 13.01.2026, how operators report to the database and receive its information (items 6.1 to 6.3) and the restrictions they apply for the client's data in it (item 4.2.8) | 2026-01-13 | [legalacts.ru, a full-text copy](https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13012026-n-7282-u-ob-ustanovlenii/); the official scan is on [cbr.ru](https://www.cbr.ru/Queries/UniDbQuery/File/90134/7492) |
 | Bank of Russia page on requests to remove data from its database | 2026-10-06 (page as read) | [cbr.ru](https://www.cbr.ru/contactBR/161-FZ/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/3e3e0d20d2919071b55ef95f26f849df6a4f11e8/) |
 | Anti-Money-Laundering Law No. 115-FZ, art. 7.7 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_32834/0a562008be657e44b6145557f337cc626af9ffab/) |

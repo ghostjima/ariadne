@@ -36,7 +36,7 @@ import { CaseWork, actsOn, type TransitionRequest, type WorkRefusal } from "../w
 import { LetterPanel } from "../workflow/LetterPanel";
 import { DispatchPanel, type PendingDispatch } from "../workflow/DispatchPanel";
 import { DatabasePanel } from "../workflow/DatabasePanel";
-import type { CopyKind, ExtensionError, QueryError, QueryView, RemovalError } from "@ariadne/grid";
+import type { CopyKind, ExtensionError, LiftError, QueryError, QueryView, RemovalError } from "@ariadne/grid";
 import type { DecisionRecord, LetterError, SignDecision, SignError } from "../workflow/caseFile";
 import { Handover } from "../workflow/Handover";
 import type { CaseFiles } from "../workflow/caseFile";
@@ -94,6 +94,9 @@ export type CaseViewProps = {
    * application, received today, and the bank's answer to it. */
   onRecordQuery: () => QueryError | null;
   onAnswerQuery: (view: QueryView | null, reason: string) => QueryError | null;
+  /** Records the lift of a suspension the bank chose under 161-FZ art. 9
+   * part 11.6. */
+  onLiftSuspension: (reason: string) => LiftError | null;
   onExported: () => void;
   /** Records the assistant's handover a person confirmed. */
   onHandover: (draft: ReplyDraft, run: number) => void;
@@ -179,6 +182,7 @@ export function CaseView(props: CaseViewProps) {
         onApplyForRemoval={props.onApplyForRemoval}
         onRecordQuery={props.onRecordQuery}
         onAnswerQuery={props.onAnswerQuery}
+        onLiftSuspension={props.onLiftSuspension}
       />
       <CaseCard store={store} row={row} lang={lang} t={t} version={version} onOpenCase={onOpenCase} />
     </div>

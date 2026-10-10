@@ -199,6 +199,8 @@ export type WorkflowStrings = {
     panel: string;
     /** What the bank's copy of the database record holds, as a term. */
     record: string;
+    /** The day the bank received the database information, as a term. */
+    received: string;
     own: string;
     ownHelp: string;
     reasons: string;
@@ -249,6 +251,35 @@ export type WorkflowStrings = {
       "query-view-required": string;
       "query-reason-required": (min: string) => string;
       "query-reason-too-long": (max: string, length: string) => string;
+    };
+    /** A suspension the bank chose under 161-FZ art. 9 part 11.6, lifted
+     * while the data stay in the database. */
+    suspension: string;
+    liftHelp: string;
+    /** What the law leaves open about a lift, and how the desk reads it. */
+    liftAssumption: string;
+    liftReasons: string;
+    liftReasonsHelp: (min: string) => string;
+    lift: string;
+    liftWhoMay: string;
+    liftDuty: string;
+    liftNotSuspended: string;
+    lifted: (day: string) => string;
+    afterLift: string;
+    afterLiftEntity: string;
+    liftConfirmTitle: (id: string) => string;
+    liftConfirmText: string;
+    liftConfirm: string;
+    liftKeep: string;
+    liftedToast: (id: string) => string;
+    liftErrors: {
+      "lift-not-client-data": string;
+      "lift-already-lifted": string;
+      "lift-not-suspended": string;
+      "lift-not-allowed": string;
+      "lift-role": string;
+      "lift-reason-required": (min: string) => string;
+      "lift-reason-too-long": (max: string, length: string) => string;
     };
   };
 };
@@ -334,6 +365,7 @@ const en: WorkflowStrings = {
     removal_applied: "The bank applied to the Bank of Russia to remove the client's data",
     query_received: "The Bank of Russia's request on the client's application reached the bank",
     query_answered: "The bank answered the Bank of Russia's request",
+    suspension_lifted: "The bank lifted the suspension of the client's card or online banking",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Reason: ${reason}`,
@@ -509,6 +541,7 @@ const en: WorkflowStrings = {
   database: {
     panel: "The Bank of Russia's database",
     record: "The bank's copy of the record",
+    received: "Received from the Bank of Russia",
     own: "The bank's own application to remove the data",
     ownHelp:
       "With grounds to think the client's data were included without basis, the bank may apply to the Bank of Russia on its own, without the client (161-FZ art. 9 part 11.9). The Bank of Russia decides within 15 working days and sends the decision to the bank. Once sent, the application is not recalled.",
@@ -559,6 +592,37 @@ const en: WorkflowStrings = {
       "query-view-required": "Choose the bank's view.",
       "query-reason-required": (min) => `State the bank's reasons, at least ${min} characters.`,
       "query-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
+    },
+    suspension: "The suspension",
+    liftHelp:
+      "Without the Ministry of Internal Affairs' information the bank may suspend the client's card or online banking for the client's own data (161-FZ art. 9 part 11.6). It is the bank's right, within its risk management and its contract with the client, not a duty.",
+    liftAssumption:
+      "Assumption: the law does not describe lifting a suspension the bank chose, and does not oblige the bank to keep it. The desk records a lift as the bank's own decision. From that day it applies the transfer cap of the part's second sentence, RUB 100,000 a month to individuals: the wider reading of its words about a card that was not suspended. ATM cash stays capped (Banking Law art. 30 part 16).",
+    liftReasons: "Reasons for the lift",
+    liftReasonsHelp: (min) => `Why the bank lifts the suspension, as its decision records it; at least ${min} characters.`,
+    lift: "Lift the suspension",
+    liftWhoMay: "The legal reviewer or the supervisor records the lift.",
+    liftDuty:
+      "With the Ministry of Internal Affairs' information the suspension is a duty for as long as the data are in the database (161-FZ art. 9 part 11.7). The bank cannot lift it. The card is restored once the Bank of Russia removes the data (part 11.11).",
+    liftNotSuspended: "The bank did not suspend the card or online banking: the transfer cap of part 11.6 applies instead. There is nothing to lift.",
+    lifted: (day) => `The bank lifted the suspension on ${day}.`,
+    afterLift:
+      "From that day the client's transfers to individuals are capped at RUB 100,000 a month while the data are in the database (161-FZ art. 9 part 11.6, sentence 2, a conservative reading). ATM cash stays capped. The client may still apply to remove the data.",
+    afterLiftEntity:
+      "A legal entity has no transfer cap under part 11.6. ATM cash stays capped (Banking Law art. 30 part 16). The client may still apply to remove the data.",
+    liftConfirmTitle: (id) => `Lift the suspension, case ${id}?`,
+    liftConfirmText: "The client's card and online banking work again from today. The lift goes to the journal with these reasons.",
+    liftConfirm: "Lift the suspension",
+    liftKeep: "Keep it suspended",
+    liftedToast: (id) => `Case ${id}: the suspension is lifted.`,
+    liftErrors: {
+      "lift-not-client-data": "Only a case about the client's own data in the database has a suspension of this kind.",
+      "lift-already-lifted": "The suspension is already lifted.",
+      "lift-not-suspended": "The card is not suspended: the bank applies the transfer cap.",
+      "lift-not-allowed": "The suspension is a duty while the data are in the database (161-FZ art. 9 part 11.7).",
+      "lift-role": "The legal reviewer or the supervisor records the lift.",
+      "lift-reason-required": (min) => `State the bank's reasons for the lift, at least ${min} characters.`,
+      "lift-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
     },
   },
 };
@@ -644,6 +708,7 @@ const ru: WorkflowStrings = {
     removal_applied: "Банк подал в Банк России заявление об исключении сведений о клиенте",
     query_received: "В банк поступил запрос Банка России по заявлению клиента",
     query_answered: "Банк ответил на запрос Банка России",
+    suspension_lifted: "Банк снял приостановление карты или онлайн-банка клиента",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Причина: ${reason}`,
@@ -819,6 +884,7 @@ const ru: WorkflowStrings = {
   database: {
     panel: "База данных Банка России",
     record: "Копия записи в банке",
+    received: "Получена от Банка России",
     own: "Заявление банка об исключении сведений",
     ownHelp:
       "Если у банка есть основания полагать, что сведения о клиенте включены необоснованно, банк вправе сам, без участия клиента, направить в Банк России мотивированное заявление (ч. 11.9 ст. 9 161-ФЗ). Банк России решает в течение 15 рабочих дней и направляет решение банку. Отправленное заявление не отзывается.",
@@ -869,6 +935,37 @@ const ru: WorkflowStrings = {
       "query-view-required": "Выберите позицию банка.",
       "query-reason-required": (min) => `Укажите основания банка, не короче ${min} знаков.`,
       "query-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
+    },
+    suspension: "Приостановление",
+    liftHelp:
+      "Без сведений МВД банк вправе приостановить карту или онлайн-банк клиента, сведения о котором есть в базе данных (ч. 11.6 ст. 9 161-ФЗ). Это право банка в рамках его системы управления рисками и договора с клиентом, а не обязанность.",
+    liftAssumption:
+      "Допущение: закон не описывает снятие приостановления, которое банк выбрал сам, и не обязывает банк его сохранять. Здесь снятие записывается как собственное решение банка. С этого дня применяется ограничение второго предложения той же части: переводы физическим лицам до 100 000 ₽ в месяц. Это более широкое прочтение слов о карте, которая не была приостановлена. Выдача наличных в банкоматах остаётся ограниченной (ч. 16 ст. 30 Закона о банках).",
+    liftReasons: "Основания снятия",
+    liftReasonsHelp: (min) => `Почему банк снимает приостановление, как это записано в его решении; не короче ${min} знаков.`,
+    lift: "Снять приостановление",
+    liftWhoMay: "Снятие записывает юрист или руководитель.",
+    liftDuty:
+      "Со сведениями МВД приостановление обязательно, пока сведения есть в базе данных (ч. 11.7 ст. 9 161-ФЗ). Банк не может его снять. Карта возобновляется, когда Банк России исключит сведения (ч. 11.11).",
+    liftNotSuspended: "Банк не приостанавливал карту и онлайн-банк: вместо этого действует ограничение переводов по ч. 11.6. Снимать нечего.",
+    lifted: (day) => `Банк снял приостановление ${day}.`,
+    afterLift:
+      "С этого дня переводы клиента физическим лицам ограничены суммой 100 000 ₽ в месяц, пока сведения есть в базе данных (ч. 11.6 ст. 9 161-ФЗ, второе предложение, осторожное прочтение). Выдача наличных в банкоматах остаётся ограниченной. Клиент по-прежнему может подать заявление об исключении сведений.",
+    afterLiftEntity:
+      "Для юридического лица ограничения переводов по ч. 11.6 нет. Выдача наличных в банкоматах остаётся ограниченной (ч. 16 ст. 30 Закона о банках). Клиент по-прежнему может подать заявление об исключении сведений.",
+    liftConfirmTitle: (id) => `Снять приостановление по обращению ${id}?`,
+    liftConfirmText: "Карта и онлайн-банк клиента снова работают с сегодняшнего дня. Снятие попадёт в журнал с этими основаниями.",
+    liftConfirm: "Снять приостановление",
+    liftKeep: "Оставить приостановленным",
+    liftedToast: (id) => `Обращение ${id}: приостановление снято.`,
+    liftErrors: {
+      "lift-not-client-data": "Такое приостановление бывает только в обращении о сведениях самого клиента в базе.",
+      "lift-already-lifted": "Приостановление уже снято.",
+      "lift-not-suspended": "Карта не приостановлена: банк применяет ограничение переводов.",
+      "lift-not-allowed": "Приостановление обязательно, пока сведения есть в базе данных (ч. 11.7 ст. 9 161-ФЗ).",
+      "lift-role": "Снятие записывает юрист или руководитель.",
+      "lift-reason-required": (min) => `Укажите основания снятия, не короче ${min} знаков.`,
+      "lift-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
     },
   },
 };
