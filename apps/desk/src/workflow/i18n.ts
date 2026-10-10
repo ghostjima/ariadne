@@ -3,7 +3,7 @@
 // and why, and the handover of the assistant's draft. Russian first,
 // English second; the stages' own names are the engine's language
 // modules'.
-import type { Action, CopyKind, QueryView, ReturnReason, TransitionError } from "@ariadne/grid";
+import type { Action, CopyKind, MandatoryData, QueryView, ReturnReason, TransitionError } from "@ariadne/grid";
 import type { SignDecision } from "./caseFile";
 import type { Lang } from "../i18n";
 
@@ -281,6 +281,48 @@ export type WorkflowStrings = {
       "lift-reason-required": (min: string) => string;
       "lift-reason-too-long": (max: string, length: string) => string;
     };
+    /** The client's application through the bank, and the refusal to
+     * forward one that lacks mandatory data (Directive No. 6748-U items
+     * 1.2 to 1.5). */
+    application: string;
+    applicationHelp: string;
+    recordApplication: string;
+    applicationWhoMay: string;
+    applicationRecorded: (id: string) => string;
+    applicationReceived: (day: string) => string;
+    forwardBy: (day: string, basis: string) => string;
+    forwarded: (day: string) => string;
+    missing: string;
+    missingHelp: string;
+    /** The mandatory data, as the form names each. */
+    data: Record<MandatoryData, string>;
+    /** The same inside a sentence of the notice to the client. */
+    dataInNotice: Record<MandatoryData, string>;
+    /** A datum only a sole trader or private practitioner owes. */
+    traderOnly: (label: string) => string;
+    refuse: string;
+    refuseConfirmTitle: (id: string) => string;
+    refuseConfirmText: string;
+    refuseConfirm: string;
+    refuseKeep: string;
+    refusedToast: (id: string) => string;
+    refused: (day: string, missing: string) => string;
+    noticeDue: (day: string, basis: string) => string;
+    notice: string;
+    /** The notice of the refusal, one sentence a line: the day the
+     * application was received, what it lacks, the provision. */
+    noticeLines: (received: string, missing: string, citation: string) => string[];
+    missingSaid: (missing: string) => string;
+    applicationErrors: {
+      "application-not-client-data": string;
+      "application-role": string;
+      "application-already-received": string;
+      "application-not-received": string;
+      "application-already-forwarded": string;
+      "application-already-refused": string;
+      "application-data-required": string;
+      "application-data-unknown": string;
+    };
   };
 };
 
@@ -366,6 +408,8 @@ const en: WorkflowStrings = {
     query_received: "The Bank of Russia's request on the client's application reached the bank",
     query_answered: "The bank answered the Bank of Russia's request",
     suspension_lifted: "The bank lifted the suspension of the client's card or online banking",
+    application_received: "The client's application to remove the data reached the bank",
+    forwarding_refused: "The bank refused to forward the client's application to the Bank of Russia",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Reason: ${reason}`,
@@ -624,6 +668,59 @@ const en: WorkflowStrings = {
       "lift-reason-required": (min) => `State the bank's reasons for the lift, at least ${min} characters.`,
       "lift-reason-too-long": (max, length) => `The reasons are ${length} characters; at most ${max}.`,
     },
+    application: "The client's application through the bank",
+    applicationHelp:
+      "A client may apply to remove the data through the bank. The bank forwards a complete application to the Bank of Russia by the next working day, with its own view (Directive No. 6748-U item 1.5). One that lacks mandatory data it does not forward: it tells the client so, with the ground, within 5 working days of receiving it (items 1.3, 1.4).",
+    recordApplication: "Record the application received today",
+    applicationWhoMay: "The operator of the case or the supervisor records the application and refuses to forward it.",
+    applicationRecorded: (id) => `Case ${id}: the client's application is on the case, to be forwarded by the next working day.`,
+    applicationReceived: (day) => `The application reached the bank on ${day}.`,
+    forwardBy: (day, basis) => `Forward it by ${day} (${basis}).`,
+    forwarded: (day) => `The Bank of Russia received it from the bank on ${day}.`,
+    missing: "Mandatory data missing from the application",
+    missingHelp: "What Directive No. 6748-U asks of this kind of applicant (item 1.1). Tick what the application lacks.",
+    data: {
+      name: "Full name",
+      identity_documents: "Series and numbers of the identity documents",
+      operators: "Banks from which the client learned of the inclusion (names or BIC)",
+      accounts: "Numbers of the accounts, cards or electronic means of payment",
+      inn: "INN",
+    },
+    dataInNotice: {
+      name: "your full name",
+      identity_documents: "the series and numbers of your identity documents",
+      operators: "the banks from which you learned of the inclusion (names or BIC)",
+      accounts: "the numbers of your accounts, cards or electronic means of payment",
+      inn: "your INN",
+    },
+    traderOnly: (label) => `${label} (a sole trader or private practitioner)`,
+    refuse: "Refuse to forward",
+    refuseConfirmTitle: (id) => `Refuse to forward the application, case ${id}?`,
+    refuseConfirmText: "The application does not go to the Bank of Russia. The client is told why in the notice below, and may apply again.",
+    refuseConfirm: "Refuse to forward",
+    refuseKeep: "Not now",
+    refusedToast: (id) => `Case ${id}: the application is not forwarded, and the notice of the refusal is due in 5 working days.`,
+    refused: (day, missing) => `The bank refused to forward it on ${day}. Missing: ${missing}.`,
+    noticeDue: (day, basis) => `The notice of the refusal goes to the client by ${day} (${basis}).`,
+    notice: "Notice of the refusal",
+    noticeLines: (received, missing, citation) => [
+      "Dear client,",
+      `On ${received} we received your application to remove your data from the Bank of Russia's database.`,
+      `We have not forwarded it to the Bank of Russia: it lacks mandatory data (${citation}).`,
+      `Missing: ${missing}.`,
+      "You can apply again with these data, through us or through the Bank of Russia's internet reception at cbr.ru/contactBR/161-FZ.",
+    ],
+    missingSaid: (missing) => `Missing: ${missing}`,
+    applicationErrors: {
+      "application-not-client-data": "Only a case about the client's own data in the database has this application.",
+      "application-role": "The operator of the case or the supervisor takes this step.",
+      "application-already-received": "The client's application is already on the case.",
+      "application-not-received": "No application through the bank is on the case.",
+      "application-already-forwarded": "The application has already gone to the Bank of Russia.",
+      "application-already-refused": "The bank has already refused to forward this application.",
+      "application-data-required": "Tick the mandatory data the application lacks.",
+      "application-data-unknown": "The directive does not ask that of this kind of applicant.",
+    },
   },
 };
 
@@ -709,6 +806,8 @@ const ru: WorkflowStrings = {
     query_received: "В банк поступил запрос Банка России по заявлению клиента",
     query_answered: "Банк ответил на запрос Банка России",
     suspension_lifted: "Банк снял приостановление карты или онлайн-банка клиента",
+    application_received: "В банк поступило заявление клиента об исключении сведений",
+    forwarding_refused: "Банк отказал в передаче заявления клиента в Банк России",
   },
   move: (from, to) => `${from} → ${to}`,
   why: (reason) => `Причина: ${reason}`,
@@ -966,6 +1065,59 @@ const ru: WorkflowStrings = {
       "lift-role": "Снятие записывает юрист или руководитель.",
       "lift-reason-required": (min) => `Укажите основания снятия, не короче ${min} знаков.`,
       "lift-reason-too-long": (max, length) => `В основаниях ${length} знаков; не больше ${max}.`,
+    },
+    application: "Заявление клиента через банк",
+    applicationHelp:
+      "Клиент может подать заявление об исключении сведений через банк. Полное заявление банк передаёт в Банк России не позднее следующего рабочего дня вместе со своей позицией (п. 1.5 Указания Банка России № 6748-У). Заявление без обязательных сведений банк не передаёт: он сообщает клиенту об отказе и его основании в течение 5 рабочих дней со дня поступления заявления (пп. 1.3, 1.4).",
+    recordApplication: "Отметить заявление, поступившее сегодня",
+    applicationWhoMay: "Заявление отмечает и отказывает в его передаче исполнитель обращения или руководитель.",
+    applicationRecorded: (id) => `Обращение ${id}: заявление клиента отмечено, передать его нужно не позднее следующего рабочего дня.`,
+    applicationReceived: (day) => `Заявление поступило в банк ${day}.`,
+    forwardBy: (day, basis) => `Передать не позднее ${day} (${basis}).`,
+    forwarded: (day) => `Банк России получил его от банка ${day}.`,
+    missing: "Каких обязательных сведений нет в заявлении",
+    missingHelp: "Что Указание № 6748-У требует от заявителя этого вида (п. 1.1). Отметьте, чего нет в заявлении.",
+    data: {
+      name: "Фамилия, имя, отчество",
+      identity_documents: "Серии и номера документов, удостоверяющих личность",
+      operators: "Банки, от которых клиент узнал о включении сведений (наименования или БИК)",
+      accounts: "Номера счетов, карт или электронных средств платежа",
+      inn: "ИНН",
+    },
+    dataInNotice: {
+      name: "фамилия, имя, отчество",
+      identity_documents: "серии и номера документов, удостоверяющих личность",
+      operators: "банки, от которых вы узнали о включении сведений (наименования или БИК)",
+      accounts: "номера счетов, карт или электронных средств платежа",
+      inn: "ИНН",
+    },
+    traderOnly: (label) => `${label} (для индивидуального предпринимателя или лица, занимающегося частной практикой)`,
+    refuse: "Отказать в передаче",
+    refuseConfirmTitle: (id) => `Отказать в передаче заявления по обращению ${id}?`,
+    refuseConfirmText: "Заявление не уйдёт в Банк России. Клиент узнает причину из уведомления ниже и сможет подать заявление снова.",
+    refuseConfirm: "Отказать в передаче",
+    refuseKeep: "Не сейчас",
+    refusedToast: (id) => `Обращение ${id}: заявление не передаётся, уведомление об отказе нужно направить в течение 5 рабочих дней.`,
+    refused: (day, missing) => `Банк отказал в передаче ${day}. Нет сведений: ${missing}.`,
+    noticeDue: (day, basis) => `Уведомление об отказе направить клиенту не позднее ${day} (${basis}).`,
+    notice: "Уведомление об отказе",
+    noticeLines: (received, missing, citation) => [
+      "Уважаемый клиент!",
+      `${received} мы получили ваше заявление об исключении сведений из базы данных Банка России.`,
+      `Мы не передали его в Банк России: в нём нет обязательных сведений (${citation}).`,
+      `Не хватает: ${missing}.`,
+      "Вы можете подать заявление снова, указав эти сведения, через нас или через интернет-приёмную Банка России: cbr.ru/contactBR/161-FZ.",
+    ],
+    missingSaid: (missing) => `Нет сведений: ${missing}`,
+    applicationErrors: {
+      "application-not-client-data": "Такое заявление бывает только в обращении о сведениях самого клиента в базе.",
+      "application-role": "Этот шаг делает исполнитель обращения или руководитель.",
+      "application-already-received": "Заявление клиента уже отмечено в обращении.",
+      "application-not-received": "Заявления через банк в обращении нет.",
+      "application-already-forwarded": "Заявление уже передано в Банк России.",
+      "application-already-refused": "Банк уже отказал в передаче этого заявления.",
+      "application-data-required": "Отметьте, каких обязательных сведений нет в заявлении.",
+      "application-data-unknown": "Указание не требует этого от заявителя такого вида.",
     },
   },
 };

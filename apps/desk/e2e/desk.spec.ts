@@ -132,7 +132,7 @@ test("a header sorts through the worker, ascending then descending", async ({ pa
   await expect(cell(page, 0, 2)).toHaveText("Alexei Belozyorov");
 });
 
-test("the ground's editor offers the grounds in reading order, 161-FZ art. 9 parts 11.6 and 11.7 among the 161-FZ ones", async ({ page }) => {
+test("the ground's editor offers the grounds in reading order, 161-FZ art. 9 parts 11.6 and 11.7 among the 161-FZ ones and the directive's item after them", async ({ page }) => {
   await open(page, `role=reviewer&view=${viewParam({ columns: EDIT_COLUMNS, filters: { stage: [3], stream: [2], source: [], deadline: [], copy: [] } })}`, "");
   await expect(grid(page)).not.toHaveAttribute("aria-busy");
   await focusCell(page, 0, 6);
@@ -145,6 +145,7 @@ test("the ground's editor offers the grounds in reading order, 161-FZ art. 9 par
     "161-FZ, art. 8, part 3.10",
     "161-FZ, art. 9, part 11.6",
     "161-FZ, art. 9, part 11.7",
+    "Bank of Russia Directive No. 6748-U, item 1.3",
     "115-FZ, art. 7, item 11",
     "115-FZ, art. 7, item 5.2, paragraph 2",
     "115-FZ, art. 7, item 5.2, paragraph 3",

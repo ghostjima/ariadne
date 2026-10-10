@@ -66,6 +66,13 @@ export const ACTIONS = [
      161-FZ art. 9 part 11.6 lifted while the client's data stay in the
      Bank of Russia's database, with the bank's reasons (database.ts) */
   "suspension_lifted",
+  /* Recorded without a stage change: the client's application to remove
+     the data, received through the bank today, and the bank's refusal to
+     forward it to the Bank of Russia, mandatory data missing, with the
+     data the refusal names (Directive No. 6748-U items 1.2 to 1.4;
+     database.ts) */
+  "application_received",
+  "forwarding_refused",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -139,6 +146,8 @@ export type JournalEntry = {
   copy?: CopyKind;
   /* The bank's view a "query_answered" entry gave the Bank of Russia */
   view?: QueryView;
+  /* The mandatory data a "forwarding_refused" entry found missing */
+  missing?: MandatoryData[];
   /* Worked out from the generated row, not made in this page */
   generated?: true;
 };
@@ -153,6 +162,16 @@ export type CopyKind = (typeof COPY_KINDS)[number];
    (необоснованности) включения сведений") */
 export const QUERY_VIEWS = ["justified", "unjustified"] as const;
 export type QueryView = (typeof QUERY_VIEWS)[number];
+
+/* The mandatory data of a client's application to remove the data
+   (Directive No. 6748-U item 1.3 names them by the paragraphs of item
+   1.1): the full name of an individual; the series and numbers of the
+   identity documents; the operators from which an individual learned of
+   the inclusion, by name or BIC; the numbers of the accounts, cards or
+   electronic means of payment; the INN of a sole trader, private
+   practitioner or legal entity */
+export const MANDATORY_DATA = ["name", "identity_documents", "operators", "accounts", "inn"] as const;
+export type MandatoryData = (typeof MANDATORY_DATA)[number];
 
 export type TransitionError =
   | { code: "transition-not-allowed" }

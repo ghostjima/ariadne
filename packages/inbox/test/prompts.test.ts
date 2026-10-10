@@ -75,7 +75,7 @@ describe("the prompts", () => {
       const [system] = promptsOf(item).messages(request(item, "draft_reply"));
       expect(system!.content, item.id).toContain(item.lang === "ru" ? "in Russian" : "in English");
       expect(system!.content, item.id).toContain(PENDING_LINE[item.lang]);
-      expect(system!.content).toMatch(/Cite no other law/);
+      expect(system!.content).toMatch(/Cite no law, article or document the sheet does not give/);
       expect(system!.content).toMatch(/Do not admit fault, do not promise money/);
       expect(system!.content).toMatch(/none over 25 words/);
     }
@@ -88,9 +88,11 @@ describe("the prompts", () => {
       expect(text, item.id).toContain(`Case ${sheet.caseId}.`);
       for (const g of sheet.grounds) expect(text, item.id).toContain(`- ${g.code}: ${g.citation ?? "the terms"}`);
       for (const m of sheet.measures) expect(text, item.id).toContain(`- ${m.code}: `);
-      for (const o of sheet.clientOptions) expect(text, item.id).toContain(`- ${o}: `);
+      for (const o of sheet.clientOptions) expect(text, item.id).toMatch(new RegExp(`^- ${o}: .*; ${sheet.cites.options[o]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
       for (const d of sheet.deadlines) expect(text, item.id).toContain(`- ${d.kind}: ${d.due}: `);
+      for (const d of sheet.deadlines) if (sheet.cites.deadlines[d.kind]) expect(text, item.id).toContain(`; ${sheet.cites.deadlines[d.kind]}`);
       for (const n of sheet.nextSteps) expect(text, item.id).toContain(`- ${n}: `);
+      if (sheet.cites.nextSteps.apply_to_bank_of_russia) expect(text, item.id).toContain(`; ${sheet.cites.nextSteps.apply_to_bank_of_russia}`);
       if (sheet.operation && sheet.operation.amountKopecks > 0) expect(text, item.id).toContain(kopecksText(sheet.operation.amountKopecks, item.lang));
       if (sheet.reason?.sign) expect(text, item.id).toContain(`sign ${sheet.reason.sign} of Bank of Russia Order No. OD-2506`);
       expect(text, item.id).toMatch(/Decision: (pending|upheld|partly upheld|refused): /);

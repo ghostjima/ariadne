@@ -15,6 +15,7 @@ import { AlertDialog, Kbd } from "@ghostjima/stoa-react";
 import { applyDeviation, type WaitingNotice } from "@ariadne/runner";
 import { caseId, draftLines, objectLine, stepTitle, type Text } from "../text";
 import type { StepView } from "./hooks";
+import type { CaseFacts } from "@ariadne/rules";
 import { ReplyDraftView } from "./ReplyCheck";
 
 export type DecisionsProps = {
@@ -23,6 +24,9 @@ export type DecisionsProps = {
   waiting: WaitingNotice | null;
   open: boolean;
   onDecide: (stepId: string, command: "confirm" | "skip" | "allow" | "deny") => void;
+  /** The case's facts as ariadne-rules takes them: the reply shown for
+   * confirmation cites the provisions the rules give for the case. */
+  facts: CaseFacts;
 };
 
 function KeyHints({ x, escape }: { x: Text; escape: string }) {
@@ -60,7 +64,7 @@ function useFocusSettled(key: string | null): boolean {
   return key !== null && settled === key;
 }
 
-export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps) {
+export function Decisions({ x, steps, waiting, open, onDecide, facts }: DecisionsProps) {
   const { t, f } = x;
   const accepted = useRef(false);
   const settled = useFocusSettled(waiting ? `${waiting.stepId}-${waiting.accepts.join("-")}` : null);
@@ -130,7 +134,7 @@ export function Decisions({ x, steps, waiting, open, onDecide }: DecisionsProps)
         {draftLines(x, draft).map((line) => (
           <p key={line}>{line}</p>
         ))}
-        {draft.kind === "reply" && <ReplyDraftView x={x} draft={draft} />}
+        {draft.kind === "reply" && <ReplyDraftView x={x} draft={draft} facts={facts} />}
         <p className="draft-heading">{t.confirm.changes}</p>
         <ul className="draft-objects">
           {ctx.step.objects.map((object) => {

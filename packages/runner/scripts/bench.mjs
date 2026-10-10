@@ -111,7 +111,7 @@ const BRIEF = {
 };
 
 const plan = resolvePlan({
-  v: 6,
+  v: 7,
   seed: 7,
   autonomy: "high_only",
   brief: BRIEF,
@@ -129,7 +129,7 @@ function wholeSession() {
 
 const handler = createAgentHandler({ sleep: async () => {}, now: () => 0 });
 const payload = encodePlanPayload({
-  v: 6,
+  v: 7,
   seed: 7,
   autonomy: "high_only",
   brief: BRIEF,

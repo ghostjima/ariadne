@@ -6,17 +6,18 @@ import { FindingsList, Letter } from "@ghostjima/stoa-react";
 import type { ReplyDraft } from "@ariadne/runner";
 import type { CaseFacts } from "@ariadne/rules";
 import { sourceName } from "../../case/sources";
-import { replyLines, replyText } from "../reply";
-import { checkReply, type FindingCode } from "../rubric";
+import { replyCites, replyLines, replyText } from "../reply";
+import { checkReply, findingText } from "../rubric";
 import type { Text } from "../text";
 
-/** The reply as the agent drafted it, one sentence a line, in Stoa's
- * Letter. Not copied from here: what is sent is the letter a person
- * reviews and signs. */
-export function ReplyDraftView({ x, draft }: { x: Text; draft: ReplyDraft }) {
+/** The reply as the agent drafted it, one sentence a line, each option,
+ * deadline and restriction with the provision ariadne-rules gives for
+ * the case, in Stoa's Letter. Not copied from here: what is sent is the
+ * letter a person reviews and signs. */
+export function ReplyDraftView({ x, draft, facts }: { x: Text; draft: ReplyDraft; facts: CaseFacts }) {
   return (
     <div className="reply-draft">
-      <Letter label={x.t.objectKind.reply_draft} hideLabel lines={replyLines(x, draft)} lang={x.lang} copyable={false} />
+      <Letter label={x.t.objectKind.reply_draft} hideLabel lines={replyLines(x, draft, replyCites(x, facts, draft.repliedOn))} lang={x.lang} copyable={false} />
     </div>
   );
 }
@@ -30,13 +31,7 @@ export function ReplyDraftView({ x, draft }: { x: Text; draft: ReplyDraft }) {
 export function ReplyCheck({ x, draft, facts, text, level = 5 }: { x: Text; draft: ReplyDraft | null; facts: CaseFacts; text?: string; level?: 3 | 4 | 5 | 6 }) {
   const { t, f } = x;
   if (!draft) return <p className="muted">{t.rubric.noDraft}</p>;
-  const findings = checkReply(draft, text ?? replyText(x, draft), facts);
-  const subject = (code: string, s: string | null): string => {
-    if (!s) return "";
-    if (code === "client_option_missing") return t.rubric.option[s as keyof typeof t.rubric.option] ?? s;
-    if (code === "measure_missing" || code === "measure_not_taken") return t.rubric.measure[s as keyof typeof t.rubric.measure] ?? s;
-    return t.rubric.deadline[s as keyof typeof t.rubric.deadline] ?? s;
-  };
+  const findings = checkReply(draft, text ?? replyText(x, draft, replyCites(x, facts, draft.repliedOn)), facts);
   // A key per finding: its code, subject and sentence, and how many like
   // it came before, for the rare finding the rubric reports twice.
   const seen = new Map<string, number>();
@@ -54,7 +49,9 @@ export function ReplyCheck({ x, draft, facts, text, level = 5 }: { x: Text; draf
         emptyText={t.rubric.clean}
         findings={findings.map((finding) => ({
           id: keyOf(finding.code, finding.subject, finding.sentence),
-          text: t.rubric.finding[finding.code as FindingCode](subject(finding.code, finding.subject), f.int(finding.words ?? 0)),
+          // What is missing with its own provision; the source line is
+          // where the duty to state it comes from.
+          text: findingText(x, finding),
           source: sourceName(finding.source, x.lang),
         }))}
       />

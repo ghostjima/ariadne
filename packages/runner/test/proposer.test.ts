@@ -4,8 +4,8 @@
   version 5 (test/stream-bytes.ts says what they cover): the engine must
   give the same bytes by default, and the same again with the scripted
   proposer handed to it. Since version 6 one number differs, the protocol
-  that plan.started repeats; the comparison writes it back as 5 and
-  nothing else.
+  that plan.started repeats; stream-bytes.ts writes it as the fixtures'
+  before the comparison, and nothing else.
 */
 
 import { readFileSync } from "node:fs";
@@ -33,7 +33,7 @@ import {
 } from "../src/index.js";
 import { AML, BRIEF, CAPPED, PLAIN, REMOVAL } from "./briefs.js";
 import { payloadFor } from "./helpers.js";
-import { asVersion5, CASES, completeRunStream, ENGINE, SEEDS, streamDigests, streamLines, type Engine } from "./stream-bytes.js";
+import { CASES, completeRunStream, ENGINE, FIXTURE_PROTOCOL, SEEDS, streamDigests, streamLines, type Engine } from "./stream-bytes.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/stream-v5.json", import.meta.url), "utf8")) as {
   protocol: number;
@@ -53,6 +53,10 @@ function engineWith(proposer: ImmediateProposer): Engine {
 
 describe("the scripted event stream is byte-identical to the one before the proposer, but for the protocol number", () => {
   it("covers every seed and case of the test set", () => {
+    /* The fixtures' version; the run is asked in the current one, and
+       only the number plan.started repeats is written as the fixtures' */
+    expect(fixture.protocol).toBe(FIXTURE_PROTOCOL);
+    expect(stream).toContain(`"protocol":${FIXTURE_PROTOCOL}}`);
     expect(Object.keys(fixture.digests)).toHaveLength(SEEDS.length * CASES.length);
     let lines = 0;
     for (const seed of SEEDS) for (const [, brief] of CASES) lines += streamLines(seed, brief).length;
@@ -68,8 +72,8 @@ describe("the scripted event stream is byte-identical to the one before the prop
   });
 
   it("as the Service Worker handler streams a complete run", async () => {
-    expect(asVersion5(await completeRunStream(7, BRIEF))).toBe(stream);
-    expect(asVersion5(await completeRunStream(7, BRIEF, engineWith(new ScriptedProposer())))).toBe(stream);
+    expect(await completeRunStream(7, BRIEF)).toBe(stream);
+    expect(await completeRunStream(7, BRIEF, engineWith(new ScriptedProposer()))).toBe(stream);
   });
 });
 

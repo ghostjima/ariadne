@@ -20,7 +20,7 @@ import { replyDraft } from "@ariadne/runner";
 import { POOLS } from "../data/query";
 import { makeFmt } from "./format";
 import { LOCALES, strings, type Lang } from "./i18n";
-import { replyText } from "./reply";
+import { replyCites, replyText } from "./reply";
 import { checkReply } from "./rubric";
 import type { Text } from "./text";
 
@@ -34,7 +34,13 @@ const inbox = openInbox();
 const items: InboxItem[] = INBOX_SETS.flatMap((set) => LANGS.flatMap((lang) => Array.from({ length: SEEDS }, (_, i) => inboxItem(inbox, set, i + 1, lang))));
 /* A letter depends on the case and the language, not on the complaint's wording */
 const keyOf = (item: InboxItem) => `${rowId(item.row)}/${item.lang}`;
-const written = (): Record<string, string> => Object.fromEntries(items.map((item) => [keyOf(item), replyText(text(item.lang), replyDraft(item.brief))]).sort(([a], [b]) => (a! < b! ? -1 : 1)));
+/* The letter as the desk writes it for the case: the scripted draft, with
+   the provision the rules give for each statement */
+const letterOf = (item: InboxItem): string => {
+  const x = text(item.lang);
+  return replyText(x, replyDraft(item.brief), replyCites(x, item.facts, item.brief.asOf));
+};
+const written = (): Record<string, string> => Object.fromEntries(items.map((item) => [keyOf(item), letterOf(item)]).sort(([a], [b]) => (a! < b! ? -1 : 1)));
 
 if (process.env.UPDATE_LETTERS) {
   const kept: Kept = { icu: process.versions.icu ?? "", node: process.version, seeds: SEEDS, letters: written() };

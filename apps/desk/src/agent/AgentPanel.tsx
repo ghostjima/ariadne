@@ -291,7 +291,7 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
     if (summary?.code === "reply_drafted" && writtenDraft)
       return (
         <Disclosure className="reply-shown" summary={t.rubric.draftShown}>
-          <ReplyDraftView x={x} draft={writtenDraft} />
+          <ReplyDraftView x={x} draft={writtenDraft} facts={facts} />
         </Disclosure>
       );
     if (summary?.code === "draft_checked") return <ReplyCheck x={x} draft={writtenDraft} facts={facts} />;
@@ -389,7 +389,7 @@ export function AgentPanel({ lang, session, facts, service, toasts, shortcuts, h
           its work. */}
       <p className="muted">{t.task.scripted}</p>
       <p className="muted">{t.task.untrusted}</p>
-      <Decisions x={x} steps={steps} waiting={stream.waiting} open={decisionOpen} onDecide={(stepId, command) => session.decide(stepId, command)} />
+      <Decisions x={x} steps={steps} waiting={stream.waiting} open={decisionOpen} onDecide={(stepId, command) => session.decide(stepId, command)} facts={facts} />
       <AlertDialog
         isOpen={askNewPlan && ended}
         onOpenChange={setAskNewPlan}

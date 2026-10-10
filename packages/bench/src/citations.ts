@@ -62,7 +62,7 @@ const latin = (id: string): string => id.replace(/[упиодн]/g, (c) => LATIN
 type Token =
   | { kind: "act"; at: number; end: number; act: string }
   | { kind: "article"; at: number; end: number; values: string[] }
-  | { kind: "part"; at: number; end: number; values: string[]; maybeSub: boolean }
+  | { kind: "part"; at: number; end: number; values: string[]; maybeSub: boolean; unit: "part" | "item" }
   | { kind: "sub"; at: number; end: number };
 
 const numbers = (list: string): string[] => list.match(new RegExp(NUM, "g")) ?? [];
@@ -93,10 +93,11 @@ function tokens(sentence: string): Token[] {
     ...span(m),
     values: numbers(m[1]!),
     maybeSub: /^[^а-яa-z]?пп\./.test(m[0]),
+    unit: /^[^а-яa-z]?(?:част|чч?\.|parts?)/.test(m[0]) ? "part" : "item",
   }));
   /* In English a paragraph may stand for an item ("paragraph 11 of Article
      7") or lie below one ("item 5.2, paragraph 2"): decided below */
-  each(new RegExp(String.raw`(?:^|[^a-z])paragraphs?\s*(${LIST})`, "g"), (m) => ({ kind: "part", ...span(m), values: numbers(m[1]!), maybeSub: true }));
+  each(new RegExp(String.raw`(?:^|[^a-z])paragraphs?\s*(${LIST})`, "g"), (m) => ({ kind: "part", ...span(m), values: numbers(m[1]!), maybeSub: true, unit: "item" }));
   /* Below a part: read so that their numbers are not taken for parts */
   each(new RegExp(String.raw`(?:^|[^а-яa-z])(?:абзац(?:а|у|ем|е|ы|ев)?|абз\.|подпункт(?:а|у|ом|е|ы|ов)?|подп\.|предложени(?:е|я|ю|ем|и|й)|предл\.|subitems?|subparagraphs?|sub-?clauses?|sentences?)\s*(${LIST})`, "g"), (m) => ({ kind: "sub", ...span(m) }));
   out.sort((a, b) => a.at - b.at || b.end - a.end);
@@ -173,11 +174,21 @@ export function citations(text: string): Citation[] {
     const used = new Set<Token>();
     const cited: (Citation & { at: number })[] = [];
     const byArticle = new Map<Token, string[]>();
+    /* An article divided into parts has its items below them ("ч. 3.6,
+       п. 3"; "part 3.6, item 3"): where an article is cited with both, the
+       items are left out, as paragraphs are */
+    const ofArticle = new Map<Token, typeof parts>();
     for (const p of parts) {
       const article = nearest(p, articles);
-      if (!article) continue;
-      byArticle.set(article, [...(byArticle.get(article) ?? []), ...p.values]);
-      used.add(p);
+      if (article) ofArticle.set(article, [...(ofArticle.get(article) ?? []), p]);
+    }
+    for (const [article, own] of ofArticle) {
+      const divided = own.some((p) => p.unit === "part");
+      for (const p of own) {
+        used.add(p);
+        if (divided && p.unit === "item") continue;
+        byArticle.set(article, [...(byArticle.get(article) ?? []), ...p.values]);
+      }
     }
     for (const a of articles) {
       const act = actOfArticle(a, acts, sentence);
@@ -235,7 +246,12 @@ const SOURCE_ACT: Record<string, string | null> = {
   aml_law_7_8: "fz:115",
   civil_code_191_193: "civil_code",
   labour_code_112: "labour_code",
+  central_bank_law_79_3: "fz:86",
   directive_6748_u: "cbr:6748-u",
+  directive_7282_u: "cbr:7282-u",
+  decree_1335_2024: "gov:1335",
+  decree_1466_2025: "gov:1466",
+  decree_1187_2026: "gov:1187",
   regulation_842_p: "cbr:842-p",
   order_od_2506: "cbr:od-2506",
   letter_010_31_7975: "cbr:010-31/7975",

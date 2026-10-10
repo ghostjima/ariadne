@@ -17,6 +17,7 @@ import {
   Stream,
   caseFacts,
   effectiveDue,
+  forwardingRefusalOf,
   isoDay,
   type ColumnStore,
 } from "@ariadne/grid";
@@ -57,12 +58,17 @@ export function reasonOf(store: ColumnStore, row: number): ReasonCode | null {
  * the database, where no operation was blocked, art. 9 part 11.6, or 11.7
  * with the Ministry of Internal Affairs' information, the suspension of
  * the client's card or online banking, as the rules engine gives it unless
- * a person named the other part in the register; the category's own
+ * a person named the other part in the register, and after it, where the
+ * bank refused to forward the client's application to remove the data for
+ * missing mandatory data, item 1.3 of Directive No. 6748-U; the category's own
  * article and item under 115-FZ), then the ground the register holds, if
  * it is another one its stream may name. A general complaint or a money
  * claim rests on the contract unless the register says otherwise. */
 const FIRST_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_4");
 const SECOND_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
+/** The ground of a refusal to forward the client's application to remove
+ * the data, mandatory data missing: Directive No. 6748-U item 1.3. */
+const FORWARDING_REFUSED = GROUNDS.findIndex((g) => g?.id === "directive_6748_u_1_3");
 
 /** The ground of a suspended card or online banking, as ariadne-rules
  * gives it for the case's facts: the part its suspend_instrument measure
@@ -102,6 +108,9 @@ export function groundsOf(store: ColumnStore, row: number): GroundCode[] {
     const held = GROUNDS[store.ground[row] ?? Ground.None]?.id;
     const ground = held === "payment_9_11_6" || held === "payment_9_11_7" ? held : instrumentGround(caseFacts(store, row));
     if (ground) add(GROUNDS.findIndex((g) => g?.id === ground));
+    // The bank refused to forward the client's application: the reply
+    // names the directive's item beside the part of 161-FZ.
+    if (forwardingRefusalOf(store, row)) add(FORWARDING_REFUSED);
   }
   if (stream === Stream.Aml && (store.reason[row] ?? 0) > 0) add(AML_GROUND_OFFSET + (store.reason[row] ?? 1) - 1);
   const held = store.ground[row] ?? Ground.None;

@@ -121,10 +121,13 @@ export const OUTCOME_COUNT = 4;
      9  aml_high_risk_measures               115-FZ art. 7.7 item 5
     10  contract                             the contract with the client
     11  payment_9_11_6                       161-FZ art. 9 part 11.6
-    12  payment_9_11_7                       161-FZ art. 9 part 11.7 */
+    12  payment_9_11_7                       161-FZ art. 9 part 11.7
+    13  directive_6748_u_1_3                 Bank of Russia Directive No. 6748-U item 1.3 */
 export type GroundSpec = {
   id: string;
-  act: "payment_system" | "anti_money_laundering" | "contract";
+  /* `bank_of_russia_act` is a directive of the Bank of Russia: it has no
+     articles, and its item is the part */
+  act: "payment_system" | "anti_money_laundering" | "contract" | "bank_of_russia_act";
   article: string;
   part: string;
   /* The streams whose replies may name it */
@@ -173,17 +176,27 @@ export const GROUNDS: readonly (GroundSpec | null)[] = [
   /* Part 11.7: the same with the Ministry of Internal Affairs'
      information on unlawful acts, where the suspension is a duty */
   { id: "payment_9_11_7", act: "payment_system", article: "9", part: "11.7", streams: [Stream.Antifraud] },
+  /* The Bank of Russia's Directive No. 6748-U item 1.3: the client's
+     application to remove the data, filed through the bank, is not
+     forwarded to the Bank of Russia when it lacks mandatory data. The
+     ground of that refusal, beside the part of 161-FZ the suspension or
+     the cap rests on; the generator never draws it, the desk adds it to
+     the reply of a case whose application was refused (database.ts), and
+     a person may name it */
+  { id: "directive_6748_u_1_3", act: "bank_of_russia_act", article: "", part: "1.3", streams: [Stream.Antifraud] },
 ];
 export const GROUND_COUNT = GROUNDS.length;
 export const Ground = { None: 0, Contract: 10 } as const;
 /* The ground of each 115-FZ category: the categories in order, from code 3 */
 export const AML_GROUND_OFFSET = 3;
 /* The 161-FZ grounds in ariadne-rules' order (payment_8_3_4,
-   payment_8_3_10, payment_9_11_6, payment_9_11_7), by their codes here */
-export const PAYMENT_GROUND_CODES: readonly number[] = [1, 2, 11, 12];
+   payment_8_3_10, payment_9_11_6, payment_9_11_7, and the item of the
+   directive under 161-FZ art. 9, directive_6748_u_1_3), by their codes
+   here */
+export const PAYMENT_GROUND_CODES: readonly number[] = [1, 2, 11, 12, 13];
 /* The codes in the order a person is offered them: none, 161-FZ by
-   article and part, 115-FZ, the contract */
-export const GROUND_ORDER: readonly number[] = [0, 1, 2, 11, 12, 3, 4, 5, 6, 7, 8, 9, 10];
+   article and part, the directive under it, 115-FZ, the contract */
+export const GROUND_ORDER: readonly number[] = [0, 1, 2, 11, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /* The extension of the reply term by ten working days, only to request
    documents (Banking Law art. 30.1 part 8); refused by ariadne-rules for a

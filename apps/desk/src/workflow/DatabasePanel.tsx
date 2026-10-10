@@ -13,21 +13,35 @@
 // supervisor may record its lift with the bank's reasons, after a
 // confirmation (the law does not describe a lift, and the panel says how
 // the desk reads it); where it is a duty (part 11.7), the panel says so.
+// And the client's application through the bank (Directive No. 6748-U
+// items 1.2 to 1.5): one that arrives today is recorded by the operator of
+// the case or the supervisor, with the day to forward it by from
+// ariadne-rules; when it lacks mandatory data they refuse to forward it,
+// ticking what is missing, after a confirmation that shows the notice the
+// client gets; the panel then shows the notice and its 5 working days.
 // Shown only for a case about the client's own data.
 import { useEffect, useRef, useState } from "react";
-import { AlertDialog, Button, DescriptionList, Panel, RadioGroup, TextArea, useFormatters } from "@ghostjima/stoa-react";
+import { AlertDialog, Button, Checkbox, CheckboxGroup, DescriptionList, Letter, Panel, RadioGroup, TextArea, useFormatters } from "@ghostjima/stoa-react";
 import {
   ANSWER_REASON_MIN,
+  APPLICATION_ROLES,
   Applicant,
   LIFT_REASON_MAX,
   LIFT_REASON_MIN,
   LIFT_ROLES,
-  Path,
   Restriction,
+  applicationForwarded,
+  applicationReceivedOn,
+  checkApplicationIntake,
+  checkForwardingRefusal,
   checkLift,
+  forwardingRefusalOf,
   liftAllowed,
   liftedOn,
+  mandatoryData,
+  type ApplicationError,
   type LiftError,
+  type MandatoryData,
   QUERY_ANSWER_ROLES,
   QUERY_INTAKE_ROLES,
   QUERY_VIEWS,
@@ -49,7 +63,7 @@ import {
   type RemovalError,
   type Role,
 } from "@ariadne/grid";
-import { clock } from "@ariadne/rules";
+import { clock, paymentGrounds, type Basis } from "@ariadne/rules";
 import { basisName } from "../case/sources";
 import { POOLS } from "../data/query";
 import type { Lang } from "../i18n";
@@ -76,9 +90,34 @@ export type DatabasePanelProps = {
   /** Records the lift of a suspension the bank chose under part 11.6,
    * with the bank's reasons; the refusal, or null. */
   onLiftSuspension: (reason: string) => LiftError | null;
+  /** Records the client's application received through the bank today;
+   * the refusal, or null. */
+  onRecordApplication: () => ApplicationError | null;
+  /** Records the bank's refusal to forward it, with the mandatory data it
+   * lacks; the refusal of that step, or null. */
+  onRefuseForwarding: (missing: MandatoryData[]) => ApplicationError | null;
 };
 
-export function DatabasePanel({ store, row, role, lang, version, onApplyForRemoval, onRecordQuery, onAnswerQuery, onLiftSuspension }: DatabasePanelProps) {
+/** The provision a refusal to forward an incomplete application rests on,
+ * as ariadne-rules gives it: Directive No. 6748-U item 1.3. */
+function refusalBasis(): Basis {
+  const g = paymentGrounds().find((x) => x.code === "directive_6748_u_1_3");
+  return { source: g?.source ?? "directive_6748_u", act: "", article: g?.article ?? "", part: g?.part ?? "1.3", revision: g?.revision ?? "", url: "", reading: "text" };
+}
+
+export function DatabasePanel({
+  store,
+  row,
+  role,
+  lang,
+  version,
+  onApplyForRemoval,
+  onRecordQuery,
+  onAnswerQuery,
+  onLiftSuspension,
+  onRecordApplication,
+  onRefuseForwarding,
+}: DatabasePanelProps) {
   void version;
   const w = workflowStrings[lang];
   const b = w.database;
@@ -94,6 +133,9 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
   const [liftReason, setLiftReason] = useState("");
   const [liftError, setLiftError] = useState<LiftError | null>(null);
   const [lifting, setLifting] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);
+  const [applicationError, setApplicationError] = useState<ApplicationError | null>(null);
+  const [refusing, setRefusing] = useState(false);
   const refocus = useRef(false);
 
   const focusHeading = () => {
@@ -105,11 +147,11 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
   // Once the confirmation has gone, the form that opened it has gone too
   // when the application went: the heading takes the focus.
   useEffect(() => {
-    if (asking || lifting || !refocus.current) return;
+    if (asking || lifting || refusing || !refocus.current) return;
     refocus.current = false;
     const frame = requestAnimationFrame(focusHeading);
     return () => cancelAnimationFrame(frame);
-  }, [asking, lifting]);
+  }, [asking, lifting, refusing]);
 
   if (!isClientDataCase(store, row)) return null;
   const id = rowId(row);
@@ -169,6 +211,31 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
     setLiftError(refused);
     if (!refused) setLifting(true);
   };
+  // The client's application through the bank.
+  const clientApplied = applicationReceivedOn(store, row);
+  const forwardedOn = applicationForwarded(store, row) ? (store.pathThen[row] ?? -1) : -1;
+  const refusal = forwardingRefusalOf(store, row);
+  const applicationTerms = clientApplied >= 0 ? clock(facts).deadlines : [];
+  const forwardDue = applicationTerms.find((d) => d.kind === "exclusion_forwarding");
+  const noticeDue = applicationTerms.find((d) => d.kind === "exclusion_refusal_notice");
+  const mayApply = APPLICATION_ROLES.includes(role) && (role !== "operator" || actsOn(store, row, role));
+  const asked = mandatoryData(store.applicant[row] ?? Applicant.Individual);
+  const dataLabel = (code: MandatoryData) => (!individual && code === "identity_documents" ? b.traderOnly(b.data[code]) : b.data[code]);
+  const noticeOf = (data: readonly MandatoryData[]) =>
+    b.noticeLines(day(clientApplied), data.map((code) => b.dataInNotice[code]).join("; "), basisName(refusalBasis(), lang));
+  const picked = asked.filter((code) => missing.includes(code));
+  const recordApplication = () => {
+    const refused = checkApplicationIntake(store, row, role) ?? onRecordApplication();
+    setApplicationError(refused);
+    // The button goes with the application recorded: the heading takes
+    // the focus.
+    if (!refused) requestAnimationFrame(focusHeading);
+  };
+  const askRefusal = () => {
+    const refused = checkForwardingRefusal(store, row, role, missing);
+    setApplicationError(refused);
+    if (!refused) setRefusing(true);
+  };
 
   return (
     <div ref={box} className="database-panel">
@@ -211,7 +278,7 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
 
         <h4>{b.query}</h4>
         <p className="muted">{b.queryHelp}</p>
-        {store.path[row] === Path.DatabaseRemoval ? (
+        {clientApplied >= 0 && !refusal ? (
           <p className="muted">{b.queryThroughBank}</p>
         ) : received < 0 ? (
           canRecord ? (
@@ -261,6 +328,53 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
         {queryError && (
           <p className="field-error" role="alert">
             {queryErrorText(queryError)}
+          </p>
+        )}
+
+        <h4>{b.application}</h4>
+        <p className="muted">{b.applicationHelp}</p>
+        {clientApplied < 0 ? (
+          mayApply ? (
+            <div className="letter-form__actions">
+              <Button onPress={recordApplication}>{b.recordApplication}</Button>
+            </div>
+          ) : (
+            <p className="muted">{b.applicationWhoMay}</p>
+          )
+        ) : (
+          <>
+            <p>
+              {b.applicationReceived(day(clientApplied))}
+              {forwardedOn >= 0 && ` ${b.forwarded(day(forwardedOn))}`}
+              {forwardDue && forwardedOn < 0 && ` ${b.forwardBy(day(dayNumber(forwardDue.due)), basisName(forwardDue.basis, lang))}`}
+            </p>
+            {refusal ? (
+              <>
+                <p>{b.refused(day(refusal.on), refusal.missing.map((code) => dataLabel(code)).join("; "))}</p>
+                {noticeDue && <p>{b.noticeDue(day(dayNumber(noticeDue.due)), basisName(noticeDue.basis, lang))}</p>}
+                <Letter label={b.notice} lines={noticeOf(refusal.missing)} lang={lang} />
+              </>
+            ) : forwardedOn >= 0 ? null : mayApply ? (
+              <div className="letter-form">
+                <CheckboxGroup label={b.missing} value={missing} onChange={setMissing} description={b.missingHelp}>
+                  {asked.map((code) => (
+                    <Checkbox key={code} value={code}>
+                      {dataLabel(code)}
+                    </Checkbox>
+                  ))}
+                </CheckboxGroup>
+                <div className="letter-form__actions">
+                  <Button onPress={askRefusal}>{b.refuse}</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="muted">{b.applicationWhoMay}</p>
+            )}
+          </>
+        )}
+        {applicationError && (
+          <p className="field-error" role="alert">
+            {b.applicationErrors[applicationError.code]}
           </p>
         )}
 
@@ -319,6 +433,25 @@ export function DatabasePanel({ store, row, role, lang, version, onApplyForRemov
       >
         <p>{b.liftConfirmText}</p>
         <blockquote className="database-reasons">{liftReason.trim().slice(0, LIFT_REASON_MAX)}</blockquote>
+      </AlertDialog>
+      <AlertDialog
+        isOpen={refusing}
+        onOpenChange={setRefusing}
+        title={b.refuseConfirmTitle(id)}
+        confirmLabel={b.refuseConfirm}
+        cancelLabel={b.refuseKeep}
+        tone="destructive"
+        onConfirm={() => {
+          refocus.current = true;
+          const refused = onRefuseForwarding(picked);
+          setApplicationError(refused);
+          if (!refused) setMissing([]);
+        }}
+      >
+        <p>{b.refuseConfirmText}</p>
+        <blockquote className="database-reasons" lang={lang}>
+          {noticeOf(picked).join("\n")}
+        </blockquote>
       </AlertDialog>
       <AlertDialog
         isOpen={asking}

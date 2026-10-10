@@ -50,6 +50,7 @@ export function Journal({ entries, w, t, pools, stages, time }: JournalProps) {
         {e.reason && <span>{w.why(w.reasons[e.reason])}</span>}
         {e.copy && <span>{w.dispatch.copy[e.copy]}</span>}
         {e.view && <span>{w.database.viewSaid(w.database.views[e.view])}</span>}
+        {e.missing && <span>{w.database.missingSaid(e.missing.map((code) => w.database.data[code]).join("; "))}</span>}
         {e.comment && (e.action === "sign" || e.action === "defer") ? (
           <DecisionLines w={w} comment={e.comment} />
         ) : (

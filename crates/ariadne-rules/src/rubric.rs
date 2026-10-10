@@ -14,7 +14,8 @@
 //!   reply on an antifraud or anti-money-laundering complaint names its
 //!   own law;
 //! - next steps are stated, and the options the law gives the client in
-//!   that case (the same letter; the provisions cited per option), among
+//!   that case (the same letter is the source of the duty to state them;
+//!   each option has its own provision, [`client_options`]), among
 //!   them, for a card or online banking suspended for the client's own
 //!   data in the Bank of Russia's database, or the client's transfers
 //!   capped instead, the right to apply for their removal and how (161-FZ
@@ -30,11 +31,21 @@
 //!   replies advise against long sentences and give no number; the word
 //!   limits are the values this project sets, see [`MAX_SENTENCE_WORDS`]).
 //!
+//! A finding names two things: the source of the duty to state what is
+//! missing ([`Finding::basis`], a letter or a page of the Bank of Russia,
+//! or the statute where it obliges the bank to tell the client), and the
+//! provision of the missing thing itself ([`Finding::provision`]): the
+//! article and part that give the client the option, set the deadline or
+//! ground the measure. [`reply_provisions`] gives the same provisions for
+//! everything a reply to the case states, so that each statement can cite
+//! its own.
+//!
 //! It returns coded findings; no finding means nothing to flag, not that
 //! the reply is right. A person decides.
 
 use crate::clock::{
-    AmlDecisionKind, Case, Clock, DeadlineKind, MeasureKind, Operation, Regime, Stream,
+    reply_content_basis, AmlDecisionKind, Applicant, Basis, Case, Clock, Deadline, DeadlineKind,
+    MeasureKind, Operation, Reading, Regime, Stream,
 };
 use crate::reasons::{Family, Reason};
 use crate::sources::{self, Source};
@@ -66,6 +77,9 @@ pub enum Act {
     OtherLaw,
     /// The contract with the client, which has no article.
     Contract,
+    /// A directive or regulation of the Bank of Russia, numbered in items:
+    /// it has no articles, and a reply names its item.
+    BankOfRussiaAct,
 }
 
 /// A legal ground the reply names.
@@ -78,18 +92,21 @@ pub struct Ground {
     pub part: String,
 }
 
-/// What the law lets the client do next.
+/// What the law lets the client do next. The provision that gives each
+/// option in a case is [`client_options`]'.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClientOption {
     /// Confirm the suspended order (161-FZ art. 8 part 3.6 item 3).
     ConfirmOrder,
-    /// Repeat the refused operation (161-FZ art. 8 parts 3.6 item 3,
-    /// 3.10).
+    /// Repeat the refused operation (161-FZ art. 8 part 3.6 item 3; after
+    /// a second refusal or suspension, part 3.10, sentence 2).
     RepeatOperation,
-    /// Submit documents against a 115-FZ refusal (art. 7 item 13.4).
+    /// Submit documents against a 115-FZ refusal (art. 7 item 13.4,
+    /// paragraph 1).
     SubmitDocuments,
-    /// Apply to the interagency commission (115-FZ art. 7 item 13.5,
-    /// art. 7.7 item 8).
+    /// Apply to the interagency commission: after the bank's answer on
+    /// the documents (115-FZ art. 7 item 13.5, paragraph 1), or against
+    /// the measures for a high-risk client (art. 7.8 item 1).
     ApplyToCommission,
     /// Apply to the financial ombudsman (123-FZ art. 16 part 4).
     ApplyToOmbudsman,
@@ -133,10 +150,11 @@ impl ClientOption {
         }
     }
 
-    /// The source a missing option's finding rests on, when it is not the
+    /// The source of the duty to state the option, when it is not the
     /// letter every option cites ([`FindingCode::basis`]): the right to
     /// apply for removal is a duty of the statute, not only a
-    /// recommendation, and the channels are the directive's.
+    /// recommendation, and the channels are the directive's. The
+    /// provision that gives the option itself is [`client_options`]'.
     pub fn basis(self) -> Option<(Source, &'static str)> {
         match self {
             ClientOption::ApplyForRemoval => Some((
@@ -181,7 +199,8 @@ pub struct Reply {
 pub enum FindingCode {
     /// No legal ground named.
     GroundMissing,
-    /// A law named without an article.
+    /// A law named without an article, or a Bank of Russia directive
+    /// without its item.
     GroundWithoutArticle,
     /// Grounds or reasons from both 161-FZ and 115-FZ.
     GroundsMixed,
@@ -273,6 +292,14 @@ pub struct Finding {
     pub code: FindingCode,
     /// The code of the option or deadline the finding is about.
     pub subject: Option<&'static str>,
+    /// The provision of what the finding is about, when it has one of its
+    /// own: the article and part that give the client a missing option,
+    /// set a missing or misstated deadline, or ground a restriction left
+    /// out; for a reply with no ground, or a ground without its article,
+    /// the part of the sector's complaint article on what a reply must
+    /// contain. `None` for a restriction stated that does not apply, and
+    /// for the findings about the text.
+    pub provision: Option<Basis>,
     /// For a sentence finding, the sentence's index (from zero).
     pub sentence: Option<u32>,
     /// For a sentence finding, its words; for the average, the mean,
@@ -281,9 +308,9 @@ pub struct Finding {
 }
 
 impl Finding {
-    /// The source the finding rests on, and where in it: the finding
-    /// code's, or for a missing option with a source of its own, the
-    /// option's.
+    /// The source of the duty to state what the finding is about, and
+    /// where in it: the finding code's, or for a missing option with a
+    /// source of its own, the option's.
     pub fn basis(&self) -> (Source, &'static str) {
         let option = self.subject.and_then(|s| ClientOption::parse(s).ok());
         match (self.code, option.and_then(ClientOption::basis)) {
@@ -296,16 +323,133 @@ impl Finding {
         Finding {
             code,
             subject: None,
+            provision: None,
             sentence: None,
             words: None,
         }
     }
 
-    fn about(code: FindingCode, subject: &'static str) -> Finding {
+    fn about(code: FindingCode, subject: &'static str, provision: Option<Basis>) -> Finding {
         Finding {
             subject: Some(subject),
+            provision,
             ..Finding::of(code)
         }
+    }
+}
+
+const fn provision(source: Source, article: &'static str, part: &'static str) -> Basis {
+    Basis {
+        source,
+        article,
+        part,
+        reading: Reading::Text,
+    }
+}
+
+/// An option the law gives the client in a case, with the provision that
+/// gives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OptionProvision {
+    pub option: ClientOption,
+    pub basis: Basis,
+}
+
+/// A deadline a reply to a case states, with the provision that sets it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DeadlineProvision {
+    pub kind: DeadlineKind,
+    pub basis: Basis,
+}
+
+/// A restriction a reply to a case states, with the provision it rests
+/// on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MeasureProvision {
+    pub kind: MeasureKind,
+    pub basis: Basis,
+}
+
+/// The provision behind everything a reply to a case states on a day, so
+/// that each statement cites its own: the client's options, the deadlines
+/// that concern the client and still run, the restrictions in force for
+/// the client's own data in the Bank of Russia's database, the part of the
+/// sector's complaint article on what a reply must contain, and the
+/// provision behind telling the client that a complaint may also go to the
+/// Bank of Russia.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ReplyProvisions {
+    pub options: Vec<OptionProvision>,
+    pub deadlines: Vec<DeadlineProvision>,
+    pub measures: Vec<MeasureProvision>,
+    /// What a reply must contain, references to the law among it.
+    pub content: Basis,
+    /// `None` where no provision was found: for a legal entity.
+    pub complaint_to_bank_of_russia: Option<Basis>,
+}
+
+/// The provision that sets a deadline a reply states. The clock's own
+/// basis, except where the clock cites how a term is counted rather than
+/// what sets it: the two days of a suspended transfer are 161-FZ art. 8
+/// part 3.4, sentence 1, and of a confirmed one part 3.10, sentence 1 (the
+/// Bank of Russia's letter No. 010-31/7975, which the clock cites, says
+/// how the days are counted); the Bank of Russia's 15 working days on an
+/// application to remove data are 161-FZ art. 9 part 11.10 (Directive No.
+/// 6748-U, which the clock cites, says from which day).
+pub fn deadline_provision(deadline: &Deadline) -> Basis {
+    match deadline.kind {
+        DeadlineKind::AntifraudSuspensionEnds => {
+            provision(sources::PAYMENT_LAW_8, "8", "3.4, sentence 1")
+        }
+        DeadlineKind::AntifraudRepeatSuspensionEnds => {
+            provision(sources::PAYMENT_LAW_8, "8", "3.10, sentence 1")
+        }
+        DeadlineKind::ExclusionDecision => provision(sources::PAYMENT_LAW_9, "9", "11.10"),
+        _ => deadline.basis,
+    }
+}
+
+/// The provision behind telling the client that a complaint may also go
+/// to the Bank of Russia: "Поступившее в Банк России обращение физического
+/// лица ... о нарушении кредитной организацией, некредитной финансовой
+/// организацией ... его прав ... направляется для рассмотрения по существу
+/// в финансовую организацию" (86-FZ art. 79.3 part 1). The article speaks
+/// of an individual's complaint only: no provision was found for a legal
+/// entity, and `None` is given for one.
+pub fn bank_of_russia_complaint(case: &Case) -> Option<Basis> {
+    match case.applicant {
+        Applicant::Individual => Some(provision(sources::CENTRAL_BANK_LAW_79_3, "79.3", "1")),
+        Applicant::LegalEntity => None,
+    }
+}
+
+/// The provisions behind what a reply to `case` states on `replied_on`.
+pub fn reply_provisions(case: &Case, clock: &Clock, replied_on: Date) -> ReplyProvisions {
+    let database = case.database.is_some_and(|f| f.data_removed_on.is_none());
+    ReplyProvisions {
+        options: client_options(case, clock, replied_on),
+        deadlines: clock
+            .deadlines
+            .iter()
+            .filter(|d| stated_to_client(d.kind) && d.due >= replied_on)
+            .map(|d| DeadlineProvision {
+                kind: d.kind,
+                basis: deadline_provision(d),
+            })
+            .collect(),
+        measures: clock
+            .measures
+            .iter()
+            .filter(|m| {
+                database && MeasureKind::DATABASE.contains(&m.kind) && m.in_force_on(replied_on)
+            })
+            .map(|m| MeasureProvision {
+                kind: m.kind,
+                basis: m.basis,
+            })
+            .collect(),
+        content: reply_content_basis(case.sector),
+        complaint_to_bank_of_russia: bank_of_russia_complaint(case),
     }
 }
 
@@ -332,37 +476,75 @@ fn stated_to_client(kind: DeadlineKind) -> bool {
 }
 
 /// The options the law gives the client in this case, on the day the
-/// reply goes out.
-fn required_options(case: &Case, clock: &Clock, replied_on: Date) -> Vec<ClientOption> {
-    let mut need = Vec::new();
-    let mut add = |o: ClientOption| {
-        if !need.contains(&o) {
-            need.push(o);
+/// reply goes out, each with the provision that gives it.
+pub fn client_options(case: &Case, clock: &Clock, replied_on: Date) -> Vec<OptionProvision> {
+    let mut need: Vec<OptionProvision> = Vec::new();
+    let mut add = |option: ClientOption, basis: Basis| {
+        match need.iter_mut().find(|o| o.option == option) {
+            // The later step of the same option is where the client stands.
+            Some(o) => o.basis = basis,
+            None => need.push(OptionProvision { option, basis }),
         }
     };
     if clock.regime == Regime::OmbudsmanClaim {
-        add(ClientOption::ApplyToOmbudsman);
+        // "Потребитель финансовых услуг вправе направить обращение
+        // финансовому уполномоченному после получения ответа финансовой
+        // организации".
+        add(
+            ClientOption::ApplyToOmbudsman,
+            provision(sources::OMBUDSMAN_LAW_16, "16", "4"),
+        );
     }
     if let Some(f) = case.antifraud {
+        // "о возможности клиента подтвердить распоряжение не позднее одного
+        // дня, следующего за днем приостановления ..., или о возможности
+        // совершения клиентом повторной операции".
+        let first = provision(sources::PAYMENT_LAW_8, "8", "3.6, item 3");
         match f.operation {
-            Operation::Transfer => add(ClientOption::ConfirmOrder),
-            Operation::CardSbpOrEmoney => add(ClientOption::RepeatOperation),
+            Operation::Transfer => add(ClientOption::ConfirmOrder, first),
+            Operation::CardSbpOrEmoney => add(ClientOption::RepeatOperation, first),
         }
         if f.database_match_after_confirmation {
-            add(ClientOption::RepeatOperation);
+            // "а также о возможности совершения клиентом последующей
+            // повторной операции".
+            add(
+                ClientOption::RepeatOperation,
+                provision(sources::PAYMENT_LAW_8, "8", "3.10, sentence 2"),
+            );
         }
     }
     if let Some(f) = case.aml {
+        let mut refused = false;
         if let Some((kind, _)) = f.decision {
             // Documents and then the commission, against a refused
-            // operation or a refused contract (art. 7 items 13.4, 13.5).
+            // operation or a refused contract (art. 7 items 13.4, 13.5):
+            // "клиент ... вправе представить в эту организацию документы и
+            // (или) сведения об отсутствии оснований для принятия решения
+            // об отказе"; "вправе обратиться с заявлением ... в
+            // межведомственную комиссию, созданную при Центральном банке
+            // Российской Федерации".
             if kind != AmlDecisionKind::TerminateAccount {
-                add(ClientOption::SubmitDocuments);
-                add(ClientOption::ApplyToCommission);
+                refused = true;
+                add(
+                    ClientOption::SubmitDocuments,
+                    provision(sources::AML_LAW_7, "7", "13.4, paragraph 1"),
+                );
+                add(
+                    ClientOption::ApplyToCommission,
+                    provision(sources::AML_LAW_7, "7", "13.5, paragraph 1"),
+                );
             }
         }
-        if f.high_risk_measures_on.is_some() || f.high_risk_notice_received_on.is_some() {
-            add(ClientOption::ApplyToCommission);
+        if !refused
+            && (f.high_risk_measures_on.is_some() || f.high_risk_notice_received_on.is_some())
+        {
+            // "заявитель вправе обратиться с заявлением об отсутствии
+            // оснований для применения к нему мер ... в ... межведомственную
+            // комиссию".
+            add(
+                ClientOption::ApplyToCommission,
+                provision(sources::AML_LAW_7_8, "7.8", "1"),
+            );
         }
     }
     if let Some(f) = case.database {
@@ -382,7 +564,10 @@ fn required_options(case: &Case, clock: &Clock, replied_on: Date) -> Vec<ClientO
                 )
         });
         if restricted && f.data_removed_on.is_none() {
-            add(ClientOption::ApplyForRemoval);
+            add(
+                ClientOption::ApplyForRemoval,
+                provision(sources::PAYMENT_LAW_9, "9", "11.8"),
+            );
         }
     }
     need
@@ -443,15 +628,26 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     let mut out = Vec::new();
 
     // Grounds.
+    // The sector's complaint article asks a reply for references to the
+    // requirements of the law: its own provision for a ground left out.
+    let content = Some(reply_content_basis(case.sector));
     if reply.grounds.is_empty() {
-        out.push(Finding::of(FindingCode::GroundMissing));
+        out.push(Finding {
+            provision: content,
+            ..Finding::of(FindingCode::GroundMissing)
+        });
     }
-    if reply
-        .grounds
-        .iter()
-        .any(|g| g.act != Act::Contract && g.article.trim().is_empty())
-    {
-        out.push(Finding::of(FindingCode::GroundWithoutArticle));
+    // A law is named with its article; a Bank of Russia directive has
+    // items only, and is named with its item; the contract has neither.
+    if reply.grounds.iter().any(|g| match g.act {
+        Act::Contract => false,
+        Act::BankOfRussiaAct => g.part.trim().is_empty(),
+        _ => g.article.trim().is_empty(),
+    }) {
+        out.push(Finding {
+            provision: content,
+            ..Finding::of(FindingCode::GroundWithoutArticle)
+        });
     }
     let names = |act: Act| reply.grounds.iter().any(|g| g.act == act);
     let gives = |family: Family| reply.reasons.iter().any(|r| r.family() == family);
@@ -475,9 +671,13 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     if reply.next_steps.iter().all(|s| s.trim().is_empty()) {
         out.push(Finding::of(FindingCode::NextStepsMissing));
     }
-    for o in required_options(case, clock, reply.replied_on) {
-        if !reply.client_options.contains(&o) {
-            out.push(Finding::about(FindingCode::ClientOptionMissing, o.code()));
+    for o in client_options(case, clock, reply.replied_on) {
+        if !reply.client_options.contains(&o.option) {
+            out.push(Finding::about(
+                FindingCode::ClientOptionMissing,
+                o.option.code(),
+                Some(o.basis),
+            ));
         }
     }
 
@@ -486,11 +686,18 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
         if !stated_to_client(d.kind) || d.due < reply.replied_on {
             continue;
         }
+        let own = Some(deadline_provision(d));
         match reply.stated_deadlines.iter().find(|s| s.kind == d.kind) {
-            None => out.push(Finding::about(FindingCode::DeadlineMissing, d.kind.code())),
-            Some(s) if s.due != d.due => {
-                out.push(Finding::about(FindingCode::DeadlineMismatch, d.kind.code()))
-            }
+            None => out.push(Finding::about(
+                FindingCode::DeadlineMissing,
+                d.kind.code(),
+                own,
+            )),
+            Some(s) if s.due != d.due => out.push(Finding::about(
+                FindingCode::DeadlineMismatch,
+                d.kind.code(),
+                own,
+            )),
             Some(_) => {}
         }
     }
@@ -500,19 +707,27 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     // stated, none that does not (a transfer cap the suspension replaced
     // has ended).
     if case.database.is_some_and(|f| f.data_removed_on.is_none()) {
-        let applies: Vec<MeasureKind> = clock
+        let applies: Vec<(MeasureKind, Basis)> = clock
             .measures
             .iter()
             .filter(|m| m.in_force_on(reply.replied_on))
-            .map(|m| m.kind)
-            .filter(|k| MeasureKind::DATABASE.contains(k))
+            .map(|m| (m.kind, m.basis))
+            .filter(|(k, _)| MeasureKind::DATABASE.contains(k))
             .collect();
         for k in MeasureKind::DATABASE {
             let stated = reply.measures.contains(&k);
-            if applies.contains(&k) && !stated {
-                out.push(Finding::about(FindingCode::MeasureMissing, k.code()));
-            } else if stated && !applies.contains(&k) {
-                out.push(Finding::about(FindingCode::MeasureNotTaken, k.code()));
+            let applied = applies.iter().find(|(kind, _)| *kind == k);
+            match (applied, stated) {
+                // The restriction's own ground, which the reply owes.
+                (Some((_, basis)), false) => out.push(Finding::about(
+                    FindingCode::MeasureMissing,
+                    k.code(),
+                    Some(*basis),
+                )),
+                (None, true) => {
+                    out.push(Finding::about(FindingCode::MeasureNotTaken, k.code(), None))
+                }
+                _ => {}
             }
         }
     }

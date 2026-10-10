@@ -1,4 +1,4 @@
-[1,{"type":"plan.started","at":1000,"total":5,"protocol":6}]
+[1,{"type":"plan.started","at":1000,"total":5,"protocol":7}]
 [2,{"type":"step.started","stepId":"s1","at":1000,"requiresConfirmation":false}]
 [3,{"type":"step.error","stepId":"s1","error":{"code":"proposal_invalid","service":"model"},"attempt":1}]
 [4,{"type":"step.skipped","stepId":"s1","reason":"skipped_after_error"}]

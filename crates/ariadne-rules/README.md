@@ -99,7 +99,7 @@ item is the part.
 | Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap until a later suspension or the removal of the data; where the bank suspended some days after it received the database information, the cap in between; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
 | A suspension chosen under part 11.6, lifted while the data are in the database | the suspension ends on the day of the lift and, for an individual, the transfer cap starts; refused with the Ministry of Internal Affairs' information, where the suspension is a duty for the whole period; no cap follows for a legal entity | 161-FZ art. 9 part 11.6 (a conservative reading of its second sentence); part 11.7 |
 | ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, for an individual and a legal entity alike, from the day the bank received the database information to the day the data leave the database; without the day of receipt, from the day the bank acted on the data, with a warning | Banking Law art. 30 part 16; the information is received as Directive No. 7282-U items 6.1 to 6.3 set |
-| Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
+| Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing the operator refuses to forward it (the ground `directive_6748_u_1_3`), and the notice of the refusal, naming its ground, is due within 5 working days of receipt | Directive No. 6748-U items 1.3, 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | The Bank of Russia's decision, passed on by the operator | by the next working day after the operator receives it, for an application filed through the operator; on one filed through the Bank of Russia's Internet reception the decision goes to the client by email and the operator passes nothing on | Directive No. 6748-U items 2.1, 2.3, 2.4 |
 | Operator's answer to a Bank of Russia request on an application, including one the client filed with the Bank of Russia directly | 3 working days from the request | Directive No. 6748-U items 2.2, 2.9 |
@@ -362,8 +362,13 @@ matched a sign), `payment_8_3_10` (part 3.10, the second action after a
 confirmation or a repeat), `payment_9_11_6` (art. 9 part 11.6, the
 client's card or online banking suspended for the client's own data in
 the Bank of Russia's database, the ground of a reply about removing the
-data) and `payment_9_11_7` (part 11.7, the same with the Ministry of
-Internal Affairs' information, where the suspension is a duty). The
+data), `payment_9_11_7` (part 11.7, the same with the Ministry of
+Internal Affairs' information, where the suspension is a duty) and
+`directive_6748_u_1_3` (the Bank of Russia's Directive No. 6748-U item
+1.3: the client's application to remove the data, filed through the
+operator, is not forwarded to the Bank of Russia when it lacks mandatory
+data; the directive has no articles, so the ground's article is empty
+and its item is the part). The
 codes keep this order and a new ground is added at the end; the
 `suspend_instrument` measure of the clock rests on the third or the
 fourth. A reply about the transfer cap the bank chose instead of the
@@ -380,14 +385,40 @@ needs no legal judgment:
 | Finding | When | Basis |
 |---|---|---|
 | `ground_missing` | no legal ground named | the Bank of Russia's letter No. IN-01-59/98, paragraph 3 ("со ссылкой на конкретную норму"); Banking Law art. 30.1 part 9 and equivalents |
-| `ground_without_article` | a law named without an article (a contract needs none) | the same |
+| `ground_without_article` | a law named without an article, or a Bank of Russia directive (`bank_of_russia_act`) without its item (a contract needs neither) | the same |
 | `grounds_mixed` | 161-FZ and 115-FZ both among the grounds or the reasons | the same letter ("однозначно дифференцировать") |
 | `stream_ground_missing` | an antifraud or anti-money-laundering complaint answered without naming that law | the same |
 | `next_steps_missing` | no next step | the same ("порядке дальнейших действий") |
-| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.7 item 8); the financial ombudsman for a 123-FZ claim (art. 16 part 4); for a card or online banking suspended for the client's own data in the Bank of Russia's database, or the client's transfers capped instead, while the data are there, the right to apply to the Bank of Russia to remove them, through the bank or the Bank of Russia's Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U item 1.2; for the cap, the Bank of Russia's letter No. IN-03-59/11) | the letter and each provision; for the removal, the finding cites 161-FZ art. 9 part 11.8 itself, and the channels come from the directive and the Bank of Russia's letter No. IN-03-59/11 |
+| `client_option_missing` | an option the law gives the client is not offered: confirming a suspended order, repeating a refused operation (161-FZ art. 8 parts 3.6, 3.10); documents and then the commission against a 115-FZ refusal (art. 7 items 13.4, 13.5); the commission against high-risk measures (art. 7.8 item 1); the financial ombudsman for a 123-FZ claim (art. 16 part 4); for a card or online banking suspended for the client's own data in the Bank of Russia's database, or the client's transfers capped instead, while the data are there, the right to apply to the Bank of Russia to remove them, through the bank or the Bank of Russia's Internet reception (161-FZ art. 9 part 11.8; Directive No. 6748-U item 1.2; for the cap, the Bank of Russia's letter No. IN-03-59/11) | the letter and each provision; for the removal, the finding cites 161-FZ art. 9 part 11.8 itself, and the channels come from the directive and the Bank of Russia's letter No. IN-03-59/11 |
 | `deadline_missing`, `deadline_mismatch` | a deadline that concerns the client and runs on the reply's day is not stated, or stated with another date than the clock's | the Bank of Russia's recommendations on replies (concrete terms) |
 | `measure_missing`, `measure_not_taken` | for the client's own data in the database, while they are there, a restriction that applies is not stated, or one is stated that does not apply: the suspension of the card or online banking, or the transfer cap instead (161-FZ art. 9 part 11.6), and the ATM cash cap (Banking Law art. 30 part 16) | the Bank of Russia's letter No. IN-03-59/11 ("вид примененных ограничений, правовые основания их применения") |
 | `text_empty`, `sentence_too_long`, `sentences_long_on_average` | no text; a sentence of more than 25 words; more than 15 words a sentence on average | the same recommendations (no long sentences) |
+
+The "Basis" column is the source of the duty to state the thing (a
+letter or a page of the Bank of Russia, or the statute where it obliges
+the bank to tell the client). A finding also carries `provision`: the
+act, article and part of the thing itself, read in the texts on
+2026-10-10.
+
+| What a reply states | Its own provision |
+|---|---|
+| Confirm the suspended order | 161-FZ art. 8 part 3.6 item 3 |
+| Repeat the refused operation | 161-FZ art. 8 part 3.6 item 3; after a second refusal or suspension, part 3.10, sentence 2 |
+| Submit documents against a 115-FZ refusal | 115-FZ art. 7 item 13.4, paragraph 1 |
+| Apply to the interagency commission | after the bank's answer on the documents, 115-FZ art. 7 item 13.5, paragraph 1; against the measures for a high-risk client, art. 7.8 item 1 |
+| Apply to the financial ombudsman | 123-FZ art. 16 part 4 |
+| Apply to remove the client's data from the database | 161-FZ art. 9 part 11.8 |
+| A deadline | the clock's basis for it, except the two days of a suspended transfer (161-FZ art. 8 part 3.4, sentence 1) and of a confirmed one (part 3.10, sentence 1), where the clock cites the Bank of Russia's letter on how the days are counted, and the Bank of Russia's 15 working days on an application to remove data (161-FZ art. 9 part 11.10), where the clock cites the directive on the day they run from |
+| A restriction for the client's own data in the database | the clock's basis for the measure: 161-FZ art. 9 part 11.6 or 11.7, part 11.6 sentence 2, Banking Law art. 30 part 16 |
+| No ground named, or one without its article | what a reply must contain: Banking Law art. 30.1 part 9; 151-FZ art. 9.1 part 9; 4015-1 art. 6.2 item 6; 39-FZ art. 15.11 item 4; 190-FZ art. 6.2 part 8 |
+| That a complaint may also go to the Bank of Russia | 86-FZ art. 79.3 part 1, for an individual; the article speaks of an individual's complaint only, and no provision was found for a legal entity |
+
+`reply_provisions(case, clock, replied_on)` gives these for everything a
+reply to the case states on that day (`replyProvisions(input, repliedOn)`
+at the boundary), so that each statement can cite its own. No statute
+obliges a reply to name the ombudsman option or to state the deadlines:
+for those the Bank of Russia's letter and its page remain the only
+source of the duty.
 
 The word limits, 25 words a sentence at most and 15 on average, are the
 values this project sets: the Bank of Russia advises against long
@@ -436,7 +467,13 @@ the code:
 - `amlReasons()`: the 115-FZ categories, each with `code`, `source`,
   `article`, `part` and `revision`.
 - `paymentGrounds()`: the 161-FZ grounds in the order of their codes,
-  each with `code`, `source`, `article`, `part` and `revision`.
+  the directive's item last, each with `code`, `source`, `article`,
+  `part` and `revision`.
+- `replyProvisions(input, repliedOn)`: the provision behind what a reply
+  to the case states on that day, as a `ReplyProvisionsOutput` with
+  `options`, `deadlines` and `measures` (each a `code` and a `basis`),
+  `content` (what a reply must contain) and `complaintToBankOfRussia`
+  (a `basis`, or undefined for a legal entity).
 - `rubric(reply, input)`: `reply` is a `ReplyInput`, made with
   `new ReplyInput(repliedOn, text)` and filled with `grounds`
   (`GroundInput`s of an act code, article and part), `reasons`,
@@ -444,7 +481,9 @@ the code:
   (`StatedDeadlineInput`s) and `measures` (measure codes the reply says
   apply); `input` is the case's `CaseInput`, from which
   the clock is computed. Returns `FindingOutput`s with `code`, `subject`,
-  `sentence`, `words`, `source` and `reference`.
+  `sentence`, `words`, `source` and `reference` (the duty to state it),
+  and `provision` (a `basis`: the thing's own act, article and part, or
+  undefined).
 
 ## Sources
 
@@ -463,6 +502,7 @@ A test fails when this list and the code disagree.
 | Government Decree No. 1187 of 17.09.2026, transfers of days off in 2027 | 2026-09-17 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_544706/) |
 | Banking Law (О банках и банковской деятельности) No. 395-1, art. 30.1 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_5842/c96fe25edab2fcc32ab9225c1b392a2b2d599467/) |
 | Banking Law No. 395-1, art. 30 (part 16, ATM cash for a client whose data are in the Bank of Russia's database) | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_5842/e452b6541ff9e2aad438b239b6e5ba38a28162da/) |
+| Central Bank Law (О Центральном банке Российской Федерации) No. 86-FZ, art. 79.3 (an individual's complaint to the Bank of Russia about a financial organisation) | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_37570/c4827642ed856c50f320069b374f29e6c66f1439/) |
 | Microfinance Law No. 151-FZ, art. 9.1 | 2026-04-09 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_102112/69201da7780e16951d28521d25d0899992b44981/) |
 | Insurance Law No. 4015-1, art. 6.2 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_1307/0f3a0c69a3c8e13748037a8a4667ab9552b69ca4/) |
 | Securities Market Law No. 39-FZ, art. 15.11 | 2026-08-04 | [consultant.ru](https://www.consultant.ru/document/cons_doc_LAW_10148/0d69714fc90963f4be8075f53386f5173417d690/) |

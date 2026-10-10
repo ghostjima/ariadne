@@ -6,8 +6,8 @@
 */
 
 import { GROUNDS } from "@ariadne/grid";
-import type { InboxItem, Instruction, Placement } from "@ariadne/inbox";
-import { rubric } from "@ariadne/rules";
+import { groundSource, type InboxItem, type Instruction, type Placement } from "@ariadne/inbox";
+import { rubric, type Ground } from "@ariadne/rules";
 import {
   AUTONOMIES,
   PROTOCOL_VERSION,
@@ -121,7 +121,7 @@ function given<P>(entries: readonly ProposalEntry[], stepId: string): Given<P> {
 const proposalOf = <P>(g: Given<P>): P | null => (g !== null && "proposal" in g ? g.proposal : null);
 
 /* A ground as the rubric takes it */
-function rulesGround(code: GroundCode): { act: "payment_system" | "anti_money_laundering" | "contract"; article: string; part: string } {
+function rulesGround(code: GroundCode): Ground {
   const spec = GROUNDS.find((g) => g?.id === code);
   if (!spec) throw new RangeError(code);
   return { act: spec.act, article: spec.article, part: spec.part };
@@ -249,12 +249,13 @@ export function scoreRun(item: InboxItem, entries: readonly ProposalEntry[], tex
     rp === null
       ? []
       : rp.grounds.filter((code) => {
-          const p = item.truth.provisions.find((x) => x.role === "ground" && x.of === code) ?? { source: "", article: rulesGround(code).article, parts: [] as string[] };
           const spec = rulesGround(code);
-          if (spec.act === "contract") return false;
-          const act = p.source ? actOf(p.source) : spec.act === "payment_system" ? "fz:161" : "fz:115";
+          const source = groundSource(code);
+          /* The contract has no citation */
+          if (source === null) return false;
+          const act = actOf(source);
           const part = spec.part.split(",")[0]!.trim();
-          return !cited.some((x) => x.act === act && x.article === spec.article && x.parts.includes(part));
+          return !cited.some((x) => x.act === act && x.article === (spec.article === "" ? null : spec.article) && x.parts.includes(part));
         });
   const due = new Map(truth.draft_reply.deadlines.map((d) => [d.kind, d.due]));
   const codesOutside =

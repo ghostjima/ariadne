@@ -1,4 +1,4 @@
-[1,{"type":"plan.started","at":1000,"total":5,"protocol":6}]
+[1,{"type":"plan.started","at":1000,"total":5,"protocol":7}]
 [2,{"type":"step.started","stepId":"s1","at":1000,"requiresConfirmation":false}]
 [3,{"type":"step.running","stepId":"s1","attempt":1}]
 [4,{"type":"step.progress","stepId":"s1","percent":30,"phase":"reading_case_facts"}]

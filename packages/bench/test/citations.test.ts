@@ -25,6 +25,10 @@ describe("citations in Russian", () => {
     ["Средства заморожены по пп. 6 п. 1 ст. 7 115-ФЗ.", [c("fz:115", "7", "1")]],
     ["Основание: 115-ФЗ, ст. 7.7, п. 5.", [c("fz:115", "7.7", "5")]],
     ["Срок: 115-ФЗ, ст. 7, п. 13.1-1, абз. 2.", [c("fz:115", "7", "13.1-1")]],
+    ["Норма: 161-ФЗ, ст. 8, ч. 3.6, п. 3.", [c("fz:161", "8", "3.6")]],
+    ["Вы можете подтвердить распоряжение по п. 3 ч. 3.6 ст. 8 Федерального закона № 161-ФЗ.", [c("fz:161", "8", "3.6")]],
+    ["Норма: Закон о Банке России № 86-ФЗ, ст. 79.3, ч. 1.", [c("fz:86", "79.3", "1")]],
+    ["Норма: 123-ФЗ, ст. 16, ч. 4.", [c("fz:123", "16", "4")]],
     ["Выдача наличных ограничена по ч. 16 ст. 30 Закона о банках.", [c("law:395-1", "30", "16")]],
     ["Основание: Закон о банках № 395-1, ст. 30, ч. 16.", [c("law:395-1", "30", "16")]],
     ["Ответ дан в срок по ч. 7 ст. 30.1 Федерального закона «О банках и банковской деятельности».", [c("law:395-1", "30.1", "7")]],
@@ -67,6 +71,8 @@ describe("citations in English", () => {
     ["The ground is 115-FZ, art. 7, item 5.2, paragraph 2.", [c("fz:115", "7", "5.2")]],
     ["The ground is 115-FZ, art. 7, item 1, subitem 6.", [c("fz:115", "7", "1")]],
     ["The ground is 115-FZ, art. 7.7, item 5.", [c("fz:115", "7.7", "5")]],
+    ["Provision: 161-FZ, art. 8, part 3.6, item 3.", [c("fz:161", "8", "3.6")]],
+    ["Provision: Central Bank Law No. 86-FZ, art. 79.3, part 1.", [c("fz:86", "79.3", "1")]],
     ["Cash withdrawals are limited under the Banking Law, art. 30, part 16.", [c("law:395-1", "30", "16")]],
     ["The ground is Banking Law No. 395-1, art. 30.1, part 7.", [c("law:395-1", "30.1", "7")]],
     ["Interest is due under article 395 of the Civil Code of the Russian Federation.", [c("civil_code", "395")]],
@@ -137,7 +143,7 @@ describe("over the inbox", () => {
     for (const item of items) {
       for (const p of item.truth.provisions) {
         const act = actOf(p.source);
-        if (act === null || act === undefined || !/^(banking|payment|aml)_law/.test(p.source)) continue;
+        if (act === null || act === undefined || !/^(banking|payment|aml|ombudsman|central_bank)_law/.test(p.source)) continue;
         for (const part of p.parts) {
           const [found, ...rest] = citations(`${citationText(p.source, p.article, part, item.lang)}.`);
           expect(rest, `${item.id} ${p.source}`).toEqual([]);

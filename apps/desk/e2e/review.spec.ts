@@ -55,6 +55,7 @@ const GROUNDS_IN_ORDER = [
   "161-FZ, art. 8, part 3.10",
   "161-FZ, art. 9, part 11.6",
   "161-FZ, art. 9, part 11.7",
+  "Bank of Russia Directive No. 6748-U, item 1.3",
   "115-FZ, art. 7, item 11",
   "115-FZ, art. 7, item 5.2, paragraph 2",
   "115-FZ, art. 7, item 5.2, paragraph 3",
@@ -119,8 +120,8 @@ test("the reviewer reads the letter, what the rubric finds and the changes; edit
   await expect(letterPanel(page)).toContainText("Edited by Reviewer K. Saburova");
   // Stoa's share of changed characters over both texts, and under it the
   // share the measure of light edits counts, which is the desk's own.
-  await expect(letterPanel(page).locator(".stoa-diff__summary")).toHaveText(/of the characters changed: 0 deleted and 42 inserted, out of 586 in the two texts together\.$/);
-  await expect(letterPanel(page)).toContainText("For the measure of light edits: 42 of the draft's 272 characters changed (15%), counting the longer side of each changed passage.");
+  await expect(letterPanel(page).locator(".stoa-diff__summary")).toHaveText(/of the characters changed: 0 deleted and 42 inserted, out of 702 in the two texts together\.$/);
+  await expect(letterPanel(page)).toContainText("For the measure of light edits: 42 of the draft's 330 characters changed (13%), counting the longer side of each changed passage.");
   await expect(letterPanel(page).getByRole("figure", { name: w.review.diffCaption }).locator(".stoa-diff__text ins")).toContainText("We apologise for the delay in our answer.");
   await expect(lastEntry(page)).toContainText(w.action.edit);
   await expect(lastEntry(page)).toContainText("Reviewer K. Saburova");
@@ -245,8 +246,8 @@ test("a reply about removing the client's data rests on 161-FZ art. 9: with the 
   await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.7.");
   await expect(letter(page)).not.toContainText("part 11.6");
   await expect(letter(page)).not.toContainText("art. 8");
-  // The grounds in reading order: 161-FZ by article and part, then 115-FZ,
-  // then the contract.
+  // The grounds in reading order: 161-FZ by article and part, the
+  // directive under it, then 115-FZ, then the contract.
   const select = letterPanel(page).locator(".stoa-select").filter({ has: page.locator(".stoa-field__label", { hasText: "Ground" }) }).locator(".stoa-select__button");
   await select.click();
   const list = page.getByRole("listbox");
@@ -283,7 +284,14 @@ test("a reply where the bank capped the transfers instead of the suspension says
   await expect(letter(page)).toContainText(agentStrings.en.reply.measure.cap_transfers);
   await expect(letter(page)).toContainText(agentStrings.en.reply.measure.cap_atm_cash);
   await expect(letter(page)).not.toContainText(agentStrings.en.reply.measure.suspend_instrument);
-  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  // Each restriction with its own provision after it: the cap is the
+  // part's second sentence, ATM cash the Banking Law's; the option and the
+  // complaint to the Bank of Russia cite theirs.
+  await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.6, sentence 2.");
+  await expect(letter(page)).toContainText("The ground is Banking Law No. 395-1, art. 30, part 16.");
+  await expect(letter(page)).not.toContainText("The ground is 161-FZ, art. 9, part 11.6.");
+  await expect(letter(page)).toContainText("Provision: 161-FZ, art. 9, part 11.8.");
+  await expect(letter(page)).toContainText("Provision: Central Bank Law No. 86-FZ, art. 79.3, part 1.");
   const findings = letterPanel(page).locator(".rubric-findings");
   await expect(findings).toBeVisible();
   for (const measure of Object.values(agentStrings.en.rubric.measure)) await expect(findings).not.toContainText(measure);
@@ -294,6 +302,8 @@ test("a reply where the bank capped the transfers instead of the suspension says
   await openAs(page, "C-001140", "reviewer", "lang=ru");
   await expect(letter(page)).toContainText(agentStrings.ru.reply.measure.cap_transfers);
   await expect(letter(page)).toContainText(agentStrings.ru.reply.measure.cap_atm_cash);
+  await expect(letter(page)).toContainText("Основание: Закон о банках № 395-1, ст. 30, ч. 16.");
+  await expect(letter(page)).toContainText("Норма: 161-ФЗ, ст. 9, ч. 11.8.");
 });
 
 test("in the queue a reply is not sent before it is signed", async ({ page }) => {

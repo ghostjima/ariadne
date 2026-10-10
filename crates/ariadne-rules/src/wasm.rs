@@ -781,6 +781,7 @@ pub enum ActCode {
     ComplaintLaw = "complaint_law",
     OtherLaw = "other_law",
     Contract = "contract",
+    BankOfRussiaAct = "bank_of_russia_act",
 }
 
 /// A legal ground a reply names.
@@ -867,9 +868,14 @@ pub struct FindingOutput {
     pub subject: Option<String>,
     pub sentence: Option<u32>,
     pub words: Option<u32>,
-    /// The source the check rests on, and where in it.
+    /// The source of the duty to state what the finding is about, and
+    /// where in it.
     pub source: String,
     pub reference: String,
+    /// The provision of what the finding is about, when it has one of its
+    /// own: the option's, the deadline's, the restriction's, or for a
+    /// ground left out the complaint article's on what a reply contains.
+    pub provision: Option<BasisOutput>,
 }
 
 fn to_reply(r: &ReplyInput) -> Result<Reply, Error> {
@@ -887,6 +893,7 @@ fn to_reply(r: &ReplyInput) -> Result<Reply, Error> {
                         ActCode::ComplaintLaw => rubric::Act::ComplaintLaw,
                         ActCode::OtherLaw => rubric::Act::OtherLaw,
                         ActCode::Contract => rubric::Act::Contract,
+                        ActCode::BankOfRussiaAct => rubric::Act::BankOfRussiaAct,
                         ActCode::__Invalid => return Err(Error::UnknownCode),
                     },
                     article: g.article.clone(),
@@ -938,9 +945,88 @@ fn rubric_pure(reply: &ReplyInput, input: &CaseInput) -> Result<Vec<FindingOutpu
                 words: f.words,
                 source: source.id.into(),
                 reference: reference.into(),
+                provision: f.provision.map(basis),
             }
         })
         .collect())
+}
+
+/// An option, a deadline or a restriction a reply states, by its code,
+/// with the provision it cites.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct ProvisionOutput {
+    /// An option code (`confirm_order`), a deadline code
+    /// (`antifraud_confirmation`) or a measure code (`cap_atm_cash`).
+    pub code: String,
+    pub basis: BasisOutput,
+}
+
+/// The provision behind everything a reply to a case states.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone)]
+pub struct ReplyProvisionsOutput {
+    /// The options the law gives the client, each with its provision.
+    pub options: Vec<ProvisionOutput>,
+    /// The running deadlines that concern the client.
+    pub deadlines: Vec<ProvisionOutput>,
+    /// The restrictions in force for the client's own data in the Bank of
+    /// Russia's database.
+    pub measures: Vec<ProvisionOutput>,
+    /// What a reply must contain: the sector's complaint article.
+    pub content: BasisOutput,
+    /// Behind telling the client that a complaint may also go to the Bank
+    /// of Russia; none for a legal entity.
+    #[wasm_bindgen(js_name = complaintToBankOfRussia)]
+    pub complaint_to_bank_of_russia: Option<BasisOutput>,
+}
+
+fn reply_provisions_pure(
+    input: &CaseInput,
+    replied_on: &str,
+) -> Result<ReplyProvisionsOutput, Error> {
+    let case = to_case(input)?;
+    let c = clock::clock(&case)?;
+    let p = rubric::reply_provisions(&case, &c, Date::parse(replied_on)?);
+    Ok(ReplyProvisionsOutput {
+        options: p
+            .options
+            .iter()
+            .map(|o| ProvisionOutput {
+                code: o.option.code().into(),
+                basis: basis(o.basis),
+            })
+            .collect(),
+        deadlines: p
+            .deadlines
+            .iter()
+            .map(|d| ProvisionOutput {
+                code: d.kind.code().into(),
+                basis: basis(d.basis),
+            })
+            .collect(),
+        measures: p
+            .measures
+            .iter()
+            .map(|m| ProvisionOutput {
+                code: m.kind.code().into(),
+                basis: basis(m.basis),
+            })
+            .collect(),
+        content: basis(p.content),
+        complaint_to_bank_of_russia: p.complaint_to_bank_of_russia.map(basis),
+    })
+}
+
+/// The provisions a reply to the case `input` describes cites, going out
+/// on `replied_on`: one for each option, deadline and restriction it
+/// states.
+#[wasm_bindgen(js_name = replyProvisions)]
+pub fn reply_provisions(
+    input: &CaseInput,
+    replied_on: &str,
+) -> Result<ReplyProvisionsOutput, JsError> {
+    reply_provisions_pure(input, replied_on).map_err(js)
 }
 
 /// The rubric's findings for a reply to a case: the case's clock is
@@ -1289,6 +1375,85 @@ mod tests {
     }
 
     #[test]
+    fn provisions_cross_whole() {
+        // A transfer suspended on Friday 8 May 2026, answered that day
+        // with nothing: each finding about an option or a deadline carries
+        // the provision of the thing itself beside the source of the duty
+        // to state it.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-08".into());
+        i.blocked_operation = Some(OperationCode::Transfer);
+        i.blocked_on = Some("2026-05-08".into());
+        let r = ReplyInput::new("2026-05-08".into(), String::new());
+        let f = rubric_pure(&r, &i).unwrap();
+        let own = |code: &str, subject: Option<&str>| {
+            f.iter()
+                .find(|x| x.code == code && x.subject.as_deref() == subject)
+                .and_then(|x| x.provision.clone())
+                .map(|b| (b.source, b.article, b.part))
+        };
+        assert_eq!(
+            own("client_option_missing", Some("confirm_order")),
+            Some(("payment_law_8".into(), "8".into(), "3.6, item 3".into()))
+        );
+        assert_eq!(
+            own("deadline_missing", Some("antifraud_suspension_ends")),
+            Some(("payment_law_8".into(), "8".into(), "3.4, sentence 1".into()))
+        );
+        assert_eq!(
+            own("ground_missing", None),
+            Some(("banking_law_30_1".into(), "30.1".into(), "9".into()))
+        );
+        assert_eq!(own("text_empty", None), None);
+        // The same provisions, for a reply to cite.
+        let p = reply_provisions_pure(&i, "2026-05-08").unwrap();
+        let codes = |list: &[ProvisionOutput]| -> Vec<(String, String)> {
+            list.iter()
+                .map(|x| (x.code.clone(), x.basis.part.clone()))
+                .collect()
+        };
+        assert_eq!(
+            codes(&p.options),
+            [("confirm_order".to_string(), "3.6, item 3".to_string())]
+        );
+        assert_eq!(
+            codes(&p.deadlines),
+            [
+                (
+                    "antifraud_suspension_ends".to_string(),
+                    "3.4, sentence 1".to_string()
+                ),
+                (
+                    "antifraud_confirmation".to_string(),
+                    "3.6, item 3".to_string()
+                )
+            ]
+        );
+        assert!(p.measures.is_empty());
+        assert_eq!(
+            (p.content.source.as_str(), p.content.part.as_str()),
+            ("banking_law_30_1", "9")
+        );
+        let bank = p.complaint_to_bank_of_russia.unwrap();
+        assert_eq!(
+            (
+                bank.source.as_str(),
+                bank.article.as_str(),
+                bank.part.as_str()
+            ),
+            ("central_bank_law_79_3", "79.3", "1")
+        );
+        i.applicant = ApplicantCode::LegalEntity;
+        assert!(reply_provisions_pure(&i, "2026-05-08")
+            .unwrap()
+            .complaint_to_bank_of_russia
+            .is_none());
+        assert_eq!(
+            reply_provisions_pure(&i, "2026-5-8").unwrap_err(),
+            Error::InvalidDate
+        );
+    }
+
+    #[test]
     fn signs_and_categories_cross_whole() {
         let signs = od2506_signs();
         assert_eq!(signs.len(), 14);
@@ -1309,8 +1474,20 @@ mod tests {
                 "payment_8_3_4",
                 "payment_8_3_10",
                 "payment_9_11_6",
-                "payment_9_11_7"
+                "payment_9_11_7",
+                "directive_6748_u_1_3"
             ]
+        );
+        // The directive's ground has no article: its item is the part.
+        let d = &grounds[4];
+        assert_eq!(
+            (
+                d.source.as_str(),
+                d.article.as_str(),
+                d.part.as_str(),
+                d.revision.as_str()
+            ),
+            ("directive_6748_u", "", "1.3", "2026-01-19")
         );
         let g = &grounds[3];
         assert_eq!(

@@ -88,6 +88,19 @@ pub const BANKING_LAW_30: Source = Source {
     checked: "2026-10-10",
 };
 
+/// Central Bank Law, art. 79.3: an individual's complaint to the Bank of
+/// Russia about a financial organisation, which the Bank of Russia
+/// forwards to that organisation within seven working days of registering
+/// it. The provision behind a reply's line that the client may also apply
+/// to the Bank of Russia; it speaks of "обращение физического лица" only.
+pub const CENTRAL_BANK_LAW_79_3: Source = Source {
+    id: "central_bank_law_79_3",
+    title: "Федеральный закон от 10.07.2002 N 86-ФЗ «О Центральном банке Российской Федерации (Банке России)», статья 79.3",
+    url: "https://www.consultant.ru/document/cons_doc_LAW_37570/c4827642ed856c50f320069b374f29e6c66f1439/",
+    revision: "2026-08-04",
+    checked: "2026-10-10",
+};
+
 /// Microfinance Law, art. 9.1: how a microfinance organisation handles
 /// complaints.
 pub const MICROFINANCE_LAW_9_1: Source = Source {
@@ -189,14 +202,16 @@ pub const ANTIFRAUD_TERMS_LETTER: Source = Source {
 /// The Bank of Russia's Directive No. 6748-U, as amended by Directive
 /// No. 7287-U of 19.01.2026: how a client applies to remove its data from
 /// the database, what the operator does with an application filed through
-/// it, and the Bank of Russia's 15 working days from receipt. The text was
-/// read in a full-text copy; the revision was confirmed on consultant.ru.
+/// it (forwards it, or refuses to when mandatory data are missing, items
+/// 1.3 to 1.5), and the Bank of Russia's 15 working days from receipt. The
+/// text was read in a full-text copy; the revision was confirmed on
+/// consultant.ru. Directive No. 7287-U did not amend items 1.3 and 1.4.
 pub const DIRECTIVE_6748_U: Source = Source {
     id: "directive_6748_u",
     title: "Указание Банка России от 13.06.2024 N 6748-У «О порядке подачи клиентом оператора по переводу денежных средств в Банк России заявления об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента, порядке принятия Банком России мотивированного решения об удовлетворении или об отказе в удовлетворении заявления клиента оператора по переводу денежных средств или мотивированного заявления оператора по переводу денежных средств об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента и порядке получения оператором по переводу денежных средств информации об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента»",
     url: "https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/",
     revision: "2026-01-19",
-    checked: "2026-10-09",
+    checked: "2026-10-10",
 };
 
 /// The Bank of Russia's Directive No. 7282-U: how operators report to the
@@ -324,6 +339,7 @@ pub const ALL: &[Source] = &[
     DECREE_2027,
     BANKING_LAW_30_1,
     BANKING_LAW_30,
+    CENTRAL_BANK_LAW_79_3,
     MICROFINANCE_LAW_9_1,
     INSURANCE_LAW_6_2,
     SECURITIES_LAW_15_11,

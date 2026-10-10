@@ -206,6 +206,9 @@ fn payment_grounds_keep_their_codes_in_order_and_cite_their_parts() {
             ("payment_8_3_10", "payment_law_8", "8", "3.10"),
             ("payment_9_11_6", "payment_law_9", "9", "11.6"),
             ("payment_9_11_7", "payment_law_9", "9", "11.7"),
+            // An incomplete application not forwarded: the directive's
+            // item, which has no article.
+            ("directive_6748_u_1_3", "directive_6748_u", "", "1.3"),
         ]
     );
     for g in PAYMENT_GROUNDS {
