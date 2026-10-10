@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { AS_OF, Database, GROUNDS, Operation, Path, Restriction, Stage, Stream, caseFacts, opRefText, rowId } from "@ariadne/grid";
 import { clock, rubric } from "@ariadne/rules";
-import { ALL_CODES, QUESTIONS_BY_TEAM, STREAMS, decodePlanPayload, encodePlanPayload, generatePlan, teamOf } from "@ariadne/runner";
+import { ALL_CODES, PROTOCOL_VERSION, QUESTIONS_BY_TEAM, STREAMS, decodePlanPayload, encodePlanPayload, generatePlan, teamOf } from "@ariadne/runner";
 import {
   CASE_KINDS,
   INBOX_SETS,
@@ -119,7 +119,7 @@ describe("an item", () => {
       expect(item.caseNo).toBe(item.row + 1);
       expect(item.brief, item.id).toEqual(caseBrief(store, item.row));
       expect(item.facts, item.id).toEqual(caseFacts(store, item.row));
-      const payload = { v: 5 as const, seed: item.seed, autonomy: "high_only" as const, brief: item.brief, steps: [{ id: "s1", askFirst: false }] };
+      const payload = { v: PROTOCOL_VERSION as typeof PROTOCOL_VERSION, seed: item.seed, autonomy: "high_only" as const, brief: item.brief, steps: [{ id: "s1", askFirst: false }] };
       expect(decodePlanPayload(encodePlanPayload(payload)), item.id).toEqual({ ok: true, payload });
     }
   });
