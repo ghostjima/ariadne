@@ -15,6 +15,8 @@
 
 import { PROTOCOL_VERSION, type ActionType, type Autonomy, type Command, type ProgressPhase } from "./codes.js";
 import type { Decision, PlanPayload, RunEvent } from "./protocol.js";
+import type { ImmediateProposer } from "./proposer.js";
+import { SCRIPTED } from "./scripted.js";
 import {
   applyDeviation,
   generateScenario,
@@ -46,9 +48,13 @@ export type ResolveResult =
   | { ok: false; error: "empty_plan" | "too_many_steps" }
   | { ok: false; error: "unknown_step"; stepId: string };
 
-/* Turns the payload from the application into the steps of the scenario */
-export function resolvePlan(payload: PlanPayload): ResolveResult {
-  const scenario = generateScenario(payload.seed, payload.brief);
+/* Turns the payload from the application into the steps of the scenario,
+   as the proposer fills them: the scripted one unless another is given */
+export function resolvePlan(
+  payload: PlanPayload,
+  proposer: ImmediateProposer = SCRIPTED,
+): ResolveResult {
+  const scenario = generateScenario(payload.seed, payload.brief, proposer);
   const byId = new Map(scenario.steps.map((s) => [s.id, s]));
   if (payload.steps.length === 0) return { ok: false, error: "empty_plan" };
   if (payload.steps.length > scenario.steps.length) return { ok: false, error: "too_many_steps" };
