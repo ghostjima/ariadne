@@ -40,7 +40,7 @@ what comes back in is a proposal in codes, and the one piece of text a
 model writes, the reply's letter, travels beside the run and never in
 it.
 
-Status: early. One scenario (168 tests). Measured in Node on an
+Status: early. One scenario (181 tests). Measured in Node on an
 Apple M4 Pro: a plan generates in about 1 us and a complete run replays
 in about 4 to 14 us; method, stamps and spread in
 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
