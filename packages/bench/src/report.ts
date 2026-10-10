@@ -78,6 +78,9 @@ const ms = (v: number | null | undefined): string => (v === null || v === undefi
 const num = (v: number | null | undefined, digits = 2): string => (v === null || v === undefined ? "n/a" : v.toFixed(digits));
 const table = (head: string[], rows: string[][]): string => [`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`, ...rows.map((r) => `| ${r.join(" | ")} |`)].join("\n");
 
+/* A load average as the system prints it: over 1, 5 and 15 minutes */
+const load = (v: number[] | null | undefined): string => (v ? v.map((x) => x.toFixed(2)).join(" ") : "n/a");
+
 const LANG_NAME: Record<Lang, string> = { ru: "Russian", en: "English" };
 
 /* The summary as Markdown: the stamps, then for each language the tables */
@@ -108,7 +111,7 @@ export function summaryMarkdown(summary: Summary): string {
   out.push("## Agents", "");
   out.push(
     table(
-      ["agent", "model tag", "manifest digest", "as recorded", "quantisation", "parameters", "runtime", "thinking", "runs", "wall time", "dropped"],
+      ["agent", "model tag", "manifest digest", "as recorded", "quantisation", "parameters", "runtime", "thinking", "runs", "wall time", "load average at start", "at end", "dropped"],
       summary.agents.map((a) => {
         const m = a.header?.model;
         return [
@@ -122,6 +125,8 @@ export function summaryMarkdown(summary: Summary): string {
           a.header?.think === null || a.header?.think === undefined ? "no switch" : a.header.think ? "on" : "off",
           String(a.footer?.runs ?? "unfinished"),
           a.footer ? `${Math.round(a.footer.wallMs / 1000)} s` : "n/a",
+          load(a.header?.loadAverage),
+          load(a.footer?.loadAverage),
           a.footer?.dropped ? `${a.footer.dropped.reason} after ${a.footer.dropped.afterRuns} runs (swapouts grew ${a.footer.dropped.swapoutsGrew}, pressure ${a.footer.dropped.pressureMax})` : "no",
         ];
       }),

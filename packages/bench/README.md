@@ -171,7 +171,8 @@ It writes, into the folder given:
   digest equals the one recorded in `models.json`; the options), one
   line a run (the proposals, the letter, every call with its raw answer,
   validation, tokens and timings, the score), the timed stops, and a
-  footer (the memory and the swap seen);
+  footer (the memory and the swap seen); the header and the footer carry
+  the machine's load average when the agent's block started and ended;
 - `summary.json` and `SUMMARY.md`: every metric by agent, language and
   set; the reading shares of each repeat on its own, with the 95% Wilson
   interval of the first repeat's (the items of one repeat are

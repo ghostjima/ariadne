@@ -27,6 +27,7 @@
 */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import { join, resolve } from "node:path";
 import { loadRulesFromFile } from "@ariadne/rules/node";
 import { OLLAMA_URL, OllamaClient } from "@ariadne/runner/model";
@@ -73,6 +74,7 @@ await runBench({
   stamp: benchStamp(),
   digests,
   clientFor: (model) => new OllamaClient({ model, baseUrl, contextTokens }),
+  loadAverage: () => os.loadavg(),
   watchMemory: () => watchMemory(500),
   loaded: () => loadedModels(baseUrl),
   ...(args.has("keep-loaded") ? {} : { release: (model) => releaseModel(baseUrl, model) }),

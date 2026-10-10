@@ -100,6 +100,7 @@ function config(over: Partial<BenchConfig> = {}): BenchConfig {
     stamp: STAMP,
     digests: { "fake:reader": DIGEST },
     clientFor: () => reader(),
+    loadAverage: () => [1.25, 1.5, 2],
     watchMemory: () => ({ stop: () => Promise.resolve(QUIET), peek: () => ({ swapoutsGrew: 0, pressureMax: 1 }) }),
     loaded: () => Promise.resolve([{ name: "fake:reader", sizeMb: 100, vramMb: 100 }]),
     ...over,
@@ -146,6 +147,8 @@ describe("runBench", () => {
       expect(header.stamp).toEqual(STAMP);
       expect(header.options).toEqual({ temperature: 0, seed: 7, contextTokens: 8192, callTimeoutMs: 60_000 });
       expect(header.agent).toEqual(agent);
+      /* The load average when the block started and when it ended */
+      expect([header.loadAverage, (lines.at(-1) as AgentFooter).loadAverage], agent.id).toEqual([[1.25, 1.5, 2], [1.25, 1.5, 2]]);
       const runs = runsOf(lines);
       /* Repeat by repeat over the items, so an item's repeats are apart */
       expect(runs.map((r) => `${r.item}#${r.repeat}`)).toEqual([1, 2].flatMap((repeat) => ["clean-ru-01", "clean-ru-02", "adversarial-ru-01", "adversarial-ru-02"].map((i) => `${i}#${repeat}`)));
@@ -303,6 +306,7 @@ describe("the summary", () => {
     expect(md).toContain(`\`${DIGEST}\``);
     expect(md).toContain("## Russian");
     expect(md).toContain("## English");
+    expect(md).toContain("| 1.25 1.50 2.00 | 1.25 1.50 2.00 |");
     expect(md).toContain("stream, repeat 2");
     expect(md).toContain("61 to 100%");
     expect(md).not.toMatch(/undefined|NaN/);

@@ -49,6 +49,9 @@ export type BenchConfig = {
   /* The recorded digest of each model tag, to compare with */
   digests: Readonly<Record<string, string>>;
   clientFor: (model: string) => ModelClient;
+  /* The machine's load average over 1, 5 and 15 minutes, read when an
+     agent's block starts and ends; left out in tests */
+  loadAverage?: () => number[];
   /* The machine, as far as the bench looks at it; left out in tests */
   watchMemory?: () => { stop: () => Promise<MemoryWatch>; peek: () => { swapoutsGrew: number | null; pressureMax: number | null } };
   loaded?: () => Promise<{ name: string; sizeMb: number; vramMb: number }[] | null>;
@@ -75,6 +78,9 @@ export type AgentHeader = {
      switch; null otherwise */
   think: boolean | null;
   options: { temperature: 0; seed: number; contextTokens: number; callTimeoutMs: number };
+  /* The machine's load average (1, 5, 15 minutes) when the agent's block
+     started; null where it was not read */
+  loadAverage: number[] | null;
   /* The call that loaded the model, not measured as a run */
   warmUp: { ms: number; loadMs: number | null; loaded: { name: string; sizeMb: number; vramMb: number }[] | null } | null;
 };
@@ -97,6 +103,8 @@ export type AgentFooter = {
   agent: string;
   runs: number;
   wallMs: number;
+  /* The load average when the block ended */
+  loadAverage: number[] | null;
   memory: MemoryWatch | null;
   /* Whether the bench told ollama it was done with the agent's model when
      its runs ended (an empty request with keep_alive 0), so the next
@@ -283,6 +291,7 @@ export async function runBench(config: BenchConfig): Promise<void> {
     let header = before.find((l): l is AgentHeader => l.type === "header");
     const watch = agent.kind === "model" ? config.watchMemory?.() : undefined;
     if (!header) {
+      const loadAverage = config.loadAverage?.() ?? null;
       let warmUp: AgentHeader["warmUp"] = null;
       if (agent.kind === "model") {
         model = await config.clientFor(agent.model).describe();
@@ -300,6 +309,7 @@ export async function runBench(config: BenchConfig): Promise<void> {
         digestAsRecorded: model?.digest && config.digests[model.model] ? model.digest === config.digests[model.model] : null,
         think: agent.kind === "model" && model?.thinking ? agent.think : null,
         options: { temperature: 0, seed: config.modelSeed, contextTokens: config.contextTokens, callTimeoutMs: config.callTimeoutMs },
+        loadAverage,
         warmUp,
       };
       writeFileSync(path, `${JSON.stringify(header)}\n`);
@@ -342,7 +352,7 @@ export async function runBench(config: BenchConfig): Promise<void> {
     }
     const memory = watch ? await watch.stop() : null;
     const released = agent.kind === "model" && config.release !== undefined;
-    const footer: AgentFooter = { type: "footer", agent: agent.id, runs, wallMs: now() - started, memory, released, dropped };
+    const footer: AgentFooter = { type: "footer", agent: agent.id, runs, wallMs: now() - started, loadAverage: config.loadAverage?.() ?? null, memory, released, dropped };
     appendFileSync(path, `${JSON.stringify(footer)}\n`);
     if (agent.kind === "model") await config.release?.(agent.model);
     log(`${agent.id}: ${runs} runs in ${Math.round((now() - started) / 1000)} s${dropped ? `, dropped: ${dropped.reason}` : ""}`);
