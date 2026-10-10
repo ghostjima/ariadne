@@ -47,7 +47,8 @@ import type {
   TaskCode,
   Team,
 } from "./codes.js";
-import { NEXT_STEPS } from "./codes.js";
+import { proposeAll, type ImmediateProposer, type ProposalSet, type ReplyProposal } from "./proposer.js";
+import { SCRIPTED } from "./scripted.js";
 
 export const DEFAULT_SEED = 7;
 export const DEFAULT_AUTONOMY: Autonomy = "high_only";
@@ -325,20 +326,6 @@ const CONFIDENCE_RANGE: Record<ActionType, [number, number]> = {
   hand_to_review: [0.85, 0.97],
 };
 
-/* The team that holds the facts of a stream */
-export function teamOf(stream: StreamCode): Team {
-  if (stream === "antifraud") return "antifraud";
-  if (stream === "aml_refusal") return "aml";
-  return "operations";
-}
-
-/* What the fact request asks the team */
-export const QUESTIONS_BY_TEAM: Record<Team, readonly FactQuestion[]> = {
-  antifraud: ["sign_detected", "client_confirmation", "database_match", "measure_status"],
-  aml: ["decision_basis", "documents_received", "measure_status"],
-  operations: ["operation_record", "contract_terms", "charges"],
-};
-
 const FACT_SERVICE_TIMEOUT: StepError = {
   code: "service_timeout",
   service: "fact_requests",
@@ -354,8 +341,12 @@ function mix(seed: number, caseNo: number): number {
   return (Math.imul(seed >>> 0, 0x9e3779b1) ^ caseNo) >>> 0;
 }
 
-/* The reply the agent drafts for a case */
-export function replyDraft(brief: CaseBrief): ReplyDraft {
+/* The reply the agent drafts for a case: what the proposal states, on the
+   case's own numbers and dates. Without a proposal, the scripted one. */
+export function replyDraft(
+  brief: CaseBrief,
+  proposal: ReplyProposal = SCRIPTED.proposeNow({ task: "draft_reply", seed: DEFAULT_SEED, brief }),
+): ReplyDraft {
   return {
     kind: "reply",
     template: "reply",
@@ -370,12 +361,12 @@ export function replyDraft(brief: CaseBrief): ReplyDraft {
     amountKopecks: brief.amountKopecks,
     claimKopecks: brief.claimKopecks,
     receivedOn: brief.receivedOn,
-    grounds: [...brief.grounds],
-    reasons: brief.reason === null ? [] : [brief.reason],
-    clientOptions: [...brief.clientOptions],
-    deadlines: brief.deadlines.map((d) => ({ ...d })),
-    measures: [...brief.measures],
-    nextSteps: [...NEXT_STEPS],
+    grounds: [...proposal.grounds],
+    reasons: [...proposal.reasons],
+    clientOptions: [...proposal.clientOptions],
+    deadlines: proposal.deadlines.map((d) => ({ ...d })),
+    measures: [...proposal.measures],
+    nextSteps: [...proposal.nextSteps],
   };
 }
 
@@ -384,6 +375,7 @@ function stepOf(
   brief: CaseBrief,
   base: { id: string; confidence: number; durationMs: number },
   odd: boolean,
+  proposals: ProposalSet,
 ): ScenarioStep {
   const caseNo = brief.caseNo;
   const common = { ...base, caseNo, type, risk: RISK_BY_TYPE[type] };
@@ -412,7 +404,7 @@ function stepOf(
         undoWindowSec: null,
       };
     case "request_facts": {
-      const team = teamOf(brief.stream);
+      const { team, questions, reuseLinked } = proposals.request_facts;
       return {
         ...common,
         objects: [
@@ -429,7 +421,7 @@ function stepOf(
           template: "request_facts",
           caseNo,
           team,
-          questions: [...QUESTIONS_BY_TEAM[team]],
+          questions: [...questions],
           operation: brief.operation,
           opRef: brief.opRef,
           opOn: brief.opOn,
@@ -441,7 +433,8 @@ function stepOf(
            while the other team has not taken it */
         undoWindowSec: DEFAULT_UNDO_WINDOW_SEC,
         ...(odd ? { error: FACT_SERVICE_TIMEOUT } : {}),
-        ...(brief.linkedCase !== null
+        /* The facts of a linked case can be taken only where there is one */
+        ...(reuseLinked && brief.linkedCase !== null
           ? {
               deviation: {
                 reason: "facts_in_linked_case",
@@ -460,7 +453,7 @@ function stepOf(
         objects: [
           { kind: "reply_draft", caseNo, before: { status: "none" }, after: { status: "drafted" } },
         ],
-        draft: replyDraft(brief),
+        draft: replyDraft(brief, proposals.draft_reply),
         summary: { code: "reply_drafted", caseNo },
         undo: { code: "discard_draft", caseNo },
         undoWindowSec: null,
@@ -511,7 +504,14 @@ function stepOf(
   }
 }
 
-export function generateScenario(seed: number, brief: CaseBrief): Scenario {
+/* The scenario of a seed and a case. What its steps say is proposed
+   (proposer.ts); by default the scripted proposer answers. */
+export function generateScenario(
+  seed: number,
+  brief: CaseBrief,
+  proposer: ImmediateProposer = SCRIPTED,
+): Scenario {
+  const proposals = proposeAll(proposer, seed, brief);
   const rng = createRng(mix(seed, brief.caseNo));
   /* Odd scenario numbers make the fact request service time out once */
   const odd = Math.abs(Math.trunc(seed)) % 2 === 1;
@@ -519,7 +519,7 @@ export function generateScenario(seed: number, brief: CaseBrief): Scenario {
     const [lo, hi] = CONFIDENCE_RANGE[type];
     const confidence = round2(lo + rng() * (hi - lo));
     const durationMs = 300 + Math.floor(rng() * 600);
-    return stepOf(type, brief, { id: `s${i + 1}`, confidence, durationMs }, odd);
+    return stepOf(type, brief, { id: `s${i + 1}`, confidence, durationMs }, odd, proposals);
   });
   return {
     seed,
@@ -530,8 +530,12 @@ export function generateScenario(seed: number, brief: CaseBrief): Scenario {
   };
 }
 
-export function generatePlan(seed: number, brief: CaseBrief): PlanStep[] {
-  return generateScenario(seed, brief).steps.map((s) => ({ ...s, askFirst: false }));
+export function generatePlan(
+  seed: number,
+  brief: CaseBrief,
+  proposer: ImmediateProposer = SCRIPTED,
+): PlanStep[] {
+  return generateScenario(seed, brief, proposer).steps.map((s) => ({ ...s, askFirst: false }));
 }
 
 /*
