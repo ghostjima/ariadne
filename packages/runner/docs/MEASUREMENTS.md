@@ -1,6 +1,6 @@
 # Measurements
 
-## Runs a model proposes (protocol version 6)
+## Runs a model proposes (protocol version 7)
 
 What a model costs in time and memory, and how well it reads a complaint,
 is not this package's to measure: the engine asks no model. Those
@@ -12,16 +12,16 @@ there, the only model-backed run on file is a smoke of the bench itself
 seeds a set on the smallest model, on a busy machine, which shows the
 shape of the output and no result.
 
-What that smoke does show of the engine, on commit `94c4f920f187`
+What that smoke does show of the engine, on commit `1337925d713b`
 (Apple M4 Pro, 24 GB, Node v22.18.0, ollama 0.32.1, `qwen3:1.7b`
 manifest `8f68893c685c`, Q4_K_M, thinking off, temperature 0, seed 7,
 context 8,192):
 
 | measure | value | over |
 |---|---|---|
-| Stop while the model drafts the reply, to the run's last event (`stop_to_quiet_ms`) | median 2.0 ms, largest 3.7 ms | 3 stops |
-| Stop while a step of the script runs at normal speed, to `plan.stopped` | median 334 ms, largest 522 ms | 3 stops |
-| Asking the script for a proposal (`latency_classify_ms`, `latency_draft_ms`) | at most 0.42 ms | 48 runs |
+| Stop while the model drafts the reply, to the run's last event (`stop_to_quiet_ms`) | median 0.7 ms, largest 1.7 ms | 3 stops |
+| Stop while a step of the script runs at normal speed, to `plan.stopped` | median 334 ms, largest 521 ms | 3 stops |
+| Asking the script for a proposal (`latency_classify_ms`, `latency_draft_ms`) | at most 0.31 ms | 48 runs |
 
 The first row is the caller's side: the aborted call rejects, the stop
 goes into the decision log, and the replay ends the run. Whether ollama

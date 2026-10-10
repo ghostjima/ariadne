@@ -11,7 +11,7 @@ against what the register and the rules engine give for the case. Every
 check is deterministic. No model judges anything, and no number comes
 from a model's card.
 
-Status: the method and its tests (87). No full run is recorded here yet;
+Status: the method and its tests (93). No full run is recorded here yet;
 when one is, its results go to `docs/` with their stamps.
 
 It lives in a package of its own because it needs all the others (the
@@ -103,9 +103,11 @@ Russian and in English, in the orders statutes are cited in ("ч. 3.4
 "article 395 of the Civil Code"). A citation is inside a case when the
 rules engine gives its act and article for the case and every part it
 names is among the parts the engine gives for that article: the grounds,
-the sign or 115-FZ category, and the basis of each deadline, duty and
-measure of the case's clock. It goes as deep as the part; paragraphs,
-subitems and sentences are read and left out. It does not understand a
+the sign or 115-FZ category, the basis of each deadline, duty and
+measure of the case's clock, and what a reply cites for each option,
+deadline and restriction it states. It goes as deep as the part;
+paragraphs, subitems and sentences are read and left out, and so are
+the items of an article that is divided into parts. It does not understand a
 law referred to in other words, and it does not judge whether a
 provision the engine gives is the right one to cite in the sentence it
 stands in.
