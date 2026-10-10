@@ -189,14 +189,16 @@ pub const ANTIFRAUD_TERMS_LETTER: Source = Source {
 /// The Bank of Russia's Directive No. 6748-U, as amended by Directive
 /// No. 7287-U of 19.01.2026: how a client applies to remove its data from
 /// the database, what the operator does with an application filed through
-/// it, and the Bank of Russia's 15 working days from receipt. The text was
-/// read in a full-text copy; the revision was confirmed on consultant.ru.
+/// it (forwards it, or refuses to when mandatory data are missing, items
+/// 1.3 to 1.5), and the Bank of Russia's 15 working days from receipt. The
+/// text was read in a full-text copy; the revision was confirmed on
+/// consultant.ru. Directive No. 7287-U did not amend items 1.3 and 1.4.
 pub const DIRECTIVE_6748_U: Source = Source {
     id: "directive_6748_u",
     title: "Указание Банка России от 13.06.2024 N 6748-У «О порядке подачи клиентом оператора по переводу денежных средств в Банк России заявления об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента, порядке принятия Банком России мотивированного решения об удовлетворении или об отказе в удовлетворении заявления клиента оператора по переводу денежных средств или мотивированного заявления оператора по переводу денежных средств об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента и порядке получения оператором по переводу денежных средств информации об исключении сведений, относящихся к клиенту и (или) его электронному средству платежа, из базы данных о случаях и попытках осуществления переводов денежных средств без добровольного согласия клиента»",
     url: "https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/",
     revision: "2026-01-19",
-    checked: "2026-10-09",
+    checked: "2026-10-10",
 };
 
 /// The Bank of Russia's Directive No. 7282-U: how operators report to the
