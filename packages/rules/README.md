@@ -19,7 +19,7 @@ the desk and the agent all ask it through this package.
 | `loadRules(source?)` | loads the module in a browser or a worker, from the file the bundler placed beside the glue |
 | `loadRulesSync(bytes)`, `loadRulesFromFile()` (`@ariadne/rules/node`) | loads it from bytes in hand, or from the file in Node |
 | `isWorkingDay`, `dayKind`, `nextWorkingDay`, `addWorkingDays`, `workingDaysBetween`, `calendarRange` | the production calendar, 2025 to 2027 |
-| `clock(facts)` | the legal clocks of a case: deadlines with their basis, duties, the measures taken with their grounds, warnings, refusals, the reply's last day |
+| `clock(facts)` | the legal clocks of a case: deadlines with their basis, duties, the measures taken with their grounds, the day each takes effect and, where the facts give it, the day it stops applying, warnings, refusals, the reply's last day |
 | `od2506Signs()`, `amlReasons()`, `paymentGrounds()` | the signs of Order No. OD-2506 (with the order's wording in Russian), the 115-FZ categories, and the 161-FZ grounds a reply names (art. 8 parts 3.4 and 3.10, art. 9 parts 11.6 and 11.7) |
 | `rubric(reply, facts)` | coded findings on a structured reply |
 | `factRequestDue(facts, sentOn)` | the last day of a request for facts to another unit: two working days, an internal policy, capped by the external terms that bind the answering unit |

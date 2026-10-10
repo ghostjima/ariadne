@@ -71,7 +71,12 @@ const SECOND_ACTION = GROUNDS.findIndex((g) => g?.id === "payment_8_3_10");
  * its cap_transfers measure rests on (11.6, its second sentence); null
  * when the bank did neither. */
 export function instrumentGround(facts: CaseFacts): GroundCode | null {
-  const measure = clock(facts).measures.find((m) => m.kind === "suspend_instrument" || m.kind === "cap_transfers");
+  // The one in force on the day the data is taken: a suspension the bank
+  // lifted, or a cap a suspension replaced, has ended. With none in force
+  // (a legal entity's suspension lifted, which leaves no cap), the last
+  // that applied.
+  const all = clock(facts).measures.filter((m) => m.kind === "suspend_instrument" || m.kind === "cap_transfers");
+  const measure = all.find((m) => m.on <= AS_OF && (m.until === null || AS_OF < m.until)) ?? all.at(-1);
   if (!measure) return null;
   // A ground is a part; the cap is a sentence of it.
   const part = measure.basis.part.split(",")[0];

@@ -123,7 +123,12 @@ assistant's).
   bank's choice under part 11.6, the transfers to individuals capped at
   100,000 roubles a month instead; and ATM cash capped at 100,000
   roubles a month either way (Banking Law art. 30 part 16). The rubric
-  flags a restriction left out or one that does not apply. At signature the signatory records
+  flags a restriction left out or one that does not apply on the day of
+  the reply. The card dates the ATM cash cap by the day the bank received
+  the database record, which the case's database panel shows, not by the
+  day the bank suspended the card; a transfer cap that a later suspension
+  replaced is shown with the day it ended; and under each monthly limit
+  the card says that the law does not say how the month is counted. At signature the signatory records
   a decision (approve, modify, override or defer, as one radio group with
   what each means under it) with their concerns and what would make it
   wrong, in fields of several lines (always asked for; the concerns unless
@@ -168,7 +173,19 @@ assistant's).
   view of whether the data were included with basis, with its reasons. The Bank of Russia sends
   its decision to the client by email, so the bank owes no relay of it;
   a case where the client applied through the bank has had the bank's
-  view forwarded with the application, and takes no request here.
+  view forwarded with the application, and takes no request here. The
+  panel also has the suspension itself. Where the bank chose it under
+  161-FZ art. 9 part 11.6, the legal reviewer or the supervisor may
+  record its lift with the bank's reasons, after a confirmation with the
+  focus on Keep it suspended; the lift goes in the journal, the
+  suspension ends that day on the card, an individual's transfers to
+  individuals are capped from it and the register's restriction column
+  follows. The law does not describe lifting such a suspension, and the
+  panel says so and how the desk reads it: as the bank's own decision,
+  with the cap of the part's second sentence after it, marked as a
+  conservative reading. With the Ministry of Internal Affairs'
+  information the suspension is a duty (part 11.7): the rules engine
+  refuses a lift, and the panel says why instead of offering it.
 - **The card**: the complaint as the applicant wrote it (shown as the
   applicant's words, never followed), the applicant, the operation
   behind it, the flags around the operation (the OD-2506 sign with the
@@ -364,7 +381,8 @@ dispatch's confirmation and its send delay, the
 supervisor's refused extension, the bank's own application to remove the
 client's data refused without reasons, its confirmation and sent, the
 Bank of Russia's request on the client's own application recorded, its
-answer refused without a view and answered, the
+answer refused without a view and answered, a suspension's lift refused
+without reasons, its confirmation and lifted, the
 supervisor's metrics, and, in the
 assistant,
 the plan, the agent's request to change a step, a failed step, the
@@ -386,7 +404,7 @@ the case and the return dialog, the confirmed handover, the letter's
 editor, a signature and a deferral, the dispatch's confirmation and its
 cancel, a copy marked sent, the bank's own application to remove the
 client's data once sent, the Bank of Russia's request recorded and
-answered, and after every
+answered, a suspension lifted, and after every
 decision in
 a run (never to the page's body; the assistant's focus tests run a
 second time with the page's CPU slowed six times, as on a slow CI

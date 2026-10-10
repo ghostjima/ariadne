@@ -19,6 +19,10 @@ export type SyncRequest = {
   breach: Uint8Array;
   copies: Uint8Array;
   rules: Uint8Array;
+  /** What the bank does for the client's own data in the database: it
+   * changes when a suspension chosen under 161-FZ art. 9 part 11.6 is
+   * lifted. */
+  restriction: Uint8Array;
   updatedAt: Float64Array;
   /** Present when notes changed. */
   notes?: NoteValue[];

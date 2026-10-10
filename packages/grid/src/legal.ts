@@ -197,6 +197,12 @@ export function queryAnsweredOn(store: ColumnStore, row: number): number {
   return journalDay(store, row, "query_answered");
 }
 
+/* The Moscow day the bank lifted a suspension it had chosen under 161-FZ
+   art. 9 part 11.6, from the case's journal (database.ts), or -1 */
+export function suspensionLiftedOn(store: ColumnStore, row: number): number {
+  return journalDay(store, row, "suspension_lifted");
+}
+
 /* The Moscow day of the first entry of an action made in the page, or -1 */
 function journalDay(store: ColumnStore, row: number, action: string): number {
   const entry = (store.journal.get(row) ?? []).find((e) => e.action === action);
@@ -215,7 +221,8 @@ const AML_DECISION: Partial<Record<(typeof AML_REASON_CODES)[number], "refuse_op
    stopped (refused for a card, Faster Payments or e-money, suspended for a
    transfer by bank details) or the client's card or online banking
    suspended for the client's own data in the Bank of Russia's database,
-   and the 115-FZ decision or measures; and the row's path beyond them
+   with the day the bank received the database information, and the
+   115-FZ decision or measures; and the row's path beyond them
    (Path): the second step after a confirmation or a repeat, the client's
    application to remove their data from the database, the commission's
    request. The case card asks the module for its whole clock with these. */
@@ -236,16 +243,25 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
     }
   }
   /* The client's own data in the database: no operation was blocked; the
-     card or online banking was suspended on `opOn`, a duty with the
-     Ministry of Internal Affairs' information, or, the bank's choice under
-     part 11.6, the transfers capped instead; then, if the client applied,
-     the application to remove the data through the bank, and its receipt
-     by the Bank of Russia once forwarded */
+     bank received the database information on `recordOn`, from which the
+     ATM cash cap runs; the card or online banking was suspended on `opOn`,
+     a duty with the Ministry of Internal Affairs' information, or, the
+     bank's choice under part 11.6, the transfers capped instead, or the
+     suspension lifted later in favour of the cap (the journal has the
+     day); then, if the client applied, the application to remove the data
+     through the bank, and its receipt by the Bank of Russia once
+     forwarded */
   const database = store.database[i] ?? Database.None;
   if (stream === Stream.Antifraud && database !== Database.None) {
-    const capped = store.restriction[i] === Restriction.TransfersCapped;
+    /* A suspension lifted in the page was a suspension from `opOn` to the
+       day of the lift, whatever the `restriction` column shows since */
+    const lifted = suspensionLiftedOn(store, i);
+    const capped = lifted < 0 && store.restriction[i] === Restriction.TransfersCapped;
+    const recordOn = store.recordOn[i] ?? -1;
     facts.database = {
+      ...(recordOn >= 0 ? { informationReceivedOn: isoDay(recordOn) } : {}),
       ...(capped ? { transfersCappedOn: on } : { instrumentSuspendedOn: on }),
+      ...(lifted >= 0 ? { suspensionLiftedOn: isoDay(lifted) } : {}),
       policeInformation: database === Database.ClientDataWithPoliceInformation,
     };
     if (path === Path.DatabaseRemoval && pathOn >= 0) {

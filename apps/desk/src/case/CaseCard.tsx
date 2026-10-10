@@ -144,7 +144,7 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
       </Panel>
 
       <Panel title={c.flags} level={3}>
-        <Flags details={details} t={t} lang={lang} />
+        <Flags details={details} t={t} lang={lang} isoDate={isoDate} />
       </Panel>
 
       <Panel title={c.duties} level={3}>
@@ -166,7 +166,11 @@ export function CaseCard({ store, row, lang, t, version, onOpenCase }: CaseCardP
   );
 }
 
-function Flags({ details, t, lang }: { details: CaseDetails; t: Strings; lang: Lang }) {
+/** The measures capped by the month: the law gives the limit, not how the
+ * month is counted. */
+const MONTHLY_LIMITS: ReadonlySet<string> = new Set(["cap_transfers", "cap_atm_cash"]);
+
+function Flags({ details, t, lang, isoDate }: { details: CaseDetails; t: Strings; lang: Lang; isoDate: (iso: string) => string }) {
   const c = t.case;
   const { labels } = POOLS[lang];
   if (details.flags.length === 0) return <p className="muted">{c.noFlags}</p>;
@@ -201,7 +205,16 @@ function Flags({ details, t, lang }: { details: CaseDetails; t: Strings; lang: L
         };
       }
       case "measure":
-        return { kind: c.measure[flag.measure.kind] ?? flag.measure.kind, text: <p className="muted">{c.basisLine(groundName(flag.measure.basis, t, lang))}</p> };
+        return {
+          kind: c.measure[flag.measure.kind] ?? flag.measure.kind,
+          text: (
+            <>
+              <p className="muted">{c.basisLine(groundName(flag.measure.basis, t, lang))}</p>
+              {flag.measure.until && <p className="muted">{c.measureEnded(isoDate(flag.measure.until))}</p>}
+              {MONTHLY_LIMITS.has(flag.measure.kind) && <p className="muted">{c.monthNote}</p>}
+            </>
+          ),
+        };
       case "deadline":
         return { kind: c.flagDeadline[flag.deadline.kind] ?? flag.deadline.kind, text: <p className="muted">{c.basisLine(groundName(flag.deadline.basis, t, lang))}</p> };
     }

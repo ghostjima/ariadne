@@ -77,13 +77,15 @@ pub const BANKING_LAW_30_1: Source = Source {
 
 /// Banking Law, art. 30: the bank's relations with its clients; part 16
 /// caps ATM cash at 100,000 roubles a month for a client whose data are in
-/// the Bank of Russia's database of transfers without consent.
+/// the Bank of Russia's database of transfers without consent, from the
+/// receipt of the database information and for as long as the data are
+/// there.
 pub const BANKING_LAW_30: Source = Source {
     id: "banking_law_30",
     title: "Федеральный закон от 02.12.1990 N 395-1 «О банках и банковской деятельности», статья 30",
     url: "https://www.consultant.ru/document/cons_doc_LAW_5842/e452b6541ff9e2aad438b239b6e5ba38a28162da/",
     revision: "2026-08-04",
-    checked: "2026-10-09",
+    checked: "2026-10-10",
 };
 
 /// Microfinance Law, art. 9.1: how a microfinance organisation handles
@@ -171,7 +173,7 @@ pub const PAYMENT_LAW_9: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 9",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/",
     revision: "2026-08-04",
-    checked: "2026-10-09",
+    checked: "2026-10-10",
 };
 
 /// The Bank of Russia's letter on counting the terms of art. 8 of the
@@ -195,6 +197,21 @@ pub const DIRECTIVE_6748_U: Source = Source {
     url: "https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13062024-n-6748-u-o-porjadke/",
     revision: "2026-01-19",
     checked: "2026-10-09",
+};
+
+/// The Bank of Russia's Directive No. 7282-U: how operators report to the
+/// database of transfers without consent and receive its information
+/// (items 6.1 to 6.3: through the Bank of Russia's infrastructure, to
+/// apply it within two or four hours of its provision), and the
+/// restrictions they apply to a client whose data are in it for as long as
+/// the data are there (item 4.2.8). The text was read in a full-text copy;
+/// the official publication is a scan.
+pub const DIRECTIVE_7282_U: Source = Source {
+    id: "directive_7282_u",
+    title: "Указание Банка России от 13.01.2026 N 7282-У «Об установлении Банком России порядков, предусмотренных частью четвертой статьи 24.3 Федерального закона \"О банках и банковской деятельности\" (в редакции Федерального закона от 3 февраля 1996 года N 17-ФЗ), частями 11 - 13 статьи 9 Федерального закона от 2 июля 2010 года N 151-ФЗ \"О микрофинансовой деятельности и микрофинансовых организациях\", частями 4, 6, 7 статьи 27 Федерального закона от 27 июня 2011 года N 161-ФЗ \"О национальной платежной системе\"»",
+    url: "https://legalacts.ru/doc/ukazanie-banka-rossii-ot-13012026-n-7282-u-ob-ustanovlenii/",
+    revision: "2026-01-13",
+    checked: "2026-10-10",
 };
 
 /// The Bank of Russia's page on requests to remove data from its
@@ -318,6 +335,7 @@ pub const ALL: &[Source] = &[
     PAYMENT_LAW_9,
     ANTIFRAUD_TERMS_LETTER,
     DIRECTIVE_6748_U,
+    DIRECTIVE_7282_U,
     BANK_OF_RUSSIA_EXCLUSION_PAGE,
     AML_LAW_7,
     AML_LAW_7_7,

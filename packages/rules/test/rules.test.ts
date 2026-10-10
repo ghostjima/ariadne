@@ -168,6 +168,60 @@ describe("through the WebAssembly build", () => {
     expect(() => rubric({ ...reply, measures: ["cap_everything"] }, facts)).toThrow("unknown_code");
   });
 
+  it("runs the ATM cash cap from the day the bank received the database information, and ends each measure when the data leave the database", () => {
+    // Received on Thursday 7 May 2026, the card suspended under part 11.6
+    // on Saturday 9 May, the data removed on 20 May: ATM cash is capped
+    // from 7 May (Banking Law art. 30 part 16), the transfer cap of part
+    // 11.6, sentence 2 ran on 7 and 8 May, and the suspension and the ATM
+    // cash cap end on 20 May.
+    const facts = {
+      stream: "antifraud",
+      receivedOn: "2026-05-12",
+      database: { informationReceivedOn: "2026-05-07", instrumentSuspendedOn: "2026-05-09", dataRemovedOn: "2026-05-20" },
+    } as const;
+    const c = clock(facts);
+    expect(c.measures.map((m) => [m.kind, m.on, m.until, m.basis.part])).toEqual([
+      ["suspend_instrument", "2026-05-09", "2026-05-20", "11.6"],
+      ["cap_transfers", "2026-05-07", "2026-05-09", "11.6, sentence 2"],
+      ["cap_atm_cash", "2026-05-07", "2026-05-20", "16"],
+    ]);
+    expect(c.warnings).not.toContain("database_information_date_assumed");
+    // Without the day of receipt the cap is dated by the day the bank
+    // acted, and the clock says the start is assumed; no end is known.
+    const assumed = clock({ stream: "antifraud", receivedOn: "2026-05-12", database: { instrumentSuspendedOn: "2026-05-09" } });
+    expect(assumed.measures.map((m) => [m.kind, m.on, m.until])).toEqual([
+      ["suspend_instrument", "2026-05-09", null],
+      ["cap_atm_cash", "2026-05-09", null],
+    ]);
+    expect(assumed.warnings).toContain("database_information_date_assumed");
+    expect(() => clock({ ...facts, database: { ...facts.database, informationReceivedOn: "2026-05-10" } })).toThrow("dates_out_of_order");
+  });
+
+  it("lifts a suspension chosen under part 11.6 in favour of the transfer cap, and refuses the lift under part 11.7", () => {
+    // Suspended on Saturday 9 May 2026 and lifted on Wednesday 13 May: the
+    // suspension ends that day and the cap of part 11.6, sentence 2 starts
+    // (a conservative reading); ATM cash stays capped from the receipt.
+    const facts = {
+      stream: "antifraud",
+      receivedOn: "2026-05-12",
+      database: { informationReceivedOn: "2026-05-09", instrumentSuspendedOn: "2026-05-09", suspensionLiftedOn: "2026-05-13" },
+    } as const;
+    const c = clock(facts);
+    expect(c.refusals).toEqual([]);
+    expect(c.measures.map((m) => [m.kind, m.on, m.until, m.basis.part, m.basis.reading])).toEqual([
+      ["suspend_instrument", "2026-05-09", "2026-05-13", "11.6", "text"],
+      ["cap_transfers", "2026-05-13", null, "11.6, sentence 2", "conservative"],
+      ["cap_atm_cash", "2026-05-09", null, "16", "text"],
+    ]);
+    const police = clock({ ...facts, database: { ...facts.database, policeInformation: true } });
+    expect(police.refusals).toEqual(["suspension_lift_not_allowed"]);
+    expect(police.measures.map((m) => [m.kind, m.until, m.basis.part])).toEqual([
+      ["suspend_instrument", null, "11.7"],
+      ["cap_atm_cash", null, "16"],
+    ]);
+    expect(() => clock({ stream: "antifraud", receivedOn: "2026-05-12", database: { suspensionLiftedOn: "2026-05-13" } })).toThrow("missing_date");
+  });
+
   it("caps a fact request by the external terms that bind the answering unit", () => {
     // The crate's worked example: documents against a refused operation
     // submitted on 8 May 2026 are answered by 20 May; a fact request on

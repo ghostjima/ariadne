@@ -32,6 +32,7 @@ function sync(row: number): SyncRequest {
     breach: Uint8Array.of(store.breach[row]!),
     copies: Uint8Array.of(store.copies[row]!),
     rules: Uint8Array.of(store.rules[row]!),
+    restriction: Uint8Array.of(store.restriction[row]!),
     updatedAt: Float64Array.of(0),
   };
 }
@@ -70,6 +71,21 @@ describe("desk worker handler", () => {
     expect(reply.sortMs).toBeGreaterThan(0);
     // The row moved from the first stage to the last.
     expect(Array.from(reply.index).indexOf(row)).toBeGreaterThan(reply.index.length / 2);
+  });
+
+  it("takes a lifted suspension's restriction into its store and recomputes an order by it", () => {
+    const { out, handle } = worker();
+    const store = generateAll(SEED, TOTAL, 5_000);
+    const row = Array.from({ length: TOTAL }, (_, i) => i).find((i) => store.restriction[i] === 1)!;
+    const q = { type: "query" as const, criteria: EMPTY_CRITERIA, sort: { id: "restriction", desc: true }, lang: "en" as const };
+    handle({ ...q, id: 1 });
+    const capped = Array.from(last(out).index).filter((i) => store.restriction[i] === 2).length;
+    expect(Array.from(last(out).index).indexOf(row)).toBeGreaterThanOrEqual(capped);
+    // The suspension is lifted in favour of the transfer cap (code 2).
+    handle({ ...sync(row), restriction: Uint8Array.of(2) });
+    handle({ ...q, id: 2 });
+    expect(last(out).sortMs).toBeGreaterThan(0);
+    expect(Array.from(last(out).index).indexOf(row)).toBeLessThanOrEqual(capped);
   });
 
   it("finds an edited note by search", () => {
