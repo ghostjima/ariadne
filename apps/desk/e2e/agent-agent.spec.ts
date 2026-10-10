@@ -13,6 +13,7 @@ import {
   expectNoSeriousViolations,
   expectPlanState,
   logLines,
+  openConfirmation,
   ready,
   retryButton,
   runSteps,
@@ -90,7 +91,7 @@ test("a run by keyboard: R runs, the agent's request and the draft focus the saf
 
   // Step 2: the agent asks to take the linked case's facts; Keep the plan
   // has the focus, so Enter keeps the request.
-  let alert = await dialog(page);
+  let alert = await openConfirmation(page);
   await expect(alert.getByRole("heading")).toHaveText("Step 2: the agent asks to change the plan");
   await expect(alert.getByRole("button", { name: en.deviation.deny })).toBeFocused();
   await page.keyboard.press("Enter");
