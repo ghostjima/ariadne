@@ -3,10 +3,10 @@
 // the register holds). A case the assistant did not hand over in this
 // page (one of the register's own) has its draft worked out the same way
 // the assistant would have drafted it, from the case's brief.
-import { caseJournal, Stage, type ColumnStore } from "@ariadne/grid";
+import { caseFacts, caseJournal, Stage, type ColumnStore } from "@ariadne/grid";
 import { OUTCOMES, replyDraft, type ReplyDraft } from "@ariadne/runner";
 import { strings as agentStrings } from "../agent/i18n";
-import { replyText } from "../agent/reply";
+import { replyCites, replyText } from "../agent/reply";
 import type { Text } from "../agent/text";
 import { caseBrief } from "../case/brief";
 import type { Lang } from "../i18n";
@@ -40,12 +40,13 @@ export function currentLetter(x: Text, store: ColumnStore, row: number, files: C
   if (edit) return { text: edit.text, lang: edit.lang, edit, signed: false };
   const { draft } = assistantDraft(store, row, files);
   const outcome = OUTCOMES[store.outcome[row] ?? 0] ?? draft.outcome;
-  return { text: replyText(x, { ...draft, outcome }), lang: x.lang, edit: null, signed: false };
+  return { text: replyText(x, { ...draft, outcome }, replyCites(x, caseFacts(store, row), draft.repliedOn)), lang: x.lang, edit: null, signed: false };
 }
 
 /** The assistant's draft as it drafted it, in the reader's language. */
 export function draftText(x: Text, store: ColumnStore, row: number, files: CaseFiles): string {
-  return replyText(x, assistantDraft(store, row, files).draft);
+  const { draft } = assistantDraft(store, row, files);
+  return replyText(x, draft, replyCites(x, caseFacts(store, row), draft.repliedOn));
 }
 
 /** The letter still leaves the decision to the reviewer: its placeholder

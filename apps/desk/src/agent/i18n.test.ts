@@ -42,7 +42,7 @@ import { makeFmt } from "./format";
 import { fullRun } from "./fullRun";
 import { LANGUAGES as LANGS } from "../i18n";
 import { LOCALES, strings, type Lang } from "./i18n";
-import { replyLines } from "./reply";
+import { NO_CITES, replyLines } from "./reply";
 import { SAMPLE_BRIEF } from "./sampleBrief";
 import { FINDING_CODES } from "./rubric";
 import { STREAM_ERRORS } from "./transport";
@@ -151,7 +151,7 @@ function runSentences(lang: Lang, seed: number, brief: CaseBrief): string[] {
   const out: string[] = [];
   for (const step of [...steps, ...deviated]) {
     out.push(stepTitle(x, step), ...draftLines(x, step.draft), ...step.objects.map((o) => objectLine(x, o)));
-    if (step.draft.kind === "reply") out.push(...replyLines(x, step.draft));
+    if (step.draft.kind === "reply") out.push(...replyLines(x, step.draft, NO_CITES));
     out.push(summaryText(x, step.summary), undoText(x, step.undo));
     if (step.error) out.push(errorText(x, step.error));
   }
@@ -216,7 +216,7 @@ describe("sentences from the engine's data", () => {
     const draft = generatePlan(8, BRIEF)[2]!.draft;
     if (draft.kind !== "reply") throw new Error("not a reply");
     // Spaces as written: the locale's no-break spaces read as spaces.
-    expect(replyLines(text("en"), draft).map((l) => l.replace(/[\u00a0\u202f]/g, " "))).toEqual([
+    expect(replyLines(text("en"), draft, NO_CITES).map((l) => l.replace(/[\u00a0\u202f]/g, " "))).toEqual([
       "Dear client,",
       "We have reviewed your complaint of Sep 3, 2026, case C-000867.",
       "It concerns this operation: Transfer by bank details, reference OP-00SPDE7, of Sep 1, 2026, for RUB 48,500.00.",
@@ -230,7 +230,7 @@ describe("sentences from the engine's data", () => {
     ]);
     const aml = generatePlan(8, AML)[2]!.draft;
     if (aml.kind !== "reply") throw new Error("not a reply");
-    const ru = replyLines(text("ru"), aml);
+    const ru = replyLines(text("ru"), aml, NO_CITES);
     expect(ru).toContain("Основание: 115-ФЗ, ст. 7, п. 11.");
     expect(ru).toContain("Наша позиция основана на условиях вашего договора с банком.");
     expect(ru).toContain("Мы ответим по вашим документам не позднее 9 окт. 2026 г.");
