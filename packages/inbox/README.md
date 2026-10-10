@@ -117,7 +117,10 @@ missing text.
 
 `item.truth.provisions` is every act, article and part the rules engine
 gives for the case: the grounds of its brief, its sign or 115-FZ
-category, and the basis of each deadline, duty and measure of its clock.
+category, the basis of each deadline, duty and measure of its clock, and
+what a reply cites for the options, deadlines and restrictions it
+states, for what a reply must contain and for a complaint to the Bank of
+Russia.
 A reply that cites a provision outside this list cites law the engine
 does not give for the case.
 
@@ -128,9 +131,10 @@ does not give for the case.
   attachments.
 - `caseSheet(brief, facts, lang)`: what the register and the rules say
   of the case, for drafting its reply: the brief's codes, numbers and
-  dates, the sign's number in Order OD-2506, and the citation of each
-  ground and measure as the desk writes it ("161-ФЗ, ст. 8, ч. 3.4").
-  It holds nothing of the complaint's text.
+  dates, the sign's number in Order OD-2506, the citation of each ground
+  and measure as the desk writes it ("161-ФЗ, ст. 8, ч. 3.4"), and the
+  provision behind each option, deadline and next step where the rules
+  give one. It holds nothing of the complaint's text.
 
 ## Prompts
 
@@ -145,11 +149,11 @@ the three tasks a proposer answers (`Prompts` of
   tags, and only for the reply.
 - Classifying and choosing the team are done from the complaint alone.
   The instructions spell out every code a model may answer with, one
-  line each: the four streams, the twelve grounds, the three teams, the
-  nine questions.
+  line each: the four streams, the thirteen grounds, the three teams,
+  the nine questions.
 - Drafting gets the sheet as the only source of facts and law: every
   ground with its citation, every measure, option, deadline and next
-  step with its code and its meaning. The model is asked for a letter in
+  step with its code, its meaning and the provision behind it. The model is asked for a letter in
   the complaint's language (one sentence a line, none over 25 words) and
   then for the codes of what the letter states. Where nobody has decided
   the complaint, it is given the line a reviewer fills in

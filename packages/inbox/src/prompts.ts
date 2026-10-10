@@ -218,8 +218,9 @@ function draftSystem(lang: Lang): string {
       "- Keep sentences short: none over 25 words, 15 or fewer on average.",
       `- State the decision as the sheet gives it. When the sheet says it is pending, write this line exactly and decide nothing yourself: ${PENDING_LINE[lang]}`,
       "- Say what the bank did and why, as the sheet says.",
-      "- Name every ground of the sheet with its citation, written exactly as in the sheet. Cite no other law, article or document.",
+      "- Name every ground of the sheet with its citation, written exactly as in the sheet.",
       "- State every measure, every option the client has, every deadline with its date, and every next step of the sheet. Add none of your own.",
+      "- Where the sheet gives a citation for a measure, an option, a deadline or a next step, give it after that sentence, written exactly as in the sheet. Cite no law, article or document the sheet does not give.",
       "- Do not admit fault, do not promise money, and state nothing the sheet does not say.",
     ].join("\n"),
     "After the text, say in codes what the text states: grounds, reasons, clientOptions, deadlines (kind and due as YYYY-MM-DD), measures, nextSteps. Use the codes of the sheet, and list a code only if the text states it.",
@@ -258,17 +259,18 @@ export function sheetText(sheet: CaseSheet): string {
     "Measures (code: what applies; citation)",
     sheet.measures.map((m) => `${m.code}: ${MEASURES[m.code]}${m.citation ? `; ${m.citation}` : ""}`),
   );
+  const cited = (citation: string | undefined) => (citation ? `; ${citation}` : "");
   section(
-    "Options (code: what the client can do)",
-    sheet.clientOptions.map((o) => `${o}: ${OPTIONS[o]}`),
+    "Options (code: what the client can do; citation)",
+    sheet.clientOptions.map((o) => `${o}: ${OPTIONS[o]}${cited(sheet.cites.options[o])}`),
   );
   section(
-    "Deadlines (code: date: what it is)",
-    sheet.deadlines.map((d) => `${d.kind}: ${d.due}: ${DEADLINES[d.kind]}`),
+    "Deadlines (code: date: what it is; citation)",
+    sheet.deadlines.map((d) => `${d.kind}: ${d.due}: ${DEADLINES[d.kind]}${cited(sheet.cites.deadlines[d.kind])}`),
   );
   section(
-    "Next steps (code: what to tell the client)",
-    sheet.nextSteps.map((n) => `${n}: ${NEXT[n]}`),
+    "Next steps (code: what to tell the client; citation)",
+    sheet.nextSteps.map((n) => `${n}: ${NEXT[n]}${cited(sheet.cites.nextSteps[n])}`),
   );
   return lines.join("\n");
 }

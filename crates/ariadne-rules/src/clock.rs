@@ -966,6 +966,9 @@ struct SectorArticle {
     registration: &'static str,
     reply: &'static str,
     extension: &'static str,
+    /// What a reply must contain: the results of the review, its reasons,
+    /// and references to the requirements of the law.
+    content: &'static str,
     copy_to_bank_of_russia: &'static str,
     copy_to_sro: Option<&'static str>,
     /// The notice of leaving a complaint without a reply on substance.
@@ -984,6 +987,7 @@ fn sector_article(sector: Sector) -> SectorArticle {
             registration: "5",
             reply: "7",
             extension: "8",
+            content: "9",
             copy_to_bank_of_russia: "15",
             copy_to_sro: None,
             no_substance_notice: "13",
@@ -996,6 +1000,7 @@ fn sector_article(sector: Sector) -> SectorArticle {
             registration: "5",
             reply: "7",
             extension: "8",
+            content: "9",
             copy_to_bank_of_russia: "16",
             copy_to_sro: Some("12"),
             no_substance_notice: "14",
@@ -1008,6 +1013,7 @@ fn sector_article(sector: Sector) -> SectorArticle {
             registration: "3",
             reply: "5, paragraph 1",
             extension: "5, paragraph 2",
+            content: "6",
             copy_to_bank_of_russia: "12",
             copy_to_sro: Some("8"),
             no_substance_notice: "10",
@@ -1020,6 +1026,7 @@ fn sector_article(sector: Sector) -> SectorArticle {
             registration: "1",
             reply: "2",
             extension: "3",
+            content: "4",
             copy_to_bank_of_russia: "11",
             copy_to_sro: Some("5"),
             no_substance_notice: "7",
@@ -1032,6 +1039,7 @@ fn sector_article(sector: Sector) -> SectorArticle {
             registration: "5",
             reply: "6",
             extension: "7",
+            content: "8",
             copy_to_bank_of_russia: "15",
             copy_to_sro: Some("10"),
             no_substance_notice: "12",
@@ -1039,6 +1047,18 @@ fn sector_article(sector: Sector) -> SectorArticle {
             storage: None,
         },
     }
+}
+
+/// The provision of a sector's complaint article on what a reply must
+/// contain: "Ответ на обращение должен содержать информацию о результатах
+/// объективного и всестороннего рассмотрения обращения, быть обоснованным
+/// и включать ссылки на имеющие отношение к рассматриваемому в обращении
+/// вопросу требования законодательства Российской Федерации" (Banking Law
+/// art. 30.1 part 9; 151-FZ art. 9.1 part 9; 4015-1 art. 6.2 item 6; 39-FZ
+/// art. 15.11 item 4; 190-FZ art. 6.2 part 8).
+pub fn reply_content_basis(sector: Sector) -> Basis {
+    let a = sector_article(sector);
+    text(a.source, a.article, a.content)
 }
 
 /// Whether 123-FZ art. 28 part 1 obliges the sector to take part in the

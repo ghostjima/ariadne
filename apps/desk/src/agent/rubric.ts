@@ -6,6 +6,8 @@
 import { GROUNDS } from "@ariadne/grid";
 import type { GroundCode, ReplyDraft } from "@ariadne/runner";
 import { rubric, type CaseFacts, type Finding, type Ground } from "@ariadne/rules";
+import { basisName } from "../case/sources";
+import type { Text } from "./text";
 
 /** Every finding the rubric reports (the crate's README lists them). */
 export const FINDING_CODES = [
@@ -49,4 +51,22 @@ export function checkReply(draft: ReplyDraft, text: string, facts: CaseFacts): F
     },
     facts,
   );
+}
+
+/** A finding as a sentence: what the rubric found, and after it the
+ * provision of the thing itself, when the rules give one (the option's,
+ * the deadline's, the restriction's, or what a reply must contain). The
+ * source of the duty to state it is shown apart. */
+export function findingText(x: Text, finding: Finding): string {
+  const { t, f } = x;
+  const s = finding.subject;
+  const subject = !s
+    ? ""
+    : finding.code === "client_option_missing"
+      ? (t.rubric.option[s as keyof typeof t.rubric.option] ?? s)
+      : finding.code === "measure_missing" || finding.code === "measure_not_taken"
+        ? (t.rubric.measure[s as keyof typeof t.rubric.measure] ?? s)
+        : (t.rubric.deadline[s as keyof typeof t.rubric.deadline] ?? s);
+  const said = t.rubric.finding[finding.code as FindingCode](subject, f.int(finding.words ?? 0));
+  return finding.provision ? `${said} ${t.rubric.provision(basisName(finding.provision, x.lang))}` : said;
 }

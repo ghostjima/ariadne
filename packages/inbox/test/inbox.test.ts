@@ -5,7 +5,7 @@
 */
 import { describe, expect, it } from "vitest";
 import { AS_OF, Database, GROUNDS, Operation, Path, Restriction, Stage, Stream, caseFacts, opRefText, rowId } from "@ariadne/grid";
-import { clock, rubric } from "@ariadne/rules";
+import { clock, replyProvisions, rubric } from "@ariadne/rules";
 import { ALL_CODES, PROTOCOL_VERSION, QUESTIONS_BY_TEAM, STREAMS, decodePlanPayload, encodePlanPayload, generatePlan, teamOf, type PlanPayload } from "@ariadne/runner";
 import {
   CASE_KINDS,
@@ -201,6 +201,14 @@ describe("the ground truth", () => {
       expect(provisions.filter((p) => p.role === "deadline").map((p) => p.of), item.id).toEqual(c.deadlines.map((d) => d.kind));
       expect(provisions.filter((p) => p.role === "measure").map((p) => p.of), item.id).toEqual(c.measures.map((m) => m.kind));
       expect(provisions.filter((p) => p.role === "duty").map((p) => p.of), item.id).toEqual(c.duties.map((d) => d.kind));
+      /* And what a reply cites for what it states, as the rules give it */
+      const r = replyProvisions(item.facts, item.brief.asOf);
+      expect(provisions.filter((p) => p.role === "reply_option").map((p) => [p.of, p.source, p.article]), item.id).toEqual(r.options.map((x) => [x.code, x.basis.source, x.basis.article]));
+      expect(provisions.filter((p) => p.role === "reply_deadline").map((p) => p.of), item.id).toEqual(r.deadlines.map((x) => x.code));
+      expect(provisions.filter((p) => p.role === "reply_measure").map((p) => p.of), item.id).toEqual(r.measures.map((x) => x.code));
+      expect(provisions.filter((p) => p.role === "reply_content"), item.id).toHaveLength(1);
+      /* Every option the brief gives has its provision */
+      for (const option of item.brief.clientOptions) expect(r.options.map((x) => x.code), `${item.id} ${option}`).toContain(option);
       /* Every ground but the contract is there with its article */
       for (const code of item.brief.grounds) {
         const spec = GROUNDS.find((g) => g?.id === code)!;
@@ -344,6 +352,10 @@ describe("the read tools", () => {
     expect(citationText("aml_law_7", "7", "5.2, paragraph 2", "ru")).toBe("115-ФЗ, ст. 7, п. 5.2, абз. 2");
     expect(citationText("aml_law_7", "7", "1, subitem 6", "en")).toBe("115-FZ, art. 7, item 1, subitem 6");
     expect(citationText("banking_law_30", "30", "16", "ru")).toBe("Закон о банках № 395-1, ст. 30, ч. 16");
+    expect(citationText("payment_law_8", "8", "3.6, item 3", "ru")).toBe("161-ФЗ, ст. 8, ч. 3.6, п. 3");
+    expect(citationText("ombudsman_law_16", "16", "4", "en")).toBe("123-FZ, art. 16, part 4");
+    expect(citationText("central_bank_law_79_3", "79.3", "1", "ru")).toBe("Закон о Банке России № 86-ФЗ, ст. 79.3, ч. 1");
+    expect(citationText("directive_6748_u", "", "1.3", "ru")).toBe("Указание Банка России № 6748-У, п. 1.3");
     for (const item of all) {
       const sheet = caseSheet(item.brief, item.facts, item.lang);
       expect(sheet.caseId, item.id).toBe(rowId(item.row));
@@ -354,6 +366,9 @@ describe("the read tools", () => {
       expect([sheet.clientOptions, sheet.deadlines, sheet.outcome, sheet.repliedOn], item.id).toEqual([item.brief.clientOptions, item.brief.deadlines, item.brief.outcome, item.brief.asOf]);
       expect(sheet.operation === null, item.id).toBe(store.operation[item.row] === Operation.None);
       if (item.brief.reason?.startsWith("od2506_")) expect(sheet.reason?.sign, item.id).toMatch(/^\d\.\d+$/);
+      /* The provision behind each option, and behind each deadline the rules give one for */
+      expect(Object.keys(sheet.cites.options).sort(), item.id).toEqual([...item.brief.clientOptions].sort());
+      for (const citation of [...Object.values(sheet.cites.options), ...Object.values(sheet.cites.deadlines), ...Object.values(sheet.cites.nextSteps)]) expect(citation, item.id).toMatch(item.lang === "ru" ? /^[^,]+, ст\. [\d.]+, (ч|п)\. \d/ : /^[^,]+, art\. [\d.]+, (part|item) \d/);
     }
     const capped = all.find((i) => i.kind === "data_capped" && i.lang === "ru")!;
     expect(caseSheet(capped.brief, capped.facts, "ru").measures).toEqual([

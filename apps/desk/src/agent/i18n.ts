@@ -282,6 +282,8 @@ export type Strings = {
     clean: string;
     count: (n: Count) => string;
     finding: Record<FindingCode, (subject: string, words: string) => string>;
+    /** After a finding, the provision of what it is about. */
+    provision: (citation: string) => string;
     /** The subjects of option, deadline and restriction findings. */
     option: Record<ClientOption, string>;
     deadline: Record<ClientDeadlineKind, string>;
@@ -305,12 +307,19 @@ export type Strings = {
      * Russia's database: which apply, each on its ground. */
     measure: Record<MeasureCode, string>;
     ground: (citation: string) => string;
+    /** The provision of the statement before it: an option's, a
+     * deadline's, a next step's. */
+    provision: (citation: string) => string;
     /** A ground that is itself what the bank did, said with its citation:
      * the refusal to forward an incomplete application to remove the
      * client's data. */
     groundStatement: Partial<Record<GroundCode, (citation: string) => string>>;
     contract: string;
     option: Record<ClientOption, string>;
+    /** The commission against the measures for a high-risk client (115-FZ
+     * art. 7.8 item 1): no documents come first, as they do after a
+     * refusal (art. 7 items 13.4, 13.5). */
+    commissionOnMeasures: string;
     deadline: Record<ClientDeadlineKind, (day: string) => string>;
     next: Record<NextStep, string>;
   };
@@ -657,6 +666,7 @@ const en: Strings = {
     title: "Rubric findings",
     clean: "The rubric found nothing to flag. That is not a verdict: a person decides.",
     count: (n) => `${n.text} ${n.n === 1 ? "finding" : "findings"} for a person to weigh.`,
+    provision: (citation) => `Its provision: ${citation}.`,
     finding: {
       ground_missing: () => "No legal ground is named.",
       ground_without_article: () => "A law is named without its article.",
@@ -728,9 +738,10 @@ const en: Strings = {
       suspend_instrument: "We suspended your card and online banking while your data are in the Bank of Russia's database.",
       cap_transfers:
         "Your card and online banking are not suspended. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
-      cap_atm_cash: "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there, under the Banking Law, art. 30, part 16.",
+      cap_atm_cash: "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there.",
     },
     ground: (citation) => `The ground is ${citation}.`,
+    provision: (citation) => `Provision: ${citation}.`,
     groundStatement: {
       directive_6748_u_1_3: (citation) => `We did not forward your removal application to the Bank of Russia: mandatory data are missing (${citation}).`,
     },
@@ -743,6 +754,7 @@ const en: Strings = {
       apply_to_ombudsman: "If you disagree, you can apply to the financial ombudsman.",
       apply_for_removal: "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
     },
+    commissionOnMeasures: "You can apply to the interagency commission at the Bank of Russia to say there are no grounds for these measures.",
     deadline: {
       antifraud_suspension_ends: (d) => `The suspension ends on ${d}.`,
       antifraud_confirmation: (d) => `Please confirm the order by ${d}.`,
@@ -1107,6 +1119,7 @@ const ruStrings: Strings = {
     title: "Замечания по критериям",
     clean: "Замечаний по критериям нет. Это не вывод: решает человек.",
     count: (n) => `${n.text} ${ru(n.n, "замечание", "замечания", "замечаний")} для оценки человеком.`,
+    provision: (citation) => `Норма: ${citation}.`,
     finding: {
       ground_missing: () => "Не названо правовое основание.",
       ground_without_article: () => "Закон назван без статьи.",
@@ -1178,9 +1191,10 @@ const ruStrings: Strings = {
       suspend_instrument: "Мы приостановили использование вашей карты и онлайн-банка, пока сведения о вас есть в базе данных Банка России.",
       cap_transfers:
         "Ваша карта и онлайн-банк не приостановлены. Пока сведения о вас есть в базе данных Банка России, переводы физическим лицам ограничены суммой 100 000 ₽ в месяц.",
-      cap_atm_cash: "На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.",
+      cap_atm_cash: "На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц.",
     },
     ground: (citation) => `Основание: ${citation}.`,
+    provision: (citation) => `Норма: ${citation}.`,
     groundStatement: {
       directive_6748_u_1_3: (citation) => `Мы не передали ваше заявление об исключении сведений в Банк России: в нём нет обязательных сведений (${citation}).`,
     },
@@ -1193,6 +1207,7 @@ const ruStrings: Strings = {
       apply_to_ombudsman: "Если вы не согласны, вы можете обратиться к финансовому уполномоченному.",
       apply_for_removal: "Вы можете подать заявление об исключении сведений о вас из базы данных Банка России через наш банк или интернет-приёмную cbr.ru/contactBR/161-FZ.",
     },
+    commissionOnMeasures: "Вы можете обратиться в межведомственную комиссию при Банке России с заявлением об отсутствии оснований для этих мер.",
     deadline: {
       antifraud_suspension_ends: (d) => `Приостановление заканчивается ${d}`,
       antifraud_confirmation: (d) => `Подтвердите распоряжение не позднее ${d}`,
