@@ -32,7 +32,7 @@ rules. The complaint's text never reaches the engine: the protocol
 refuses a brief with any string that is not one of its codes or a date,
 so nothing an applicant writes can instruct the run.
 
-Status: early. One scripted scenario (97 tests). Measured in Node on an
+Status: early. One scripted scenario (111 tests). Measured in Node on an
 Apple M4 Pro: a plan generates in about 1 us and a complete run replays
 in about 4 to 14 us; method, stamps and spread in
 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
@@ -51,6 +51,13 @@ in about 4 to 14 us; method, stamps and spread in
   (`reuse_facts`, low risk, nothing sent). `findConflicts` flags an order
   that drafts before the facts are asked for, or checks or hands over a
   draft not yet written.
+- **Proposer.** What three of the steps say is proposed: how the
+  complaint is classified, which team is asked for the facts and what,
+  and what the reply states. A `Proposer` answers those tasks for a case,
+  in codes; the engine builds the steps from its answers and computes
+  each step's risk, confirmation and undo itself, so nothing a proposer
+  answers sets them. `ScriptedProposer` is the seeded script: it reads
+  the brief and nothing else. See [The proposer](#the-proposer).
 - **Consent rule.** `requiresConfirmation(step, autonomy)`: high risk
   always asks, at every autonomy level. Below that, `ask_all` asks for
   everything, `high_only` asks for steps flagged `askFirst`, `ask_none`
@@ -67,6 +74,61 @@ in about 4 to 14 us; method, stamps and spread in
   the current step (the steps the run never reached are then skipped
   with `stopped_by_user`, so none reads as still waiting), and undo
   windows that outlive the run (`undoable`, `permanent`, `irreversible`).
+
+## The proposer
+
+```ts
+interface Proposer {
+  propose(request: { task; seed; brief }, signal: AbortSignal): Promise<Proposal>;
+}
+interface ImmediateProposer extends Proposer {
+  proposeNow(request: { task; seed; brief }): Proposal;
+}
+```
+
+The tasks (`PROPOSAL_TASKS`) and what each proposal carries, every value
+a code of `src/codes.ts` or an ISO date:
+
+| task | proposal |
+|---|---|
+| `classify` | `stream`, `grounds` |
+| `request_facts` | `team`, `questions`, `reuseLinked` (take the linked case's facts instead of a new request) |
+| `draft_reply` | `grounds`, `reasons`, `clientOptions`, `deadlines`, `measures`, `nextSteps` |
+
+What the engine takes from a proposal, and what it keeps:
+
+- The fact request is sent to the proposed team with the proposed
+  questions. The facts of a linked case are offered only for a case that
+  has one, whatever is proposed.
+- The reply draft states the proposed grounds, reasons, options,
+  deadlines, measures and next steps, on the case's own numbers, dates
+  and outcome, which come from the brief.
+- The classification a run confirms is the register's: the stream, the
+  regime and the reason of the brief. A proposed classification changes
+  none of them.
+- The five steps and their order, each step's risk (`RISK_BY_TYPE`), the
+  consent rule, the undo and its window are the engine's. A proposal has
+  no field for any of them.
+
+`generateScenario`, `generatePlan` and `resolvePlan` take a proposer as
+their last argument and use `ScriptedProposer` without one. The engine
+plans and replays without waiting, so they take an `ImmediateProposer`:
+one whose answers are known at once. `propose` is the same answer as a
+promise, and rejects when its signal aborts; it is the call a proposer
+that takes time is asked through.
+
+`ScriptedProposer` answers from the brief: the brief's stream and
+grounds, the team of that stream (`teamOf`) with its questions
+(`QUESTIONS_BY_TEAM`), the linked case's facts when the brief has a
+linked case, and a reply that states what the brief carries. The seed
+does not change its answers: it sets the pace of a run and the one
+scheduled failure.
+
+A test compares every plan, scenario, segment and stop of seeds 1 to 40
+over the five cases of the test set, and the handler's stream of a
+complete run, with the bytes the engine gave before the proposer
+existed: they are identical, with and without the scripted proposer
+handed in.
 
 ## Event model
 
@@ -185,6 +247,7 @@ a reload brings the page of version 5.
 ```ts
 import {
   generatePlan, requiresConfirmation, findConflicts, applyDeviation,
+  ScriptedProposer, proposeAll,
   resolvePlan, runPlan,
   encodePlanPayload, encodeDecisions,
   planMachine, stepMachine, canDecide, stepStatusOf,
@@ -196,7 +259,10 @@ import { handleAgentRequest, createAgentHandler } from "@ariadne/runner/sse";
 
 - Scenario: `generateScenario(seed, brief)`, `generatePlan(seed, brief)`,
   `requiresConfirmation`, `findConflicts`, `applyDeviation`,
-  `replyDraft`, `teamOf`, `RISK_BY_TYPE`, `taskOf`.
+  `replyDraft`, `RISK_BY_TYPE`, `taskOf`.
+- Proposer: `Proposer`, `ImmediateProposer`, `ScriptedProposer`,
+  `SCRIPTED`, `proposeAll`, `PROPOSAL_TASKS`, `teamOf`,
+  `QUESTIONS_BY_TEAM`.
 - Run: `resolvePlan(payload)`, `runPlan(input)` (items: `event`,
   `delay`, `pause`).
 - Protocol: `PROTOCOL_VERSION`, `validateBrief`, `encodePlanPayload` /
