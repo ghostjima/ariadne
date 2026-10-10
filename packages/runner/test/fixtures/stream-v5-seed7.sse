@@ -1,0 +1,122 @@
+retry: 700
+
+id: 1
+event: plan.started
+data: {"type":"plan.started","at":1000,"total":5,"protocol":5}
+
+id: 2
+event: step.started
+data: {"type":"step.started","stepId":"s1","at":1000,"requiresConfirmation":false}
+
+id: 3
+event: step.running
+data: {"type":"step.running","stepId":"s1","attempt":1}
+
+id: 4
+event: step.progress
+data: {"type":"step.progress","stepId":"s1","percent":30,"phase":"reading_case_facts"}
+
+id: 5
+event: step.progress
+data: {"type":"step.progress","stepId":"s1","percent":65,"phase":"matching_reason_codes"}
+
+id: 6
+event: step.finished
+data: {"type":"step.finished","stepId":"s1","at":1000,"result":{"summary":{"code":"case_classified","caseNo":867,"stream":"antifraud","reason":"od2506_1_4"},"objects":[{"kind":"classification","caseNo":867,"before":{"status":"unconfirmed"},"after":{"status":"confirmed"}}],"undo":{"code":"unconfirm_classification","caseNo":867},"undoWindowSec":null}}
+
+id: 7
+event: step.started
+data: {"type":"step.started","stepId":"s2","at":1000,"requiresConfirmation":false}
+
+id: 8
+event: step.deviation
+data: {"type":"step.deviation","stepId":"s2","deviation":{"reason":"facts_in_linked_case","linkedCase":807,"proposal":"reuse_linked_facts","newType":"reuse_facts","newRisk":"low"}}
+
+id: 9
+event: step.deviated
+data: {"type":"step.deviated","stepId":"s2","deviatedTo":"reuse_linked_facts","actionType":"reuse_facts","risk":"low","requiresConfirmation":false}
+
+id: 10
+event: step.running
+data: {"type":"step.running","stepId":"s2","attempt":1}
+
+id: 11
+event: step.progress
+data: {"type":"step.progress","stepId":"s2","percent":30,"phase":"opening_linked_case"}
+
+id: 12
+event: step.progress
+data: {"type":"step.progress","stepId":"s2","percent":65,"phase":"copying_facts"}
+
+id: 13
+event: step.finished
+data: {"type":"step.finished","stepId":"s2","at":1000,"result":{"summary":{"code":"linked_facts_reused","caseNo":867,"linkedCase":807},"objects":[{"kind":"linked_facts","caseNo":867,"linkedCase":807,"before":{"status":"not_linked"},"after":{"status":"linked"}}],"undo":{"code":"unlink_facts","caseNo":867,"linkedCase":807},"undoWindowSec":null}}
+
+id: 14
+event: step.started
+data: {"type":"step.started","stepId":"s3","at":1000,"requiresConfirmation":true}
+
+id: 15
+event: step.awaiting
+data: {"type":"step.awaiting","stepId":"s3","draft":{"kind":"reply","template":"reply","caseNo":867,"repliedOn":"2026-10-06","stream":"antifraud","regime":"complaint","outcome":"pending","operation":"bank_transfer","opRef":48213007,"opOn":"2026-09-01","amountKopecks":4850000,"claimKopecks":0,"receivedOn":"2026-09-03","grounds":["payment_8_3_4"],"reasons":["od2506_1_4"],"clientOptions":["confirm_order"],"deadlines":[],"measures":[],"nextSteps":["contact_bank","apply_to_bank_of_russia"]}}
+
+id: 16
+event: step.running
+data: {"type":"step.running","stepId":"s3","attempt":1}
+
+id: 17
+event: step.progress
+data: {"type":"step.progress","stepId":"s3","percent":30,"phase":"filling_template"}
+
+id: 18
+event: step.progress
+data: {"type":"step.progress","stepId":"s3","percent":65,"phase":"citing_grounds"}
+
+id: 19
+event: step.finished
+data: {"type":"step.finished","stepId":"s3","at":1000,"result":{"summary":{"code":"reply_drafted","caseNo":867},"objects":[{"kind":"reply_draft","caseNo":867,"before":{"status":"none"},"after":{"status":"drafted"}}],"undo":{"code":"discard_draft","caseNo":867},"undoWindowSec":null}}
+
+id: 20
+event: step.started
+data: {"type":"step.started","stepId":"s4","at":1000,"requiresConfirmation":false}
+
+id: 21
+event: step.running
+data: {"type":"step.running","stepId":"s4","attempt":1}
+
+id: 22
+event: step.progress
+data: {"type":"step.progress","stepId":"s4","percent":30,"phase":"checking_grounds"}
+
+id: 23
+event: step.progress
+data: {"type":"step.progress","stepId":"s4","percent":65,"phase":"checking_deadlines"}
+
+id: 24
+event: step.finished
+data: {"type":"step.finished","stepId":"s4","at":1000,"result":{"summary":{"code":"draft_checked","caseNo":867},"objects":[{"kind":"reply_draft","caseNo":867,"before":{"status":"drafted"},"after":{"status":"checked"}}],"undo":{"code":"clear_check","caseNo":867},"undoWindowSec":null}}
+
+id: 25
+event: step.started
+data: {"type":"step.started","stepId":"s5","at":1000,"requiresConfirmation":false}
+
+id: 26
+event: step.running
+data: {"type":"step.running","stepId":"s5","attempt":1}
+
+id: 27
+event: step.progress
+data: {"type":"step.progress","stepId":"s5","percent":30,"phase":"assembling_package"}
+
+id: 28
+event: step.progress
+data: {"type":"step.progress","stepId":"s5","percent":65,"phase":"assigning_reviewer"}
+
+id: 29
+event: step.finished
+data: {"type":"step.finished","stepId":"s5","at":1000,"result":{"summary":{"code":"handed_to_review","caseNo":867,"replyDue":"2026-10-12"},"objects":[{"kind":"case","caseNo":867,"before":{"stage":"drafting"},"after":{"stage":"legal_review"}}],"undo":{"code":"return_to_drafting","caseNo":867,"stage":"drafting"},"undoWindowSec":null}}
+
+id: 30
+event: plan.finished
+data: {"type":"plan.finished","at":1000}
+
