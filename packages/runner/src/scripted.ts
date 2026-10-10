@@ -14,6 +14,7 @@ import { NEXT_STEPS, type FactQuestion, type StreamCode, type Team } from "./cod
 import type {
   ImmediateProposer,
   ProposalFor,
+  ProposalOutcome,
   ProposalRequest,
   ProposalTask,
 } from "./proposer.js";
@@ -60,12 +61,9 @@ export class ScriptedProposer implements ImmediateProposer {
     }
   }
 
-  propose<T extends ProposalTask>(
-    request: ProposalRequest<T>,
-    signal: AbortSignal,
-  ): Promise<ProposalFor<T>> {
+  propose<T extends ProposalTask>(request: ProposalRequest<T>, signal: AbortSignal): Promise<ProposalOutcome<T>> {
     if (signal.aborted) return Promise.reject(signal.reason);
-    return Promise.resolve(this.proposeNow(request));
+    return Promise.resolve({ ok: true, proposal: this.proposeNow(request), askFirst: false, text: null });
   }
 }
 

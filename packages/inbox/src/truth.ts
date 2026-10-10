@@ -9,18 +9,21 @@
   and the measures the rubric asks for in the case.
 
   The provisions are every act, article and part the rules engine gives for
-  the case: the grounds of its brief, the sign or the 115-FZ category, and
-  the basis of each deadline, duty and measure of its clock. A reply that
+  the case: the grounds of its brief, the sign or the 115-FZ category, the
+  basis of each deadline, duty and measure of its clock, and what a reply
+  cites for the options, deadlines and restrictions it states, for what a
+  reply must contain, and for a complaint to the Bank of Russia. A reply that
   cites a provision outside this list cites law the engine does not give
   for the case.
 */
 
 import { GROUNDS } from "@ariadne/grid";
-import { amlReasons, clock, od2506Signs, paymentGrounds, type CaseFacts } from "@ariadne/rules";
+import { amlReasons, clock, od2506Signs, replyProvisions, type Basis, type CaseFacts } from "@ariadne/rules";
 import { proposeAll, SCRIPTED, type CaseBrief, type ProposalSet } from "@ariadne/runner";
+import { groundSource } from "./read.js";
 
 /* Where the engine gives a provision for the case */
-export const PROVISION_ROLES = ["ground", "reason", "deadline", "duty", "measure"] as const;
+export const PROVISION_ROLES = ["ground", "reason", "deadline", "duty", "measure", "reply_option", "reply_deadline", "reply_measure", "reply_content", "reply_next_step"] as const;
 export type ProvisionRole = (typeof PROVISION_ROLES)[number];
 
 export type Provision = {
@@ -57,7 +60,7 @@ export function provisionsOf(brief: CaseBrief, facts: CaseFacts): Provision[] {
   for (const code of brief.grounds) {
     const spec = GROUNDS.find((g) => g?.id === code);
     if (!spec || spec.act === "contract") continue;
-    const source = (spec.act === "payment_system" ? paymentGrounds() : amlReasons()).find((g) => g.code === code)?.source;
+    const source = groundSource(code);
     if (source) out.push({ source, article: spec.article, parts: partsOf(spec.part), role: "ground", of: code });
   }
   if (brief.reason !== null) {
@@ -70,6 +73,14 @@ export function provisionsOf(brief: CaseBrief, facts: CaseFacts): Provision[] {
   for (const d of c.deadlines) out.push({ source: d.basis.source, article: d.basis.article, parts: partsOf(d.basis.part), role: "deadline", of: d.kind });
   for (const d of c.duties) out.push({ source: d.basis.source, article: d.basis.article, parts: partsOf(d.basis.part), role: "duty", of: d.kind });
   for (const m of c.measures) out.push({ source: m.basis.source, article: m.basis.article, parts: partsOf(m.basis.part), role: "measure", of: m.kind });
+  /* What a reply going out on the brief's day cites for what it states */
+  const r = replyProvisions(facts, brief.asOf);
+  const add = (role: ProvisionRole, of: string, basis: Basis) => out.push({ source: basis.source, article: basis.article, parts: partsOf(basis.part), role, of });
+  for (const x of r.options) add("reply_option", x.code, x.basis);
+  for (const x of r.deadlines) add("reply_deadline", x.code, x.basis);
+  for (const x of r.measures) add("reply_measure", x.code, x.basis);
+  add("reply_content", "reply", r.content);
+  if (r.complaintToBankOfRussia) add("reply_next_step", "apply_to_bank_of_russia", r.complaintToBankOfRussia);
   return out;
 }
 

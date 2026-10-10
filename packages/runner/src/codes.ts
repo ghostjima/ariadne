@@ -23,8 +23,11 @@
    restrictions they state for those data (MEASURE_CODES); version 5 the
    grounds before the item of the Bank of Russia's Directive No. 6748-U
    on which a bank refuses to forward an incomplete application to
-   remove those data (item 1.3). None is served. */
-export const PROTOCOL_VERSION = 6;
+   remove those data (item 1.3); version 6 the run before a model could
+   propose the content of its steps (the agent of a payload and its
+   proposals, the step errors proposal_invalid and model_unavailable).
+   None is served. */
+export const PROTOCOL_VERSION = 7;
 
 /* What a step does for the complaint */
 export const ACTION_TYPES = [
@@ -276,11 +279,18 @@ export const UNDO_CODES = [
 ] as const;
 export type UndoCode = (typeof UNDO_CODES)[number];
 
-/* Failures a step can report */
-export const ERROR_CODES = ["service_timeout"] as const;
+/* Failures a step can report: the fact request service timing out; and,
+   where a model proposes the step's content, a proposal that did not
+   validate after its one repair, or a model that could not be reached.
+   A new one is added at the end. */
+export const ERROR_CODES = ["service_timeout", "proposal_invalid", "model_unavailable"] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
-export const SERVICES = ["fact_requests"] as const;
+/* The failures of a proposal, among them */
+export const PROPOSAL_ERRORS = ["proposal_invalid", "model_unavailable"] as const satisfies readonly ErrorCode[];
+export type ProposalError = (typeof PROPOSAL_ERRORS)[number];
+
+export const SERVICES = ["fact_requests", "model"] as const;
 export type Service = (typeof SERVICES)[number];
 
 /* Progress phases, two per action type */
@@ -349,14 +359,17 @@ export const REQUEST_ERRORS = [
   "method_not_allowed",
   "unsupported_version",
   "invalid_case",
+  "invalid_proposals",
 ] as const;
 export type RequestError = (typeof REQUEST_ERRORS)[number];
 
 /* Identifiers of the exported session log */
 export const EXPORT_FORMAT = "ariadne_runner.session_log";
 
-/* The engine is a scripted scenario; the export says so */
-export const AGENT_KINDS = ["scripted"] as const;
+/* Who proposes the content of a run's steps: the seeded script, or a model
+   whose proposals the engine validates. A payload and the export say
+   which. */
+export const AGENT_KINDS = ["scripted", "model"] as const;
 export type AgentKind = (typeof AGENT_KINDS)[number];
 
 /* The union of every list above, for membership checks */

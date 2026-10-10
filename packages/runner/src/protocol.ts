@@ -21,24 +21,39 @@
   Every field of every event is a code, a number, a boolean, an ISO date or a
   step id; see codes.ts.
 
-  Version 6 (PROTOCOL_VERSION). The payload carries "v": 6 and the case brief
+  Version 7 (PROTOCOL_VERSION). The payload carries "v": 7 and the case brief
   (scenario.ts): the run is about one complaint, and every string in the
   brief must be one of the engine's codes or an ISO date, so no text of the
   complaint can travel with it. plan.started repeats the version. A payload
-  without "v": 6 is refused with unsupported_version: version 1 (the
+  without "v": 7 is refused with unsupported_version: version 1 (the
   procurement scenario), version 2 (the complaint before the grounds of
   161-FZ art. 9 parts 11.6 and 11.7), version 3 (before the client's
   option to apply for the removal of the client's data), version 4
   (before the restrictions a brief states for those data) and version 5
   (before the ground of a refusal to forward an incomplete application
-  to remove them, Directive No. 6748-U item 1.3) are no longer
+  to remove them, Directive No. 6748-U item 1.3) and version 6 (before a
+  model could propose the content of the steps) are no longer
   served; a brief that does not validate is refused with invalid_case. A code added to a list
   the brief, the events or the log draw from makes a new version: a reader
   of the old one would refuse the new code as an invalid case, not as
   another version.
+
+  A payload may name its agent. "scripted" (the default) is the seeded
+  script: the plan and what its steps say follow from the seed and the
+  brief. "model" is a run whose classification, fact request and reply are
+  proposed from outside the engine: the payload then carries the proposal
+  log ("proposals"), one entry per step and attempt, each a proposal in
+  codes or a coded failure (proposal.ts). The handler validates every entry
+  as it validates the brief and refuses the payload with invalid_proposals
+  otherwise. When the run reaches a step whose proposal the log does not
+  hold, the segment ends as it does for a decision, with a "stream.waiting"
+  frame that names the step, accepts "stop" and says which proposal it
+  waits for ("proposal": the task and the attempt). The application gets
+  the proposal, appends it to the log and opens the next segment.
 */
 
 import {
+  AGENT_KINDS,
   AUTONOMIES,
   CASE_STAGES,
   CLIENT_DEADLINE_KINDS,
@@ -53,6 +68,7 @@ import {
   REGIMES,
   STREAMS,
   type ActionType,
+  type AgentKind,
   type Autonomy,
   type Command,
   type DeviationProposalCode,
@@ -61,14 +77,17 @@ import {
   type SkipReason,
   type Speed,
 } from "./codes.js";
-import type {
-  AffectedObject,
-  CaseBrief,
-  Deviation,
-  Draft,
-  StepError,
-  Summary,
-  UndoEffect,
+import { isProposalTask, validateEntries, type ProposalEntry } from "./proposal.js";
+import type { ProposalTask } from "./proposer.js";
+import {
+  generateScenario,
+  type AffectedObject,
+  type CaseBrief,
+  type Deviation,
+  type Draft,
+  type StepError,
+  type Summary,
+  type UndoEffect,
 } from "./scenario.js";
 
 export type PlanPayloadStep = { id: string; askFirst: boolean };
@@ -79,6 +98,10 @@ export type PlanPayload = {
   autonomy: Autonomy;
   brief: CaseBrief;
   steps: PlanPayloadStep[];
+  /* Who proposes what the steps say; the seeded script when left out */
+  agent?: AgentKind;
+  /* The proposal log of a run whose agent is a model */
+  proposals?: ProposalEntry[];
 };
 
 /*
@@ -88,7 +111,12 @@ export type PlanPayload = {
 */
 export type Decision = { command: Command; stepId: string | null; afterEventId: number };
 
-export type WaitingNotice = { stepId: string; accepts: readonly Command[] };
+/* The proposal a run waits for: the step's task, and which attempt */
+export type ProposalNeed = { task: ProposalTask; attempt: number };
+
+/* What a run waits for at a step: a decision among `accepts`, or, with
+   `proposal`, the proposal of that step (only "stop" is accepted then) */
+export type WaitingNotice = { stepId: string; accepts: readonly Command[]; proposal?: ProposalNeed };
 
 export type StepResult = {
   summary: Summary;
@@ -241,10 +269,18 @@ export function validateBrief(raw: unknown): CaseBrief | null {
 
 export type DecodedPlan =
   | { ok: true; payload: PlanPayload }
-  | { ok: false; error: "invalid_plan" | "unsupported_version" | "invalid_case" };
+  | { ok: false; error: "invalid_plan" | "unsupported_version" | "invalid_case" | "invalid_proposals" };
 
-/* Reads a plan payload: malformed, of another protocol version, or with a
-   brief that does not validate, each with its own error */
+/* The steps of a case's plan whose content is proposed, by id */
+export function proposalSteps(seed: number, brief: CaseBrief): Map<string, ProposalTask> {
+  const out = new Map<string, ProposalTask>();
+  for (const step of generateScenario(seed, brief).steps) if (isProposalTask(step.type)) out.set(step.id, step.type);
+  return out;
+}
+
+/* Reads a plan payload: malformed, of another protocol version, with a
+   brief that does not validate, or with a proposal log that does not,
+   each with its own error */
 export function decodePlanPayload(text: string): DecodedPlan {
   let raw: unknown;
   try {
@@ -267,9 +303,19 @@ export function decodePlanPayload(text: string): DecodedPlan {
     seen.add(step.id);
     steps.push({ id: step.id, askFirst: step.askFirst === true });
   }
+  const agent = r.agent === undefined ? "scripted" : r.agent;
+  if (!isCode(AGENT_KINDS, agent)) return { ok: false, error: "invalid_plan" };
   const brief = validateBrief(r.brief);
   if (!brief) return { ok: false, error: "invalid_case" };
-  return { ok: true, payload: { v: PROTOCOL_VERSION, seed: r.seed, autonomy: r.autonomy, brief, steps } };
+  const payload: PlanPayload = { v: PROTOCOL_VERSION, seed: r.seed, autonomy: r.autonomy, brief, steps };
+  if (agent === "scripted") {
+    /* The script proposes for itself: a log has no place in its payload */
+    if (r.proposals !== undefined) return { ok: false, error: "invalid_proposals" };
+    return { ok: true, payload: r.agent === undefined ? payload : { ...payload, agent } };
+  }
+  const proposals = validateEntries(r.proposals ?? [], proposalSteps(r.seed, brief), brief);
+  if (!proposals) return { ok: false, error: "invalid_proposals" };
+  return { ok: true, payload: { ...payload, agent, proposals } };
 }
 
 /* Enough for two decisions per step of the longest plan plus a stop */

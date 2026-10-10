@@ -1,8 +1,11 @@
 /*
-  The proposer interface changes nothing a run emits. The fixtures were
-  taken on the engine before a proposer existed (test/stream-bytes.ts says
-  what they cover): the engine must give the same bytes by default, and the
-  same again with the scripted proposer handed to it.
+  The proposer interface changes nothing a scripted run emits. The fixtures
+  were taken on the engine before a proposer existed, under protocol
+  version 5 (test/stream-bytes.ts says what they cover): the engine must
+  give the same bytes by default, and the same again with the scripted
+  proposer handed to it. Since version 6 one number differs, the protocol
+  that plan.started repeats; stream-bytes.ts writes it as the fixtures'
+  before the comparison, and nothing else.
 */
 
 import { readFileSync } from "node:fs";
@@ -24,6 +27,7 @@ import {
   type CaseBrief,
   type ImmediateProposer,
   type ProposalFor,
+  type ProposalOutcome,
   type ProposalRequest,
   type ProposalTask,
 } from "../src/index.js";
@@ -47,7 +51,7 @@ function engineWith(proposer: ImmediateProposer): Engine {
   };
 }
 
-describe("the event stream is byte-identical to the one before the proposer", () => {
+describe("the scripted event stream is byte-identical to the one before the proposer, but for the protocol number", () => {
   it("covers every seed and case of the test set", () => {
     /* The fixtures' version; the run is asked in the current one, and
        only the number plan.started repeats is written as the fixtures' */
@@ -115,7 +119,7 @@ describe("the scripted proposer", () => {
     const proposer = new ScriptedProposer();
     for (const task of PROPOSAL_TASKS) {
       const request = { task, seed: 7, brief: BRIEF };
-      expect(await proposer.propose(request, new AbortController().signal)).toEqual(proposer.proposeNow(request));
+      expect(await proposer.propose(request, new AbortController().signal)).toEqual({ ok: true, proposal: proposer.proposeNow(request), askFirst: false, text: null });
     }
     const stopped = new AbortController();
     stopped.abort();
@@ -138,8 +142,8 @@ class OtherProposer implements ImmediateProposer {
         return { task, grounds: ["contract"], reasons: [], clientOptions: [], deadlines: [], measures: [], nextSteps: ["contact_bank"] };
     }
   }
-  propose<T extends ProposalTask>(request: ProposalRequest<T>): Promise<ProposalFor<T>> {
-    return Promise.resolve(this.proposeNow(request));
+  propose<T extends ProposalTask>(request: ProposalRequest<T>): Promise<ProposalOutcome<T>> {
+    return Promise.resolve({ ok: true, proposal: this.proposeNow(request), askFirst: false, text: null });
   }
 }
 

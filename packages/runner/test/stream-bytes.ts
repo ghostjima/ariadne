@@ -8,10 +8,11 @@
   holds for each seed and case, taken on the engine before a proposer
   existed; proposer.test.ts compares the engine with them.
 
-  The fixtures were taken in protocol version 5. A version that only adds
-  a code to a list a brief may draw from (version 6: the ground of a
-  refusal to forward an application) changes one thing in these bytes: the
-  number plan.started repeats. The run is asked in the current version,
+  The fixtures were taken in protocol version 5. A version that leaves a
+  scripted run as it was (version 6 added a ground a brief may name, the
+  refusal to forward an application; version 7 a model that may propose
+  for a run, which the script's run has no part in) changes one thing in
+  these bytes: the number plan.started repeats. The run is asked in the current version,
   and that number is written as the fixtures' before the bytes are
   compared, so the comparison still says the rest is what it was.
 */

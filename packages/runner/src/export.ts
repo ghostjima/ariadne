@@ -30,7 +30,14 @@ export function countdown(ms: number): string {
   return `${Math.floor(total / 60)}:${pad(total % 60)}`;
 }
 
-export type LogHeader = { seed: number; autonomy: Autonomy; total: number; brief: CaseBrief };
+export type LogHeader = {
+  seed: number;
+  autonomy: Autonomy;
+  total: number;
+  brief: CaseBrief;
+  /* Who proposed what the steps say; the seeded script when left out */
+  agent?: AgentKind;
+};
 
 export type ExportedEntry = LogEntry & { time: string };
 
@@ -43,7 +50,8 @@ export type SessionExport = {
   task: { code: TaskCode; caseNo: number };
   /* The case as the run was given it: codes, numbers and dates */
   brief: CaseBrief;
-  /* The run is a seeded script; no model produces it */
+  /* Who proposed what the steps say: the seeded script, or a model whose
+     proposals the engine validated */
   agent: AgentKind;
   seed: number;
   autonomy: Autonomy;
@@ -61,7 +69,7 @@ export function exportLog(entries: readonly LogEntry[], header: LogHeader): Sess
     protocol: PROTOCOL_VERSION,
     task: taskOf(header.brief),
     brief: header.brief,
-    agent: "scripted",
+    agent: header.agent ?? "scripted",
     seed: header.seed,
     autonomy: header.autonomy,
     total: header.total,

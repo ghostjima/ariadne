@@ -13,8 +13,12 @@ a failed step offers a retry, the agent can ask to leave the plan, the
 person can stop the run after the current step, and finished steps can
 be undone, some at any time and some only within a time window.
 `@ariadne/runner` holds the rules of all of that and nothing else: no
-model, no server and no interface. The plan is a seeded script for one
-complaint to a bank, so every run is reproducible.
+server and no interface. The plan is a seeded script for one complaint
+to a bank, so every run is reproducible. A model can propose what three
+of the steps say; the engine validates each proposal against closed
+lists of codes, decides the risk and the confirmations itself, and
+replays such a run from its recorded proposals. No model is part of the
+package, and none is needed to run or test it.
 
 The engine emits no human language. Every event is codes and
 parameters (case numbers, ISO dates, amounts in kopecks, risk,
@@ -30,9 +34,13 @@ client, the restrictions that apply for the client's own data in the
 Bank of Russia's database), which the application works out from its register and its
 rules. The complaint's text never reaches the engine: the protocol
 refuses a brief with any string that is not one of its codes or a date,
-so nothing an applicant writes can instruct the run.
+so nothing an applicant writes can instruct the run. A model that
+proposes for a run does read the complaint, as data, outside the engine:
+what comes back in is a proposal in codes, and the one piece of text a
+model writes, the reply's letter, travels beside the run and never in
+it.
 
-Status: early. One scripted scenario (111 tests). Measured in Node on an
+Status: early. One scenario (181 tests). Measured in Node on an
 Apple M4 Pro: a plan generates in about 1 us and a complete run replays
 in about 4 to 14 us; method, stamps and spread in
 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Not measured in a browser.
@@ -79,8 +87,12 @@ in about 4 to 14 us; method, stamps and spread in
 
 ```ts
 interface Proposer {
-  propose(request: { task; seed; brief }, signal: AbortSignal): Promise<Proposal>;
+  propose(request: { task; seed; brief; attempt? }, signal: AbortSignal): Promise<ProposalOutcome>;
 }
+type ProposalOutcome =
+  | { ok: true; proposal: Proposal; askFirst: boolean; text: string | null }
+  | { ok: false; error: "proposal_invalid" | "model_unavailable" };
+
 interface ImmediateProposer extends Proposer {
   proposeNow(request: { task; seed; brief }): Proposal;
 }
@@ -94,6 +106,13 @@ a code of `src/codes.ts` or an ISO date:
 | `classify` | `stream`, `grounds` |
 | `request_facts` | `team`, `questions`, `reuseLinked` (take the linked case's facts instead of a new request) |
 | `draft_reply` | `grounds`, `reasons`, `clientOptions`, `deadlines`, `measures`, `nextSteps` |
+
+Beside a proposal an outcome carries `askFirst`, the proposer's own flag
+that a person should look first, and `text`, the letter of a reply for a
+proposer that writes one. The letter is untrusted text for the
+application to show. The engine takes neither field into a step: the
+flag can add a confirmation and never remove one, and the text is never
+given to it.
 
 What the engine takes from a proposal, and what it keeps:
 
@@ -109,13 +128,16 @@ What the engine takes from a proposal, and what it keeps:
 - The five steps and their order, each step's risk (`RISK_BY_TYPE`), the
   consent rule, the undo and its window are the engine's. A proposal has
   no field for any of them.
+- A proposal that departs from the register always waits for a person,
+  at every autonomy level (`contests`): another stream or other grounds
+  than the brief's, or a fact request to a team that does not hold the
+  facts of the brief's stream. Confirming a contested classification
+  confirms the register's; the engine moves no case to another stream.
 
 `generateScenario`, `generatePlan` and `resolvePlan` take a proposer as
 their last argument and use `ScriptedProposer` without one. The engine
 plans and replays without waiting, so they take an `ImmediateProposer`:
-one whose answers are known at once. `propose` is the same answer as a
-promise, and rejects when its signal aborts; it is the call a proposer
-that takes time is asked through.
+one whose answers are known at once.
 
 `ScriptedProposer` answers from the brief: the brief's stream and
 grounds, the team of that stream (`teamOf`) with its questions
@@ -133,6 +155,141 @@ asked in the current version, and the one number that differs, the
 version `plan.started` repeats, is written as the fixtures' before the
 comparison.
 
+## A run a model proposes
+
+A model takes time, can fail and does not answer the same way twice, so
+its run is not planned ahead. It is replayed, like every run, from what
+the application holds: the plan, the decision log, and a third thing,
+the **proposal log**: one entry per step and attempt, each a validated
+proposal with its `askFirst` flag, or a failure code.
+
+```ts
+type ProposalEntry =
+  | { stepId; attempt; proposal: Proposal; askFirst: boolean }
+  | { stepId; attempt; error: "proposal_invalid" | "model_unavailable" };
+```
+
+- The plan payload names its agent (`agent: "model"`) and carries the
+  log (`proposals`). The handler validates every entry as it validates
+  the brief, rebuilding it field by field from the code lists, and
+  refuses the payload with `invalid_proposals` otherwise. An entry has no
+  place for a letter; one that carries a `text` is refused.
+- Where the run reaches a step the log has no proposal for, the segment
+  ends as it does for a decision: with a `stream.waiting` frame that
+  names the step, accepts only `stop`, and says what it waits for
+  (`proposal`: the task and the attempt). The application asks its
+  proposer, appends the outcome to the log, and opens the next segment.
+  Nothing else changes in the transports: the Service Worker handler and
+  the in-process one replay a model's run as they replay the script's.
+- A failed proposal is the step's error (`step.error` with the code and
+  `service: "model"`), shown like any failed step: retry asks for the
+  proposal again as the next attempt, skip and stop leave the step
+  undone. After three attempts (`MAX_PROPOSAL_ATTEMPTS`) retry is no
+  longer offered.
+- Stop never waits for a model. The application aborts the proposer's
+  call and appends the stop to the decision log; the replay then skips
+  the waiting step as stopped and ends the run. An aborted call returns
+  no outcome, so nothing is written for the step.
+- `step.started.requiresConfirmation` is what is known when the step
+  starts (its risk, the autonomy level, the person's flag). For a step
+  whose content is proposed the engine may still ask once the proposal
+  is in: when it departs from the register, or when its proposer flagged
+  it. Nothing proposed makes the engine ask less.
+- A model that agrees with the register in everything gives the scripted
+  run, event for event. A test checks it over three cases and every
+  autonomy level.
+
+`driveRun(options)` is that loop without a page: it replays, asks the
+proposer where the run waits for a proposal, asks `decide` where it
+waits for a person, and stops on its `signal`. The bench and the tests
+use it; an application with a page runs the same loop around its
+transport.
+
+### Schemas and validation
+
+`proposalSchema(task)` is the JSON schema of the answer to a task,
+generated from the code lists: every enum is one of the engine's lists,
+whole; every object names its fields, requires them all and takes no
+other. Only one field is free text, the reply's `text`. No schema has a
+field for a risk, a decision on the complaint, a confirmation, an undo,
+a stage or a step.
+
+`validateProposal(task, value, brief)` checks a parsed answer against
+the schema and then against what a schema cannot say (list items differ,
+a date exists, a linked case can be reused only where the case has one,
+the letter is within `MAX_REPLY_CHARS`). It returns the proposal rebuilt
+from the engine's own fields, with the letter beside it, or the issues
+as codes with their place in the answer (`ISSUE_CODES`).
+`parseAnswer(task, content, brief)` does the same from a model's raw
+answer, which must be one JSON value and nothing else.
+
+### A model as a proposer
+
+`@ariadne/runner/model` has what asks a model, kept apart from the
+engine's entry point:
+
+```ts
+interface ModelClient {
+  describe(signal?): Promise<ModelStamp>;             // runtime, version, tag, manifest digest
+  chat(request: { messages; schema; options }, signal: AbortSignal): Promise<ChatResponse>;
+}
+```
+
+- `ModelClient` is the one thing a proposer needs from a model runtime:
+  a chat call with messages, a JSON schema the answer must satisfy, a
+  temperature, a seed, a token limit and a thinking switch, which stops
+  when its signal aborts. `OllamaClient` implements it over a local
+  ollama's `POST /api/chat` with a streamed body (`format` carries the
+  schema; `think` is sent only when set), using `fetch`, so it runs in
+  Node and in a page. A client over a model running in the page
+  implements the same two calls.
+- `ModelProposer` sends the conversation of a task with the task's
+  schema, at temperature 0 and a fixed seed by default. An answer that
+  does not validate gets one repair attempt: the same conversation with
+  the answer and its issues appended. A second failure is
+  `proposal_invalid`; a model that cannot be reached, or does not answer
+  within `timeoutMs`, is `model_unavailable`. An aborted call rejects and
+  proposes nothing. Every call is handed to `record` as an `Exchange`:
+  the request, the raw response, the issues, the timings.
+- What a model is told is the application's: the conversation of each
+  task and the wording of a repair come from a `Prompts` object. That is
+  where a complaint's text and a case's facts enter, and the engine sees
+  neither. [`@ariadne/inbox`](../inbox/README.md) has the prompts of the
+  complaints desk.
+
+## Transcripts
+
+A run with a model cannot be replayed from a seed. It is replayed from
+its transcript (`Transcript`, format `ariadne_runner.transcript`):
+
+| part | what it holds | who reads it |
+|---|---|---|
+| `run`, `entries`, `decisions` | the seed, the autonomy, the brief, the steps; the proposal log; the decision log | the engine |
+| `stamp` | the commit and the build that recorded it; the model's runtime, version, tag and manifest digest; temperature, seed, thinking, context; the machine and the time | a reader |
+| `input` | what the application told the model beyond the brief (a complaint, a case sheet), in the application's own shape | a reader |
+| `exchanges` | every call: the request, the raw response, validation issues, timings | a reader |
+| `texts` | the letters the model wrote, by step and attempt | a reader, as untrusted text |
+
+- `readTranscript(raw)` takes one from untrusted JSON. The engine's parts
+  go through the plan payload's own reader, so a brief or a proposal that
+  would be refused in a request is refused in a transcript, with the same
+  code. The record parts are kept as they are.
+- `replayTranscript(transcript, { decisions?, timeScale?, now? })` gives
+  the items `runPlan` gives for a seed, from the recorded proposals. With
+  another decision log it shows the same proposals under other
+  decisions: with none, where the run would wait for a person.
+- `payloadOf(transcript)` is the plan payload a transport replays it
+  with, so a recorded run streams from the Service Worker like any run.
+- `node scripts/replay.mjs transcript.json` prints the events of a
+  transcript's run.
+
+`test/fixtures/transcripts` holds three runs recorded with a small local
+model: a clean complaint; an adversarial one, where the model wrote the
+refund its complaint's insertion asked for, and the letter waited for a
+person and is in no event; and a run in which every answer was cut short
+and no proposal validated. Each replays, in the tests, to the event
+stream recorded beside it. No model runs in the tests.
+
 ## Event model
 
 Each event has a `type` and a sequential `id` on the wire. Every string
@@ -140,7 +297,7 @@ field is a code from `src/codes.ts`, a step id or an ISO date.
 
 | type | fields |
 |---|---|
-| `plan.started` | `at`, `total`, `protocol` (3) |
+| `plan.started` | `at`, `total`, `protocol` (7) |
 | `step.started` | `stepId`, `at`, `requiresConfirmation` |
 | `step.deviation` | `stepId`, `deviation`: `reason`, `linkedCase`, `proposal`, `newType`, `newRisk` |
 | `step.deviated` | `stepId`, `deviatedTo`, `actionType`, `risk`, `requiresConfirmation` |
@@ -149,12 +306,14 @@ field is a code from `src/codes.ts`, a step id or an ISO date.
 | `step.progress` | `stepId`, `percent`, `phase` |
 | `step.finished` | `stepId`, `at`, `result`: `summary`, `objects`, `undo`, `undoWindowSec` |
 | `step.skipped` | `stepId`, `reason`: `skipped_by_user`, `skipped_after_error`, `stopped_by_user` |
-| `step.error` | `stepId`, `error`: `code`, `service`, `timeoutSec`; `attempt` |
+| `step.error` | `stepId`, `error`: `code` and `service`, with `timeoutSec` for a service that timed out; `attempt` |
 | `plan.finished` | `at` |
 | `plan.stopped` | `at`, `afterStepId` |
 
 A segment that needs a decision ends with a `stream.waiting` frame
-(`stepId`, `accepts`: the commands the point takes) that has no id.
+(`stepId`, `accepts`: the commands the point takes) that has no id. In a
+run a model proposes, a segment that needs a proposal ends with the same
+frame, with `proposal` (the task and the attempt) and `accepts: ["stop"]`.
 
 The structured parts:
 
@@ -187,10 +346,11 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (6): the plan payload
+The protocol has a version, `PROTOCOL_VERSION` (7): the plan payload
 carries it as `v` and `plan.started` repeats it as `protocol`. A payload
-without `v: 6` is refused with `unsupported_version`. A brief that does
-not validate is refused with `invalid_case`.
+without `v: 7` is refused with `unsupported_version`. A brief that does
+not validate is refused with `invalid_case`, a proposal log that does
+not with `invalid_proposals`.
 
 A version names the closed lists of codes a brief, an event and a log
 may draw from. The engine validates a brief against them and refuses
@@ -248,14 +408,28 @@ call it an invalid case rather than another version.
   it as it carries every ground, from the brief to the draft. A reader of
   version 5 would refuse the code as an invalid case, so the version
   tells the two apart before the brief is read. Nothing else in the
-  payload, the events or the decisions changed.
+  payload, the events or the decisions changed. It is no longer
+  served.
+- Version 7 lets a model propose what the classification, the fact
+  request and the reply say. New codes: two step errors
+  (`ERROR_CODES`: `proposal_invalid`, `model_unavailable`) with their
+  service (`SERVICES`: `model`), the agent `model` (`AGENT_KINDS`) and the
+  request error `invalid_proposals` (`REQUEST_ERRORS`). The plan payload
+  takes two optional fields, `agent` and `proposals`; a `stream.waiting`
+  frame may carry `proposal`; `step.error.error` has `timeoutSec` only
+  for a service that timed out. A scripted run is unchanged but for the
+  version number: its payload needs neither new field, and its events
+  are the bytes of version 5 with the number `plan.started` repeats (a
+  test compares them). A reader of version 6 would refuse the new error
+  codes in a log and would not know a segment could wait for a proposal.
 
 The exported session log has a version of its own, 2, for its shape,
 which is unchanged; its `protocol` field names the version its entries
-were received in, now 6; the brief it carries is the protocol's. A page
-left open across a deployment may speak version 5 to the new Service
-Worker and is refused with `unsupported_version`, which the desk shows;
-a reload brings the page of version 6.
+were received in, now 7; the brief it carries is the protocol's, and its
+`agent` says whether the script or a model proposed. A page left open
+across a deployment may speak version 6 to the new Service Worker and is
+refused with `unsupported_version`, which the desk shows; a reload
+brings the page of version 7.
 
 ## API
 
@@ -277,7 +451,13 @@ import { handleAgentRequest, createAgentHandler } from "@ariadne/runner/sse";
   `replyDraft`, `RISK_BY_TYPE`, `taskOf`.
 - Proposer: `Proposer`, `ImmediateProposer`, `ScriptedProposer`,
   `SCRIPTED`, `proposeAll`, `PROPOSAL_TASKS`, `teamOf`,
-  `QUESTIONS_BY_TEAM`.
+  `QUESTIONS_BY_TEAM`, `contests`, `stepWith`.
+- Proposals: `proposalSchema`, `validateProposal`, `parseAnswer`,
+  `answerOf`, `validateEntries`, `proposalSteps`, `ISSUE_CODES`,
+  `MAX_PROPOSAL_ATTEMPTS`, `MAX_REPLY_CHARS`.
+- A model's run: `driveRun`, `readTranscript`, `replayTranscript`,
+  `payloadOf`; from `@ariadne/runner/model`: `ModelClient`,
+  `OllamaClient`, `ModelProposer`, `Prompts`, `Exchange`, `ModelError`.
 - Run: `resolvePlan(payload)`, `runPlan(input)` (items: `event`,
   `delay`, `pause`).
 - Protocol: `PROTOCOL_VERSION`, `validateBrief`, `encodePlanPayload` /

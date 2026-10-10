@@ -571,7 +571,7 @@ const en: Strings = {
     charges: "Which fees or sums were charged?",
   },
   draftKind: { change: "Change", request: "Request", reply: "Reply draft" },
-  serviceName: { fact_requests: "The fact request service" },
+  serviceName: { fact_requests: "The fact request service", model: "The model" },
   streamError: {
     missing_plan: "The run request carried no plan.",
     invalid_plan: "The plan in the run request could not be read.",
@@ -582,6 +582,7 @@ const en: Strings = {
     method_not_allowed: "The run service answers only requests to read.",
     unsupported_version: "The run service speaks another version of the protocol.",
     invalid_case: "The case in the run request could not be read.",
+    invalid_proposals: "The proposals in the run request could not be read.",
     stream_lost: "The connection to the run service was lost.",
   },
   taskName: { answer_complaint: (caseId) => `Prepare the reply in case ${caseId}` },
@@ -647,7 +648,11 @@ const en: Strings = {
     clear_check: "The rubric check was cleared.",
     return_to_drafting: (c, stage) => `Case ${c} is back at "${stage}".`,
   },
-  errorText: { service_timeout: (service, seconds) => `${service} did not answer within ${seconds} s.` },
+  errorText: {
+    service_timeout: (service, seconds) => `${service} did not answer within ${seconds} s.`,
+    proposal_invalid: (service) => `${service} proposed something the engine could not accept, and its one correction did not pass either.`,
+    model_unavailable: (service) => `${service} could not be reached.`,
+  },
   deviationReason: {
     facts_in_linked_case: (linked) => `Linked case ${linked} already holds the facts this request asks for.`,
   },
@@ -1019,7 +1024,7 @@ const ruStrings: Strings = {
     charges: "Какие комиссии или суммы списаны?",
   },
   draftKind: { change: "Изменение", request: "Запрос", reply: "Проект ответа" },
-  serviceName: { fact_requests: "Сервис запросов фактов" },
+  serviceName: { fact_requests: "Сервис запросов фактов", model: "Модель" },
   streamError: {
     missing_plan: "В запросе на запуск нет плана.",
     invalid_plan: "План в запросе на запуск не удалось прочитать.",
@@ -1030,6 +1035,7 @@ const ruStrings: Strings = {
     method_not_allowed: "Служба выполнения отвечает только на запросы чтения.",
     unsupported_version: "Служба выполнения работает с другой версией протокола.",
     invalid_case: "Дело в запросе на запуск не удалось прочитать.",
+    invalid_proposals: "Предложения в запросе на запуск не удалось прочитать.",
     stream_lost: "Соединение со службой выполнения потеряно.",
   },
   taskName: { answer_complaint: (caseId) => `Подготовить ответ по делу ${caseId}` },
@@ -1095,7 +1101,11 @@ const ruStrings: Strings = {
     clear_check: "Проверка по критериям снята.",
     return_to_drafting: (c, stage) => `Дело ${c} вернулось на этап «${stage}».`,
   },
-  errorText: { service_timeout: (service, seconds) => `${service} не ответил за ${seconds} с.` },
+  errorText: {
+    service_timeout: (service, seconds) => `${service} не ответил за ${seconds} с.`,
+    proposal_invalid: (service) => `${service} предложила то, что движок не принял, и одно исправление тоже не прошло.`,
+    model_unavailable: (service) => `${service} недоступна.`,
+  },
   deviationReason: {
     facts_in_linked_case: (linked) => `В связанном деле ${linked} уже есть факты, о которых спрашивает этот запрос.`,
   },

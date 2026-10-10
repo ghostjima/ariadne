@@ -21,12 +21,12 @@ import { decide, find, payloadFor, run } from "./helpers.js";
 
 describe("plan resolution", () => {
   it("rejects unknown steps and empty plans", () => {
-    expect(resolvePlan({ v: 6, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
+    expect(resolvePlan({ v: 7, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [] })).toEqual({
       ok: false,
       error: "empty_plan",
     });
     expect(
-      resolvePlan({ v: 6, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
+      resolvePlan({ v: 7, seed: 7, autonomy: "high_only", brief: BRIEF, steps: [{ id: "zz", askFirst: false }] }),
     ).toEqual({ ok: false, error: "unknown_step", stepId: "zz" });
     expect(resolvePlan(payloadFor(["s1"])).ok).toBe(true);
   });
@@ -46,7 +46,7 @@ describe("runner: one segment per decision", () => {
     ]);
     expect(segment.events.map((e) => e.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(segment.pause).toBeNull();
-    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 6 });
+    expect(find(segment, "plan.started")).toEqual({ type: "plan.started", at: 1000, total: 1, protocol: 7 });
     const phases = segment.events.flatMap((e) =>
       e.event.type === "step.progress" ? [[e.event.percent, e.event.phase]] : [],
     );
@@ -265,10 +265,10 @@ describe("protocol helpers", () => {
      stream tests were removed with it: the scenario no longer exists, so
      there is nothing to keep them for. What remains of version 1 is that it
      is refused, with a code the application can show. */
-  it("refuses a version 1 payload, and any version but 5", () => {
+  it("refuses a version 1 payload, and any version but 7", () => {
     const v1 = encodePlanPayload({ seed: 7, autonomy: "high_only", steps: [{ id: "s1", askFirst: false }] } as never);
     expect(decodePlanPayload(v1)).toEqual({ ok: false, error: "unsupported_version" });
-    for (const v of [2, 3, 4, 5, 7]) {
+    for (const v of [2, 3, 4, 5, 6, 8]) {
       const other = encodePlanPayload({ ...payloadFor(["s1"]), v } as never);
       expect(decodePlanPayload(other), `v ${v}`).toEqual({ ok: false, error: "unsupported_version" });
     }
@@ -318,7 +318,7 @@ describe("protocol helpers", () => {
     expect(replyDraft(CAPPED).measures).toEqual(["cap_transfers", "cap_atm_cash"]);
     expect(replyDraft(BRIEF).measures).toEqual([]);
     const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief: CAPPED });
-    expect([exported.version, exported.protocol]).toEqual([2, 6]);
+    expect([exported.version, exported.protocol]).toEqual([2, PROTOCOL_VERSION]);
   });
 
   /* Version 6 added the ground of a refusal to forward an incomplete
@@ -326,10 +326,9 @@ describe("protocol helpers", () => {
      Directive No. 6748-U item 1.3. A reader of version 5 refuses the code
      as an invalid case; the version tells the two apart before the brief
      is read, and the draft carries the ground after the part of 161-FZ. */
-  it("takes the ground of a refusal to forward an incomplete application in version 6 only, and calls a version 5 payload another version", () => {
+  it("takes the ground of a refusal to forward an incomplete application from version 6 on, and calls a version 5 payload another version", () => {
     const brief = { ...REMOVAL, grounds: ["payment_9_11_6" as const, "directive_6748_u_1_3" as const] };
     const refused = payloadFor(["s1"], "high_only", [], 7, brief);
-    expect(PROTOCOL_VERSION).toBe(6);
     expect(GROUND_CODES.at(-1)).toBe("directive_6748_u_1_3");
     expect(decodePlanPayload(encodePlanPayload(refused))).toEqual({ ok: true, payload: refused });
     expect(decodePlanPayload(encodePlanPayload({ ...refused, v: 5 } as never))).toEqual({ ok: false, error: "unsupported_version" });
@@ -339,7 +338,7 @@ describe("protocol helpers", () => {
     });
     expect(replyDraft(brief).grounds).toEqual(["payment_9_11_6", "directive_6748_u_1_3"]);
     const exported = exportLog([], { seed: 7, autonomy: "high_only", total: 1, brief });
-    expect([exported.version, exported.protocol]).toEqual([2, 6]);
+    expect([exported.version, exported.protocol]).toEqual([2, PROTOCOL_VERSION]);
   });
 
   it("refuses a brief with a string that is not a code, and drops fields it does not know", () => {

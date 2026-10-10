@@ -5,3 +5,5 @@ export * from "./texts.js";
 export * from "./truth.js";
 export * from "./inbox.js";
 export * from "./read.js";
+export * from "./prompts.js";
+export * from "./record.js";
