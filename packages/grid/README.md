@@ -140,6 +140,21 @@ they are taken again with `pnpm measure`.
   of the Banking Law art. 30 part 16 to either. A refusal still rests on
   part 11.6. The column shows the restriction, blank for the other
   cases. The share is the generator's own.
+- **The day the bank received the record** (the store column
+  `recordOn`, a day or -1). The ATM cash cap of the Banking Law art. 30
+  part 16 is owed "если от Банка России получена информация": it runs
+  from the day the bank received the database information that holds the
+  client's data, not from the day the bank acted on it. The register
+  stores that day for every case about the client's own data, drawn from
+  a stream of its own, so every other column is what it was before it
+  was stored: the day of the suspension where the suspension is a duty
+  (part 11.7), the day the cap began where the bank chose the cap (part
+  11.6 runs from the same receipt), and for about two in five of the
+  suspensions the bank chose under part 11.6, one to three days before
+  the suspension. `caseFacts` passes it to ariadne-rules, which dates the
+  ATM cash cap by it and, for an individual suspended later, gives the
+  transfer cap that applied in between with its end. The share and the
+  gap are the generator's own.
 - **Paths beyond the first step** (`Path`, the columns `path`, `pathOn`,
   `pathThen` and `pathTerm`), for open cases only, drawn from a stream of
   their own so every other column, and every answered case, is what it

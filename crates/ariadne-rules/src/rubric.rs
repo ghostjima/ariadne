@@ -331,8 +331,9 @@ fn stated_to_client(kind: DeadlineKind) -> bool {
     )
 }
 
-/// The options the law gives the client in this case.
-fn required_options(case: &Case, clock: &Clock) -> Vec<ClientOption> {
+/// The options the law gives the client in this case, on the day the
+/// reply goes out.
+fn required_options(case: &Case, clock: &Clock, replied_on: Date) -> Vec<ClientOption> {
     let mut need = Vec::new();
     let mut add = |o: ClientOption| {
         if !need.contains(&o) {
@@ -374,10 +375,11 @@ fn required_options(case: &Case, clock: &Clock) -> Vec<ClientOption> {
         // asks the same "в случае введения ограничений согласно
         // основаниям, предусмотренным частями 11.6 и 11.7".
         let restricted = clock.measures.iter().any(|m| {
-            matches!(
-                m.kind,
-                MeasureKind::SuspendInstrument | MeasureKind::CapTransfers
-            )
+            m.in_force_on(replied_on)
+                && matches!(
+                    m.kind,
+                    MeasureKind::SuspendInstrument | MeasureKind::CapTransfers
+                )
         });
         if restricted && f.data_removed_on.is_none() {
             add(ClientOption::ApplyForRemoval);
@@ -473,7 +475,7 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     if reply.next_steps.iter().all(|s| s.trim().is_empty()) {
         out.push(Finding::of(FindingCode::NextStepsMissing));
     }
-    for o in required_options(case, clock) {
+    for o in required_options(case, clock, reply.replied_on) {
         if !reply.client_options.contains(&o) {
             out.push(Finding::about(FindingCode::ClientOptionMissing, o.code()));
         }
@@ -494,12 +496,14 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     }
 
     // The restrictions for the client's own data in the database, while
-    // the data are there: each one that applies is stated, none that does
-    // not.
+    // the data are there: each one that applies on the day of the reply is
+    // stated, none that does not (a transfer cap the suspension replaced
+    // has ended).
     if case.database.is_some_and(|f| f.data_removed_on.is_none()) {
         let applies: Vec<MeasureKind> = clock
             .measures
             .iter()
+            .filter(|m| m.in_force_on(reply.replied_on))
             .map(|m| m.kind)
             .filter(|k| MeasureKind::DATABASE.contains(k))
             .collect();

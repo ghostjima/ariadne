@@ -123,7 +123,12 @@ assistant's).
   bank's choice under part 11.6, the transfers to individuals capped at
   100,000 roubles a month instead; and ATM cash capped at 100,000
   roubles a month either way (Banking Law art. 30 part 16). The rubric
-  flags a restriction left out or one that does not apply. At signature the signatory records
+  flags a restriction left out or one that does not apply on the day of
+  the reply. The card dates the ATM cash cap by the day the bank received
+  the database record, which the case's database panel shows, not by the
+  day the bank suspended the card; a transfer cap that a later suspension
+  replaced is shown with the day it ended; and under each monthly limit
+  the card says that the law does not say how the month is counted. At signature the signatory records
   a decision (approve, modify, override or defer, as one radio group with
   what each means under it) with their concerns and what would make it
   wrong, in fields of several lines (always asked for; the concerns unless

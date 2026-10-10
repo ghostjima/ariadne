@@ -56,6 +56,7 @@ fn block(operation: Operation, stopped: &str) -> AntifraudFacts {
 
 fn no_database() -> DatabaseFacts {
     DatabaseFacts {
+        information_received_on: None,
         instrument_suspended_on: None,
         transfers_capped_on: None,
         police_information: false,
@@ -74,6 +75,20 @@ fn measures(c: &Clock) -> Vec<(&'static str, String, &'static str)> {
     c.measures
         .iter()
         .map(|m| (m.kind.code(), m.on.to_string(), m.basis.part))
+        .collect()
+}
+
+/// The measures of a clock, as (code, first day, the day it stops).
+fn periods(c: &Clock) -> Vec<(&'static str, String, Option<String>)> {
+    c.measures
+        .iter()
+        .map(|m| {
+            (
+                m.kind.code(),
+                m.on.to_string(),
+                m.until.map(|d| d.to_string()),
+            )
+        })
         .collect()
 }
 
@@ -684,6 +699,27 @@ fn a_suspended_card_is_notified_the_same_day_and_restored_at_once() {
             (DutyKind::RestoreInstrument, "11.11")
         ]
     );
+    // "на период нахождения сведений ... в базе данных": the suspension
+    // and the ATM cash cap apply up to 20 May, the day the data left it,
+    // and not on it.
+    assert_eq!(
+        periods(&c),
+        [
+            (
+                "suspend_instrument",
+                "2026-05-09".into(),
+                Some("2026-05-20".into())
+            ),
+            (
+                "cap_atm_cash",
+                "2026-05-09".into(),
+                Some("2026-05-20".into())
+            )
+        ]
+    );
+    assert!(c.measures.iter().all(|m| m.in_force_on(d("2026-05-19"))));
+    assert!(c.measures.iter().all(|m| !m.in_force_on(d("2026-05-20"))));
+    assert!(c.measures.iter().all(|m| !m.in_force_on(d("2026-05-08"))));
     // Removed before the suspension: an error.
     f.data_removed_on = Some(d("2026-05-08"));
     case.database = Some(f);
@@ -723,7 +759,20 @@ fn without_a_suspension_under_part_11_6_the_transfers_are_capped_and_atm_cash_ei
     assert!(c.deadline(K::InstrumentSuspensionNotice).is_none());
     assert!(c.duties.is_empty());
     assert!(c.refusals.is_empty());
-    assert_eq!(c.warnings, [Warning::RegistrationDateAssumed]);
+    // The day the bank received the database information is not given:
+    // the ATM cash cap is dated by the day the bank acted, and the clock
+    // says that its start is assumed.
+    assert_eq!(
+        c.warnings,
+        [
+            Warning::RegistrationDateAssumed,
+            Warning::DatabaseInformationDateAssumed
+        ]
+    );
+    assert_eq!(
+        Warning::DatabaseInformationDateAssumed.code(),
+        "database_information_date_assumed"
+    );
     // With the Ministry of Internal Affairs' information the suspension is
     // a duty (part 11.7): the engine refuses the cap; ATM cash is capped
     // from the day the bank acted on the record.
@@ -740,7 +789,8 @@ fn without_a_suspension_under_part_11_6_the_transfers_are_capped_and_atm_cash_ei
     let c = clock(&case).unwrap();
     assert!(c.warnings.contains(&Warning::TransferCapForIndividualsOnly));
     assert_eq!(measures(&c), [("cap_atm_cash", "2026-05-09".into(), "16")]);
-    // The ATM cap is a credit institution's: another sector has none.
+    // The ATM cap is a credit institution's: another sector has none, and
+    // nothing of it to assume.
     case.applicant = Applicant::Individual;
     case.sector = Sector::Microfinance;
     let c = clock(&case).unwrap();
@@ -748,8 +798,9 @@ fn without_a_suspension_under_part_11_6_the_transfers_are_capped_and_atm_cash_ei
         measures(&c),
         [("cap_transfers", "2026-05-09".into(), "11.6, sentence 2")]
     );
-    // Capped on 9 May and suspended later, on 13 May: both stand with
-    // their days, and the ATM cap runs from the first.
+    assert_eq!(c.warnings, [Warning::RegistrationDateAssumed]);
+    // Capped on 9 May and suspended later, on 13 May: the suspension
+    // replaces the cap that day, and the ATM cap runs from the first.
     case.sector = Sector::Bank;
     f.instrument_suspended_on = Some(d("2026-05-13"));
     case.database = Some(f);
@@ -762,10 +813,119 @@ fn without_a_suspension_under_part_11_6_the_transfers_are_capped_and_atm_cash_ei
             ("cap_atm_cash", "2026-05-09".into(), "16")
         ]
     );
+    assert_eq!(
+        periods(&c),
+        [
+            ("suspend_instrument", "2026-05-13".into(), None),
+            (
+                "cap_transfers",
+                "2026-05-09".into(),
+                Some("2026-05-13".into())
+            ),
+            ("cap_atm_cash", "2026-05-09".into(), None)
+        ]
+    );
     for k in M::ALL {
         assert_eq!(M::parse(k.code()), Ok(k));
     }
     assert_eq!(M::parse("cap_everything"), Err(Error::UnknownCode));
+}
+
+#[test]
+fn the_atm_cash_cap_runs_from_the_day_the_bank_received_the_database_information() {
+    // "Кредитная организация обязана ограничить выдачу наличных денежных
+    // средств с использованием банкоматов на сумму не более 100 тысяч
+    // рублей в месяц, если от Банка России получена информация ..., на
+    // период нахождения сведений в указанной базе данных" (Banking Law
+    // art. 30 part 16). The bank received the information on Thursday
+    // 7 May 2026 and suspended the client's card under part 11.6 on
+    // Saturday 9 May: ATM cash is capped from 7 May, not from 9 May, and
+    // nothing about its start is assumed.
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+    let mut f = no_database();
+    f.information_received_on = Some(d("2026-05-07"));
+    f.instrument_suspended_on = Some(d("2026-05-09"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(c.warnings, [Warning::RegistrationDateAssumed]);
+    let atm = c.measures.iter().find(|m| m.kind == M::CapAtmCash).unwrap();
+    assert_eq!(
+        (atm.on, atm.until, atm.basis.reading),
+        (d("2026-05-07"), None, Reading::Text)
+    );
+    assert_eq!(
+        (atm.basis.source, atm.basis.article, atm.basis.part),
+        (sources::BANKING_LAW_30, "30", "16")
+    );
+    // Part 11.6 runs from the same receipt: until the bank suspended the
+    // card, the individual's transfers to individuals were under the cap
+    // of its second sentence, on 7 and 8 May.
+    assert_eq!(
+        periods(&c),
+        [
+            ("suspend_instrument", "2026-05-09".into(), None),
+            (
+                "cap_transfers",
+                "2026-05-07".into(),
+                Some("2026-05-09".into())
+            ),
+            ("cap_atm_cash", "2026-05-07".into(), None)
+        ]
+    );
+    let cap = &c.measures[1];
+    assert_eq!(cap.basis.part, "11.6, sentence 2");
+    assert!(cap.in_force_on(d("2026-05-08")) && !cap.in_force_on(d("2026-05-09")));
+    // With the Ministry of Internal Affairs' information the suspension is
+    // a duty from the receipt (part 11.7): no cap in between. A legal
+    // entity has no transfer cap either. The ATM cash cap is the same for
+    // both.
+    let atm_only = [
+        ("suspend_instrument", "2026-05-09".to_string(), None),
+        ("cap_atm_cash", "2026-05-07".to_string(), None),
+    ];
+    f.police_information = true;
+    case.database = Some(f);
+    assert_eq!(periods(&clock(&case).unwrap()), atm_only);
+    f.police_information = false;
+    case.database = Some(f);
+    case.applicant = Applicant::LegalEntity;
+    assert_eq!(periods(&clock(&case).unwrap()), atm_only);
+    // Received and neither suspended nor capped (a legal entity the bank
+    // did not suspend): the ATM cash cap alone, a duty either way.
+    f.instrument_suspended_on = None;
+    case.database = Some(f);
+    assert_eq!(
+        periods(&clock(&case).unwrap()),
+        [("cap_atm_cash", "2026-05-07".to_string(), None)]
+    );
+    // The data left the database on 20 May: the cap ends that day.
+    f.data_removed_on = Some(d("2026-05-20"));
+    case.database = Some(f);
+    assert_eq!(
+        periods(&clock(&case).unwrap()),
+        [(
+            "cap_atm_cash",
+            "2026-05-07".to_string(),
+            Some("2026-05-20".to_string())
+        )]
+    );
+    // The cap is a credit institution's.
+    case.sector = Sector::Microfinance;
+    assert!(clock(&case).unwrap().measures.is_empty());
+    case.sector = Sector::Bank;
+    // The bank cannot have acted on the information, nor the data have
+    // left the database, before the information came.
+    f.data_removed_on = Some(d("2026-05-06"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+    f.data_removed_on = None;
+    f.instrument_suspended_on = Some(d("2026-05-06"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+    f.instrument_suspended_on = None;
+    f.transfers_capped_on = Some(d("2026-05-06"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
 }
 
 #[test]
@@ -1240,6 +1400,7 @@ fn property_every_basis_is_a_listed_source() {
     f.refund_claim_received_on = Some(d("2026-05-05"));
     case.antifraud = Some(f);
     case.database = Some(DatabaseFacts {
+        information_received_on: None,
         instrument_suspended_on: Some(d("2026-05-01")),
         transfers_capped_on: None,
         police_information: true,

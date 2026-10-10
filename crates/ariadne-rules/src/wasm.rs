@@ -190,6 +190,11 @@ pub struct CaseInput {
     pub database_match_after_confirmation: bool,
     #[wasm_bindgen(js_name = refundClaimReceivedOn)]
     pub refund_claim_received_on: Option<String>,
+    /// The day the organisation received from the Bank of Russia the
+    /// database information that holds the client's data: the cap on ATM
+    /// cash runs from it (Banking Law art. 30 part 16).
+    #[wasm_bindgen(js_name = informationReceivedOn)]
+    pub information_received_on: Option<String>,
     /// The day the client's card or online banking was suspended for the
     /// client's own data in the Bank of Russia's database.
     #[wasm_bindgen(js_name = instrumentSuspendedOn)]
@@ -265,6 +270,7 @@ impl CaseInput {
             confirmed_on: None,
             database_match_after_confirmation: false,
             refund_claim_received_on: None,
+            information_received_on: None,
             instrument_suspended_on: None,
             transfers_capped_on: None,
             police_information: false,
@@ -381,6 +387,7 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         _ => return Err(Error::MissingDate),
     };
     let database = clock::DatabaseFacts {
+        information_received_on: opt_date(&i.information_received_on)?,
         instrument_suspended_on: opt_date(&i.instrument_suspended_on)?,
         transfers_capped_on: opt_date(&i.transfers_capped_on)?,
         police_information: i.police_information,
@@ -394,7 +401,8 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
         bank_of_russia_query_received_on: opt_date(&i.bank_of_russia_query_received_on)?,
         operator_application_sent_on: opt_date(&i.operator_application_sent_on)?,
     };
-    let any_database = database.instrument_suspended_on.is_some()
+    let any_database = database.information_received_on.is_some()
+        || database.instrument_suspended_on.is_some()
         || database.transfers_capped_on.is_some()
         || database.data_removed_on.is_some()
         || database.exclusion_received_by_operator_on.is_some()
@@ -476,13 +484,16 @@ pub struct DutyOutput {
     pub basis: BasisOutput,
 }
 
-/// A measure taken, the day it takes effect, and its ground.
+/// A measure taken, the day it takes effect, the day it stops applying
+/// when the facts give one, and its ground.
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone)]
 pub struct MeasureOutput {
     /// A measure code (`suspend_order`, `refuse_operation`, ...).
     pub kind: String,
     pub on: String,
+    /// The first day the measure no longer applies, when known.
+    pub until: Option<String>,
     pub basis: BasisOutput,
 }
 
@@ -571,6 +582,7 @@ fn to_output(c: &clock::Clock) -> ClockOutput {
             .map(|m| MeasureOutput {
                 kind: m.kind.code().to_string(),
                 on: m.on.to_string(),
+                until: m.until.map(|d| d.to_string()),
                 basis: basis(m.basis),
             })
             .collect(),
@@ -997,6 +1009,40 @@ mod tests {
                 ("cap_atm_cash", "2026-05-09", "16")
             ]
         );
+        // The bank received the database information on 7 May: the ATM
+        // cash cap runs from that day, the transfer cap in between ends
+        // with the suspension, and the day the data left the database
+        // ends the rest.
+        let mut k = i.clone();
+        k.blocked_operation = None;
+        k.blocked_on = None;
+        k.information_received_on = Some("2026-05-07".into());
+        k.data_removed_on = Some("2026-05-20".into());
+        let received = to_output(&clock::clock(&to_case(&k).unwrap()).unwrap());
+        let periods: Vec<_> = received
+            .measures
+            .iter()
+            .map(|m| (m.kind.as_str(), m.on.as_str(), m.until.as_deref()))
+            .collect();
+        assert_eq!(
+            periods,
+            [
+                ("suspend_instrument", "2026-05-09", Some("2026-05-20")),
+                ("cap_transfers", "2026-05-07", Some("2026-05-09")),
+                ("cap_atm_cash", "2026-05-07", Some("2026-05-20"))
+            ]
+        );
+        assert!(!received
+            .warnings
+            .contains(&"database_information_date_assumed".to_string()));
+        assert!(out
+            .warnings
+            .contains(&"database_information_date_assumed".to_string()));
+        assert!(out.measures.iter().all(|m| m.until.is_none()));
+        // The receipt alone is a database fact.
+        let mut alone = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        alone.information_received_on = Some("2026-05-07".into());
+        assert!(to_case(&alone).unwrap().database.is_some());
         let due = |kind: &str| {
             out.deadlines
                 .iter()

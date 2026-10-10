@@ -40,8 +40,10 @@
 //!   suspending the client's card or online banking and capping the
 //!   client's transfers to individuals at 100,000 roubles a month (part
 //!   11.7 leaves no choice), the cap on ATM cash of the Banking Law art. 30
-//!   part 16, the notices of a suspension, the restoring of the card or
-//!   online banking, and an application to remove the data,
+//!   part 16 from the day the bank received the database information, each
+//!   of them for as long as the data are in the database, the notices of a
+//!   suspension, the restoring of the card or online banking, and an
+//!   application to remove the data,
 //!   both the Bank of Russia's 15 working days from its receipt and the
 //!   operator's own terms when the client applies through it, its answer
 //!   to the Bank of Russia's request on an application the client filed
@@ -218,6 +220,15 @@ pub struct AntifraudFacts {
 /// No. 6748-U on the client's application to remove the data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DatabaseFacts {
+    /// The day the operator received from the Bank of Russia the database
+    /// information that holds the client's data (161-FZ art. 27 part 7; the
+    /// Bank of Russia's Directive No. 7282-U items 6.1 to 6.3). The cap on
+    /// ATM cash runs from it (Banking Law art. 30 part 16, "если от Банка
+    /// России получена информация"), and so does the transfer cap of an
+    /// individual whose means of payment is not suspended (161-FZ art. 9
+    /// part 11.6). `None` when not known: the day the operator acted on the
+    /// data is taken instead, with a warning.
+    pub information_received_on: Option<Date>,
     /// The day the operator suspended the client's electronic means of
     /// payment (a card, online banking) because of the data.
     pub instrument_suspended_on: Option<Date>,
@@ -750,12 +761,28 @@ impl MeasureKind {
     }
 }
 
-/// A measure, the day it takes effect, and its ground.
+/// A measure, the day it takes effect, the day it stops applying when the
+/// facts give one, and its ground.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Measure {
     pub kind: MeasureKind,
     pub on: Date,
+    /// The first day the measure no longer applies, when the case's facts
+    /// give it: for the measures the client's own data in the database
+    /// bring ("на период нахождения сведений ... в базе данных"), the day
+    /// the data left it; for a transfer cap the suspension replaced, the
+    /// day of the suspension. `None` while it applies, and for the
+    /// measures of 161-FZ art. 8, whose ends are deadlines of the clock.
+    pub until: Option<Date>,
     pub basis: Basis,
+}
+
+impl Measure {
+    /// Whether the measure applies on `day`: from the day it takes effect
+    /// up to, and not including, the day it stops.
+    pub fn in_force_on(&self, day: Date) -> bool {
+        self.on <= day && self.until.is_none_or(|until| day < until)
+    }
 }
 
 /// Something about the case's data a person should look at.
@@ -819,6 +846,11 @@ pub enum Warning {
     /// individual's transfers to individuals: a legal entity whose means of
     /// payment is not suspended has no cap under that part.
     TransferCapForIndividualsOnly,
+    /// The day the operator received the database information with the
+    /// client's data was not given: the cap on ATM cash, which runs from
+    /// that day (Banking Law art. 30 part 16), is dated by the day the
+    /// operator acted on the data, the latest it can have started.
+    DatabaseInformationDateAssumed,
 }
 
 impl Warning {
@@ -843,6 +875,7 @@ impl Warning {
             CommissionTermBelowMinimum => "commission_term_below_minimum",
             CommissionTermAssumed => "commission_term_assumed",
             TransferCapForIndividualsOnly => "transfer_cap_for_individuals_only",
+            DatabaseInformationDateAssumed => "database_information_date_assumed",
         }
     }
 }
@@ -1343,12 +1376,14 @@ fn antifraud(case: &Case, f: &AntifraudFacts, c: &mut Clock) -> Result<(), Error
         Measure {
             kind: MeasureKind::SuspendOrder,
             on: stopped,
+            until: None,
             basis: text(law, "8", "3.4, sentence 1"),
         }
     } else {
         Measure {
             kind: MeasureKind::RefuseOperation,
             on: stopped,
+            until: None,
             basis: text(law, "8", "3.4, sentence 2"),
         }
     });
@@ -1400,6 +1435,7 @@ fn antifraud(case: &Case, f: &AntifraudFacts, c: &mut Clock) -> Result<(), Error
             c.measures.push(Measure {
                 kind: MeasureKind::OrderNotAccepted,
                 on: confirm_by.add_days(1),
+                until: None,
                 basis: text(law, "8", "3.9"),
             });
         }
@@ -1456,6 +1492,7 @@ fn repeat_block(operation: Operation, on: Date, c: &mut Clock) {
             c.measures.push(Measure {
                 kind: MeasureKind::SuspendConfirmedOrder,
                 on,
+                until: None,
                 basis: text(law, "8", "3.10, sentence 1"),
             });
             c.deadlines.push(Deadline {
@@ -1486,6 +1523,7 @@ fn repeat_block(operation: Operation, on: Date, c: &mut Clock) {
             c.measures.push(Measure {
                 kind: MeasureKind::RefuseRepeat,
                 on,
+                until: None,
                 basis: text(law, "8", "3.10, sentence 1"),
             });
             c.deadlines.push(Deadline {
@@ -1511,15 +1549,32 @@ fn repeat_block(operation: Operation, on: Date, c: &mut Clock) {
 fn database(case: &Case, f: &DatabaseFacts, c: &mut Clock) -> Result<(), Error> {
     let law = sources::PAYMENT_LAW_9;
     let directive = sources::DIRECTIVE_6748_U;
+    if let Some(received) = f.information_received_on {
+        // The operator acts on the information it has received, and the
+        // data leave the database after they were in it.
+        for later in [
+            f.instrument_suspended_on,
+            f.transfers_capped_on,
+            f.data_removed_on,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            check_order(received, later)?;
+        }
+    }
     if let Some(on) = f.instrument_suspended_on {
         // "вправе приостановить" without the Ministry of Internal Affairs'
         // information (part 11.6), "обязан приостановить" with it (part
-        // 11.7): the ground a reply about removing the data names.
+        // 11.7): the ground a reply about removing the data names. Either
+        // way "на период нахождения сведений ... в базе данных": to the day
+        // the data left it.
         let (source, article, part) =
             PaymentGround::of_instrument_suspension(f.police_information).basis();
         c.measures.push(Measure {
             kind: MeasureKind::SuspendInstrument,
             on,
+            until: f.data_removed_on,
             basis: text(source, article, part),
         });
         // "обязан в день такого приостановления ... предоставить клиенту
@@ -1677,6 +1732,7 @@ fn operator_application(f: &DatabaseFacts, sent: Date, c: &mut Clock) -> Result<
 /// database.
 fn restrictions(case: &Case, f: &DatabaseFacts, c: &mut Clock) {
     let law = sources::PAYMENT_LAW_9;
+    let cap = text(law, "9", "11.6, sentence 2");
     if let Some(on) = f.transfers_capped_on {
         if f.police_information {
             // "обязан приостановить ... при наличии сведений федерального
@@ -1693,11 +1749,37 @@ fn restrictions(case: &Case, f: &DatabaseFacts, c: &mut Clock) {
             // платежа не было приостановлено ..., оператор ... может
             // осуществлять переводы ... на сумму не более 100 тысяч рублей
             // в месяц": not suspended on Saturday 9 May 2026, the client's
-            // transfers to individuals are capped from that day.
+            // transfers to individuals are capped from that day, until a
+            // later suspension replaces the cap or the data leave the
+            // database.
+            let until = match f.instrument_suspended_on {
+                Some(suspended) if suspended >= on => Some(suspended),
+                _ => f.data_removed_on,
+            };
             c.measures.push(Measure {
                 kind: MeasureKind::CapTransfers,
                 on,
-                basis: text(law, "9", "11.6, sentence 2"),
+                until,
+                basis: cap,
+            });
+        }
+    } else if let (Some(received), Some(suspended)) =
+        (f.information_received_on, f.instrument_suspended_on)
+    {
+        // Part 11.6 opens with "В случае, если оператор ... получил от
+        // Банка России информацию": an individual whose means of payment
+        // the operator had not yet suspended was under the cap of its
+        // second sentence from the receipt. Received on Thursday 7 May
+        // 2026 and suspended on Saturday 9 May, the cap ran on 7 and 8 May.
+        // Not under part 11.7, where the suspension is a duty from the
+        // receipt, and not for a legal entity.
+        if received < suspended && !f.police_information && case.applicant == Applicant::Individual
+        {
+            c.measures.push(Measure {
+                kind: MeasureKind::CapTransfers,
+                on: received,
+                until: Some(suspended),
+                basis: cap,
             });
         }
     }
@@ -1705,18 +1787,29 @@ fn restrictions(case: &Case, f: &DatabaseFacts, c: &mut Clock) {
     // средств с использованием банкоматов на сумму не более 100 тысяч
     // рублей в месяц, если от Банка России получена информация ..., на
     // период нахождения сведений в указанной базе данных": a duty of a
-    // credit institution, with or without the suspension. It runs from the
-    // day the bank received the record; the clock knows the day the bank
-    // acted on it, the earlier of the suspension and the cap.
+    // credit institution, with or without the suspension, for an
+    // individual and a legal entity alike, from the day the information
+    // was received to the day the data left the database. The text says
+    // "в месяц" and not how the month is counted: the clock gives the
+    // limit's first day and counts no window. Without the day of receipt
+    // the clock takes the day the bank acted on the data, the earlier of
+    // the suspension and the cap, and warns that the start is assumed.
     let acted = match (f.instrument_suspended_on, f.transfers_capped_on) {
         (Some(a), Some(b)) => Some(a.min(b)),
         (a, b) => a.or(b),
     };
-    if let Some(on) = acted {
+    let on = f.information_received_on.or_else(|| {
+        if acted.is_some() && case.sector == Sector::Bank {
+            c.warnings.push(Warning::DatabaseInformationDateAssumed);
+        }
+        acted
+    });
+    if let Some(on) = on {
         if case.sector == Sector::Bank {
             c.measures.push(Measure {
                 kind: MeasureKind::CapAtmCash,
                 on,
+                until: f.data_removed_on,
                 basis: text(sources::BANKING_LAW_30, "30", "16"),
             });
         }

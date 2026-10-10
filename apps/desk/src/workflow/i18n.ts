@@ -199,6 +199,8 @@ export type WorkflowStrings = {
     panel: string;
     /** What the bank's copy of the database record holds, as a term. */
     record: string;
+    /** The day the bank received the database information, as a term. */
+    received: string;
     own: string;
     ownHelp: string;
     reasons: string;
@@ -509,6 +511,7 @@ const en: WorkflowStrings = {
   database: {
     panel: "The Bank of Russia's database",
     record: "The bank's copy of the record",
+    received: "Received from the Bank of Russia",
     own: "The bank's own application to remove the data",
     ownHelp:
       "With grounds to think the client's data were included without basis, the bank may apply to the Bank of Russia on its own, without the client (161-FZ art. 9 part 11.9). The Bank of Russia decides within 15 working days and sends the decision to the bank. Once sent, the application is not recalled.",
@@ -819,6 +822,7 @@ const ru: WorkflowStrings = {
   database: {
     panel: "База данных Банка России",
     record: "Копия записи в банке",
+    received: "Получена от Банка России",
     own: "Заявление банка об исключении сведений",
     ownHelp:
       "Если у банка есть основания полагать, что сведения о клиенте включены необоснованно, банк вправе сам, без участия клиента, направить в Банк России мотивированное заявление (ч. 11.9 ст. 9 161-ФЗ). Банк России решает в течение 15 рабочих дней и направляет решение банку. Отправленное заявление не отзывается.",
