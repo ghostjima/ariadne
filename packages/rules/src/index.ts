@@ -146,6 +146,11 @@ export type CaseFacts = {
        from it (Banking Law art. 30 part 16) */
     informationReceivedOn?: Day;
     instrumentSuspendedOn?: Day;
+    /* The day the bank lifted a suspension it had chosen under 161-FZ
+       art. 9 part 11.6, the data still in the database: the transfer cap
+       follows for an individual; refused with the Ministry of Internal
+       Affairs' information (part 11.7) */
+    suspensionLiftedOn?: Day;
     /* Not suspended: the client's transfers to individuals capped at
        100,000 roubles a month from this day (161-FZ art. 9 part 11.6,
        sentence 2) */
@@ -243,6 +248,7 @@ function caseInput(f: CaseFacts): wasm.CaseInput {
     const db = f.database;
     if (db.informationReceivedOn !== undefined) i.informationReceivedOn = db.informationReceivedOn;
     if (db.instrumentSuspendedOn !== undefined) i.instrumentSuspendedOn = db.instrumentSuspendedOn;
+    if (db.suspensionLiftedOn !== undefined) i.suspensionLiftedOn = db.suspensionLiftedOn;
     if (db.transfersCappedOn !== undefined) i.transfersCappedOn = db.transfersCappedOn;
     if (db.policeInformation !== undefined) i.policeInformation = db.policeInformation;
     if (db.dataRemovedOn !== undefined) i.dataRemovedOn = db.dataRemovedOn;

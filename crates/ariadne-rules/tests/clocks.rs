@@ -58,6 +58,7 @@ fn no_database() -> DatabaseFacts {
     DatabaseFacts {
         information_received_on: None,
         instrument_suspended_on: None,
+        suspension_lifted_on: None,
         transfers_capped_on: None,
         police_information: false,
         data_removed_on: None,
@@ -929,6 +930,146 @@ fn the_atm_cash_cap_runs_from_the_day_the_bank_received_the_database_information
 }
 
 #[test]
+fn a_suspension_chosen_under_part_11_6_may_be_lifted_in_favour_of_the_cap_never_under_part_11_7() {
+    // Part 11.6: the operator "вправе приостановить" the client's means of
+    // payment; part 11.7: it "обязан приостановить ... на период
+    // нахождения указанных сведений в базе данных". The bank received the
+    // information and suspended the card on Saturday 9 May 2026, then
+    // lifted the suspension on Wednesday 13 May, the data still in the
+    // database: the suspension ends on 13 May, and from that day the
+    // individual's transfers to individuals are capped (sentence 2, a
+    // conservative reading: the text speaks of a means of payment that
+    // "не было приостановлено"). ATM cash stays capped from the receipt.
+    let mut case = Case::new(Stream::Antifraud, d("2026-05-12"));
+    let mut f = no_database();
+    f.information_received_on = Some(d("2026-05-09"));
+    f.instrument_suspended_on = Some(d("2026-05-09"));
+    f.suspension_lifted_on = Some(d("2026-05-13"));
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert!(c.refusals.is_empty());
+    assert_eq!(
+        periods(&c),
+        [
+            (
+                "suspend_instrument",
+                "2026-05-09".into(),
+                Some("2026-05-13".into())
+            ),
+            ("cap_transfers", "2026-05-13".into(), None),
+            ("cap_atm_cash", "2026-05-09".into(), None)
+        ]
+    );
+    let cap = &c.measures[1];
+    assert_eq!(
+        (
+            cap.basis.source,
+            cap.basis.article,
+            cap.basis.part,
+            cap.basis.reading
+        ),
+        (
+            sources::PAYMENT_LAW_9,
+            "9",
+            "11.6, sentence 2",
+            Reading::Conservative
+        )
+    );
+    assert_eq!(c.measures[0].basis.part, "11.6");
+    // On 12 May the card is suspended; on 13 May it is not, and the cap
+    // applies.
+    assert!(
+        c.measures[0].in_force_on(d("2026-05-12")) && !c.measures[0].in_force_on(d("2026-05-13"))
+    );
+    assert!(!cap.in_force_on(d("2026-05-12")) && cap.in_force_on(d("2026-05-13")));
+    // The notices of the suspension were owed when it was imposed.
+    assert_eq!(due(&c, K::InstrumentSuspensionNotice), "2026-05-09");
+    // The data left the database on 20 May: the cap and the ATM cash cap
+    // end, the suspension ended with the lift.
+    f.data_removed_on = Some(d("2026-05-20"));
+    case.database = Some(f);
+    assert_eq!(
+        periods(&clock(&case).unwrap()),
+        [
+            (
+                "suspend_instrument",
+                "2026-05-09".into(),
+                Some("2026-05-13".into())
+            ),
+            (
+                "cap_transfers",
+                "2026-05-13".into(),
+                Some("2026-05-20".into())
+            ),
+            (
+                "cap_atm_cash",
+                "2026-05-09".into(),
+                Some("2026-05-20".into())
+            )
+        ]
+    );
+    f.data_removed_on = None;
+    // With the Ministry of Internal Affairs' information the suspension
+    // is a duty: the clock refuses the lift, and the suspension stands.
+    f.police_information = true;
+    case.database = Some(f);
+    let c = clock(&case).unwrap();
+    assert_eq!(c.refusals, [Refusal::SuspensionLiftNotAllowed]);
+    assert_eq!(
+        Refusal::SuspensionLiftNotAllowed.code(),
+        "suspension_lift_not_allowed"
+    );
+    assert_eq!(
+        periods(&c),
+        [
+            ("suspend_instrument", "2026-05-09".into(), None),
+            ("cap_atm_cash", "2026-05-09".into(), None)
+        ]
+    );
+    assert_eq!(c.measures[0].basis.part, "11.7");
+    // A legal entity's suspension may be lifted too, and no cap follows:
+    // the cap is an individual's. ATM cash stays capped.
+    f.police_information = false;
+    case.database = Some(f);
+    case.applicant = Applicant::LegalEntity;
+    let c = clock(&case).unwrap();
+    assert!(c.refusals.is_empty());
+    assert_eq!(
+        c.warnings
+            .iter()
+            .filter(|w| **w == Warning::TransferCapForIndividualsOnly)
+            .count(),
+        1
+    );
+    assert_eq!(
+        periods(&c),
+        [
+            (
+                "suspend_instrument",
+                "2026-05-09".into(),
+                Some("2026-05-13".into())
+            ),
+            ("cap_atm_cash", "2026-05-09".into(), None)
+        ]
+    );
+    case.applicant = Applicant::Individual;
+    // A lift needs a suspension, comes no earlier than it, and no later
+    // than the day the data left the database, which restores the card by
+    // itself (part 11.11).
+    f.suspension_lifted_on = Some(d("2026-05-08"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+    f.suspension_lifted_on = Some(d("2026-05-21"));
+    f.data_removed_on = Some(d("2026-05-20"));
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::DatesOutOfOrder));
+    f.data_removed_on = None;
+    f.instrument_suspended_on = None;
+    case.database = Some(f);
+    assert_eq!(clock(&case), Err(Error::MissingDate));
+}
+
+#[test]
 fn the_bank_of_russia_counts_15_working_days_from_receipt() {
     // An application to remove the data, received by the Bank of Russia on
     // Friday 26 December 2025 (Directive No. 6748-U, items 2.1, 2.3 and
@@ -1402,6 +1543,7 @@ fn property_every_basis_is_a_listed_source() {
     case.database = Some(DatabaseFacts {
         information_received_on: None,
         instrument_suspended_on: Some(d("2026-05-01")),
+        suspension_lifted_on: None,
         transfers_capped_on: None,
         police_information: true,
         data_removed_on: Some(d("2026-05-29")),

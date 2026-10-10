@@ -37,7 +37,9 @@ the browser, in Russian (the default) and English:
   database, the bank's own application to remove them, with its reasons
   and the Bank of Russia's term, and the Bank of Russia's request on an
   application the client filed with it directly, with the bank's 3
-  working days and its answer.
+  working days and its answer, and the lift of a suspension the bank
+  chose under 161-FZ art. 9 part 11.6, never of one that is a duty under
+  part 11.7.
 - **The assistant** beside the case: a run a person can stop. For the
   open case it proposes a plan: classify the complaint, request the facts
   from antifraud, AML compliance or operations with a deadline of their

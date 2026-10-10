@@ -64,6 +64,7 @@ import {
   extendDeadline,
   applyForRemoval,
   answerQuery,
+  liftSuspension,
   recordQuery,
   markBreach,
   markCopySent,
@@ -657,6 +658,20 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
     return null;
   };
 
+  // A suspension the bank chose under 161-FZ art. 9 part 11.6, lifted
+  // while the data stay in the database: journaled with the bank's
+  // reasons; the register's restriction column changes with it.
+  const lift = (row: number, reason: string) => {
+    const refused = liftSuspension(store, row, { role, actor: selfActor(role), at: deskNow(Date.now()), reason });
+    if (refused) return refused;
+    engine.sync([row], false);
+    bump();
+    const said = workflowStrings[lang].database.liftedToast(rowId(row));
+    announce(said);
+    toasts.add({ tone: "positive", text: said, timeout: 6000 });
+    return null;
+  };
+
   // The simulated colleague.
   const tick = useRef(0);
   const simulate = () => {
@@ -928,6 +943,7 @@ export function Desk({ lang, t }: { lang: Lang; t: Strings }) {
           onApplyForRemoval={(reason) => removal(openCase, reason)}
           onRecordQuery={() => query(openCase)}
           onAnswerQuery={(view, reason) => answer(openCase, view, reason)}
+          onLiftSuspension={(reason) => lift(openCase, reason)}
           onExported={() => toasts.add({ tone: "positive", text: workflowStrings[lang].dispatch.exported, timeout: 5000 })}
         />
       ) : openCase !== null && load.loading ? (

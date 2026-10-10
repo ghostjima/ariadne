@@ -5,11 +5,15 @@
 // the Bank of Russia's 15 working days on the card, from the rules engine.
 // And the Bank of Russia's request about an application the client filed
 // with it directly: recorded the day it arrives, the bank's 3 working days
-// on the card, and the answer with the bank's view and reasons.
+// on the card, and the answer with the bank's view and reasons. And a
+// suspension the bank chose under 161-FZ art. 9 part 11.6, lifted by the
+// legal reviewer or the supervisor with the bank's reasons after a
+// confirmation: journaled, the card's measures and the register's column
+// follow; never where the suspension is a duty (part 11.7).
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { workflowStrings } from "../src/workflow/i18n";
-import { expectNoSeriousViolations } from "./helpers";
+import { cell, expectNoSeriousViolations, viewParam } from "./helpers";
 
 const w = workflowStrings.en;
 const b = w.database;
@@ -29,6 +33,10 @@ const DIRECT = "C-001183";
  * information: the bank received the record on 22 September 2026 and
  * suspended the card on 23 September; in drafting. */
 const RECEIVED_EARLIER = "C-001063";
+/** A case where the bank chose the transfer cap instead of the
+ * suspension. */
+const CAPPED = "C-001011";
+const WHY = "The client explained the transfers; antifraud agreed to the cap instead.";
 
 const panel = (page: Page) => page.locator(".database-panel");
 /** The flags of one day on the card, by the day's heading. */
@@ -246,3 +254,94 @@ for (const lang of ["ru", "en"] as const)
       await expectNoSeriousViolations(page, "answer to the request recorded", { lang, theme });
     });
 
+
+test("the legal reviewer lifts a suspension the bank chose under part 11.6: reasons, a confirmation, then the journal, the card's measures and the register's column", async ({ page }) => {
+  const columns = ["id", "client", "restriction"];
+  await openAs(page, RECEIVED_EARLIER, "reviewer", `view=${viewParam({ search: RECEIVED_EARLIER, columns })}`);
+  await expect(panel(page)).toContainText(b.liftHelp);
+  // The law does not describe a lift: the panel says how the desk reads it.
+  await expect(panel(page)).toContainText(b.liftAssumption);
+  // Without reasons it does not go.
+  await panel(page).getByRole("button", { name: b.lift }).click();
+  await expect(panel(page).getByRole("alert")).toHaveText(b.liftErrors["lift-reason-required"]("10"));
+  await expect(confirmation(page)).toBeHidden();
+  await panel(page).getByLabel(b.liftReasons).fill(WHY);
+  await panel(page).getByRole("button", { name: b.lift }).click();
+  const confirm = confirmation(page);
+  await expect(confirm).toContainText(b.liftConfirmText);
+  await expect(confirm).toContainText(WHY);
+  // The safe action has the focus: an Enter by habit lifts nothing.
+  await expect(confirm.getByRole("button", { name: b.liftKeep })).toBeFocused();
+  await confirm.getByRole("button", { name: b.liftConfirm, exact: true }).click();
+  await expect(confirm).toBeHidden();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.liftedToast(RECEIVED_EARLIER));
+  // The form has gone with the lift; the focus is on the panel.
+  await expect(panel(page).getByRole("button", { name: b.lift })).toHaveCount(0);
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  expect(await bodyHasFocus(page)).toBe(false);
+  await expect(panel(page)).toContainText(b.lifted("Oct 6, 2026"));
+  await expect(panel(page)).toContainText(b.afterLift);
+  await expect(lastEntry(page)).toContainText(w.action.suspension_lifted);
+  await expect(lastEntry(page)).toContainText(`Comment: ${WHY}`);
+  // The card: the suspension ended today, and the transfer cap runs from
+  // today on a conservative reading of part 11.6, sentence 2. ATM cash
+  // stays capped from the day the record was received.
+  await expect(flagsOn(page, "Flags", "September 23, 2026")).toContainText("Ended on Oct 6, 2026");
+  const today = flagsOn(page, "Flags", "October 6, 2026");
+  await expect(today).toContainText("Not suspended: the client's transfers to individuals capped at 100,000 roubles a month");
+  await expect(today).toContainText("Ground: 161-FZ, art. 9, part 11.6, sentence 2 (conservative reading)");
+  await expect(flagsOn(page, "Flags", "September 22, 2026")).toContainText("ATM cash capped");
+  // The export for an inspection keeps the entry with the reasons.
+  const download = page.waitForEvent("download");
+  await page.locator(".dispatch-panel").getByRole("button", { name: w.dispatch.exportText }).click();
+  const body = await readFile((await (await download).path())!, "utf8");
+  expect(body).toContain(w.action.suspension_lifted);
+  expect(body).toContain(WHY);
+  // The register's column shows the cap from now on.
+  await page.getByRole("button", { name: "Back to the queue" }).click();
+  await expect(cell(page, 0, 3)).toHaveText("Transfers to individuals up to RUB 100,000 a month");
+});
+
+test("a suspension is not lifted where it is a duty, where the bank chose the cap, or by the operator; in Russian the supervisor lifts it", async ({ page }) => {
+  // With the Ministry of Internal Affairs' information: part 11.7.
+  await openAs(page, CLIENT_DATA, "supervisor");
+  await expect(panel(page)).toContainText(b.liftDuty);
+  await expect(panel(page).getByRole("button", { name: b.lift })).toHaveCount(0);
+  // The bank chose the cap: nothing to lift.
+  await openAs(page, CAPPED, "supervisor");
+  await expect(panel(page)).toContainText(b.liftNotSuspended);
+  await expect(panel(page).getByRole("button", { name: b.lift })).toHaveCount(0);
+  // The operator and the signatory see who records it.
+  for (const role of ["operator", "signatory"]) {
+    await openAs(page, RECEIVED_EARLIER, role);
+    await expect(panel(page)).toContainText(b.liftWhoMay);
+    await expect(panel(page).getByRole("button", { name: b.lift })).toHaveCount(0);
+  }
+  const ru = workflowStrings.ru.database;
+  await openAs(page, RECEIVED_EARLIER, "supervisor", "lang=ru");
+  await expect(panel(page)).toContainText(ru.liftAssumption);
+  await panel(page).getByLabel(ru.liftReasons).fill("Клиент объяснил переводы; антифрод согласился на ограничение вместо приостановления.");
+  await panel(page).getByRole("button", { name: ru.lift }).click();
+  await confirmation(page).getByRole("button", { name: ru.liftConfirm, exact: true }).click();
+  await expect(panel(page)).toContainText(ru.afterLift);
+  await expect(lastEntry(page)).toContainText(workflowStrings.ru.action.suspension_lifted);
+  await expect(flagsOn(page, "Признаки и решения", "6 октября 2026")).toContainText("Основание: 161-ФЗ, ст. 9, ч. 11.6, предл. 2 (осторожное прочтение)");
+});
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: a suspension's lift, refused without reasons, its confirmation, and lifted (${lang}, ${theme})`, async ({ page }) => {
+      const words = workflowStrings[lang].database;
+      await openAs(page, RECEIVED_EARLIER, "supervisor", `lang=${lang}&theme=${theme}`);
+      await panel(page).getByRole("button", { name: words.lift }).click();
+      await expect(panel(page).getByRole("alert")).toBeVisible();
+      await expectNoSeriousViolations(page, "suspension lift refused", { lang, theme });
+      await panel(page).getByLabel(words.liftReasons).fill(WHY);
+      await panel(page).getByRole("button", { name: words.lift }).click();
+      await expect(confirmation(page)).toBeVisible();
+      await expectNoSeriousViolations(page, "suspension lift confirmation", { lang, theme });
+      await confirmation(page).getByRole("button", { name: words.liftConfirm, exact: true }).click();
+      await expect(confirmation(page)).toBeHidden();
+      await expect(panel(page).getByRole("button", { name: words.lift })).toHaveCount(0);
+      await expectNoSeriousViolations(page, "suspension lifted", { lang, theme });
+    });

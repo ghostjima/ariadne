@@ -197,6 +197,31 @@ describe("through the WebAssembly build", () => {
     expect(() => clock({ ...facts, database: { ...facts.database, informationReceivedOn: "2026-05-10" } })).toThrow("dates_out_of_order");
   });
 
+  it("lifts a suspension chosen under part 11.6 in favour of the transfer cap, and refuses the lift under part 11.7", () => {
+    // Suspended on Saturday 9 May 2026 and lifted on Wednesday 13 May: the
+    // suspension ends that day and the cap of part 11.6, sentence 2 starts
+    // (a conservative reading); ATM cash stays capped from the receipt.
+    const facts = {
+      stream: "antifraud",
+      receivedOn: "2026-05-12",
+      database: { informationReceivedOn: "2026-05-09", instrumentSuspendedOn: "2026-05-09", suspensionLiftedOn: "2026-05-13" },
+    } as const;
+    const c = clock(facts);
+    expect(c.refusals).toEqual([]);
+    expect(c.measures.map((m) => [m.kind, m.on, m.until, m.basis.part, m.basis.reading])).toEqual([
+      ["suspend_instrument", "2026-05-09", "2026-05-13", "11.6", "text"],
+      ["cap_transfers", "2026-05-13", null, "11.6, sentence 2", "conservative"],
+      ["cap_atm_cash", "2026-05-09", null, "16", "text"],
+    ]);
+    const police = clock({ ...facts, database: { ...facts.database, policeInformation: true } });
+    expect(police.refusals).toEqual(["suspension_lift_not_allowed"]);
+    expect(police.measures.map((m) => [m.kind, m.until, m.basis.part])).toEqual([
+      ["suspend_instrument", null, "11.7"],
+      ["cap_atm_cash", null, "16"],
+    ]);
+    expect(() => clock({ stream: "antifraud", receivedOn: "2026-05-12", database: { suspensionLiftedOn: "2026-05-13" } })).toThrow("missing_date");
+  });
+
   it("caps a fact request by the external terms that bind the answering unit", () => {
     // The crate's worked example: documents against a refused operation
     // submitted on 8 May 2026 are answered by 20 May; a fact request on

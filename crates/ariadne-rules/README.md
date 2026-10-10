@@ -97,6 +97,7 @@ item is the part.
 | Client's notice of the second step | at once: the reason, the term, a later repeat | 161-FZ art. 8 part 3.10, sentence 2 |
 | Card or online banking suspended for the client's own data in the database | notice with the reason the same day; notice of the right to apply for removal at once; restored at once after removal | 161-FZ art. 9 parts 9.2, 11.8, 11.11 (the suspension under parts 11.6, 11.7) |
 | Instead of the suspension under part 11.6, an individual's transfers to individuals capped | at most 100,000 roubles a month while the data are in the database, from the day the bank chose the cap until a later suspension or the removal of the data; where the bank suspended some days after it received the database information, the cap in between; refused with the Ministry of Internal Affairs' information, where the suspension is a duty; none for a legal entity | 161-FZ art. 9 part 11.6, sentence 2; part 11.7 |
+| A suspension chosen under part 11.6, lifted while the data are in the database | the suspension ends on the day of the lift and, for an individual, the transfer cap starts; refused with the Ministry of Internal Affairs' information, where the suspension is a duty for the whole period; no cap follows for a legal entity | 161-FZ art. 9 part 11.6 (a conservative reading of its second sentence); part 11.7 |
 | ATM cash for a client whose data are in the database | at most 100,000 roubles a month, a credit institution's duty with or without the suspension, for an individual and a legal entity alike, from the day the bank received the database information to the day the data leave the database; without the day of receipt, from the day the bank acted on the data, with a warning | Banking Law art. 30 part 16; the information is received as Directive No. 7282-U items 6.1 to 6.3 set |
 | Application to remove data, filed through the operator | forwarded with the operator's view by the next working day; with mandatory data missing, a refusal notice within 5 working days of receipt | Directive No. 6748-U items 1.4, 1.5 |
 | Bank of Russia on an application to remove data | 15 working days from its receipt by the Bank of Russia | 161-FZ art. 9 part 11.10; Directive No. 6748-U items 2.1, 2.3, 2.4 |
@@ -166,6 +167,21 @@ withdrawal that matches a sign (Banking Law art. 24.3-1; Bank of Russia
 Order No. OD-1765) is another measure, not tied to the database, and is
 not encoded.
 
+A suspension the bank chose under part 11.6 may be given as lifted
+(`suspensionLiftedOn`) while the data stay in the database. The text
+gives the bank a right to suspend, within its risk management and its
+contract with the client; it neither describes lifting a suspension nor
+obliges the bank to keep one it was free not to impose. The clock takes
+the lift as the bank's decision: the suspension ends that day
+(`until`), and for an individual the transfer cap starts
+(`cap_transfers`, marked conservative); a legal entity gets the warning
+`transfer_cap_for_individuals_only` and no cap. The ATM cash cap runs
+on. With the Ministry of Internal Affairs' information the suspension is
+a duty "на период нахождения указанных сведений в базе данных" (part
+11.7): the clock carries the refusal `suspension_lift_not_allowed` and
+the suspension stands. Once the data leave the database the card is
+restored under part 11.11, which is a duty and not a lift.
+
 #### Conservative readings
 
 Where the text leaves a point open, the engine takes the reading that
@@ -184,6 +200,11 @@ gives the earlier date or the wider duty, marks the basis
   registration of the repeated complaint.
 - The commission's request given without its term: the least the law
   allows, 3 working days, with the warning `commission_term_assumed`.
+- After a suspension chosen under 161-FZ art. 9 part 11.6 is lifted, the
+  transfer cap of the part's second sentence applies from the day of the
+  lift: the sentence speaks of a means of payment that "не было
+  приостановлено", and whether that covers a suspension since lifted the
+  text does not say; the cap is the wider restriction.
 - The operator's own application to remove the client's data is taken
   as received by the Bank of Russia on the day the operator sends it:
   the directive counts from receipt, which the operator does not learn,
@@ -294,7 +315,8 @@ on them:
   `transfer_cap_for_individuals_only`,
   `database_information_date_assumed`.
 - Refusals: `extension_not_allowed`, `extension_ground_not_allowed`,
-  `extension_too_long`, `transfer_cap_not_allowed`.
+  `extension_too_long`, `transfer_cap_not_allowed`,
+  `suspension_lift_not_allowed`.
 - Errors: `invalid_date`, `outside_calendar`, `dates_out_of_order`,
   `invalid_extension`, `invalid_amount`, `unknown_code`, `missing_date`.
 - Rubric: the findings above; client options `confirm_order`,
