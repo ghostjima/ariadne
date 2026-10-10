@@ -11,6 +11,7 @@ import {
   nextWorkingDay,
   od2506Signs,
   paymentGrounds,
+  replyProvisions,
   rubric,
   rulesLoaded,
   rulesVersion,
@@ -220,6 +221,41 @@ describe("through the WebAssembly build", () => {
       ["cap_atm_cash", null, "16"],
     ]);
     expect(() => clock({ stream: "antifraud", receivedOn: "2026-05-12", database: { suspensionLiftedOn: "2026-05-13" } })).toThrow("missing_date");
+  });
+
+  it("gives every option, deadline and restriction of a reply its own provision, and each finding the provision of what it misses", () => {
+    // The client's card suspended on Saturday 9 May 2026 for the client's
+    // own data, the Bank of Russia reviewing the client's application
+    // since 12 May: the option is 161-FZ art. 9 part 11.8, the decision's
+    // 15 working days part 11.10, the suspension part 11.6, the ATM cash
+    // cap the Banking Law art. 30 part 16.
+    const facts = {
+      stream: "antifraud",
+      receivedOn: "2026-05-12",
+      database: { informationReceivedOn: "2026-05-09", instrumentSuspendedOn: "2026-05-09", exclusionReceivedByBankOfRussiaOn: "2026-05-12" },
+    } as const;
+    const cite = (b: { source: string; article: string; part: string }) => [b.source, b.article, b.part];
+    const p = replyProvisions(facts, "2026-05-12");
+    expect(p.options.map((x) => [x.code, ...cite(x.basis)])).toEqual([["apply_for_removal", "payment_law_9", "9", "11.8"]]);
+    expect(p.deadlines.map((x) => [x.code, ...cite(x.basis)])).toEqual([["exclusion_decision", "payment_law_9", "9", "11.10"]]);
+    expect(p.measures.map((x) => [x.code, ...cite(x.basis)])).toEqual([
+      ["suspend_instrument", "payment_law_9", "9", "11.6"],
+      ["cap_atm_cash", "banking_law_30", "30", "16"],
+    ]);
+    expect(cite(p.content)).toEqual(["banking_law_30_1", "30.1", "9"]);
+    expect(cite(p.complaintToBankOfRussia!)).toEqual(["central_bank_law_79_3", "79.3", "1"]);
+    expect(replyProvisions({ ...facts, applicant: "legal_entity" }, "2026-05-12").complaintToBankOfRussia).toBeNull();
+    // An empty reply: every finding about one of them cites the same
+    // provision, and the letter stays the source of the duty to state it.
+    const found = rubric({ repliedOn: "2026-05-12", text: "" }, facts);
+    const own = (code: string, subject: string | null) => found.find((f) => f.code === code && f.subject === subject)?.provision;
+    expect(cite(own("client_option_missing", "apply_for_removal")!)).toEqual(["payment_law_9", "9", "11.8"]);
+    expect(cite(own("deadline_missing", "exclusion_decision")!)).toEqual(["payment_law_9", "9", "11.10"]);
+    expect(cite(own("measure_missing", "cap_atm_cash")!)).toEqual(["banking_law_30", "30", "16"]);
+    expect(cite(own("ground_missing", null)!)).toEqual(["banking_law_30_1", "30.1", "9"]);
+    expect(own("text_empty", null)).toBeNull();
+    expect(found.find((f) => f.code === "measure_missing")?.source).toBe("letter_in_03_59_11");
+    expect(() => replyProvisions(facts, "2026-5-12")).toThrow("invalid_date");
   });
 
   it("caps a fact request by the external terms that bind the answering unit", () => {

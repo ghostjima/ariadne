@@ -11,6 +11,7 @@ import {
   Path,
   Restriction,
   Stage,
+  Stream,
   caseFacts,
   deskNow,
   generateAll,
@@ -24,13 +25,20 @@ import { POOLS } from "../data/query";
 import { caseBrief } from "../case/brief";
 import { makeFmt } from "./format";
 import { LOCALES, strings, type Lang } from "./i18n";
-import { groundCitation, replyLines, replyText } from "./reply";
-import { checkReply } from "./rubric";
+import { NO_CITES, groundCitation, replyCites, replyLines } from "./reply";
+import { checkReply, findingText } from "./rubric";
 import type { Text } from "./text";
 
 const store = generateAll(20261006, 1_200, 400);
 const open = Array.from({ length: store.size }, (_, i) => i).filter((i) => store.stage[i]! < Stage.LegalReview);
 const text = (lang: Lang): Text => ({ t: strings[lang], f: makeFmt(LOCALES[lang]), labels: POOLS[lang].labels, lang });
+
+/** The reply of a row as the page writes it out: the draft's lines with
+ * the provisions ariadne-rules gives for the row's facts. */
+function linesOf(lang: Lang, row: number, draft: ReplyDraft = draftOf(row), from = store): string[] {
+  return replyLines(text(lang), draft, replyCites(text(lang), caseFacts(from, row), draft.repliedOn));
+}
+const textOf = (lang: Lang, row: number, draft: ReplyDraft = draftOf(row), from = store): string => linesOf(lang, row, draft, from).join("\n");
 
 function draftOf(row: number): ReplyDraft {
   const draft = generatePlan(7, caseBrief(store, row)).find((s) => s.type === "draft_reply")!.draft;
@@ -58,12 +66,12 @@ describe("the drafted reply after a suspension is lifted", () => {
     if (draft.kind !== "reply") throw new Error("not a reply");
     for (const lang of ["ru", "en"] as const) {
       const x = text(lang);
-      const lines = replyLines(x, draft);
+      const lines = linesOf(lang, row, draft, lifted);
       expect(lines).toContain(x.t.reply.measure.cap_transfers);
       expect(lines).toContain(x.t.reply.measure.cap_atm_cash);
       expect(lines).not.toContain(x.t.reply.measure.suspend_instrument);
       expect(lines).toContain(x.t.reply.option.apply_for_removal);
-      expect(checkReply(draft, replyText(x, draft), caseFacts(lifted, row)), lang).toEqual([]);
+      expect(checkReply(draft, textOf(lang, row, draft, lifted), caseFacts(lifted, row)), lang).toEqual([]);
     }
     // The sentence does not say the card was never suspended.
     expect(text("en").t.reply.measure.cap_transfers).toMatch(/^Your card and online banking are not suspended\./);
@@ -73,7 +81,7 @@ describe("the drafted reply after a suspension is lifted", () => {
     const stale = generatePlan(7, before).find((s) => s.type === "draft_reply")!.draft;
     if (stale.kind !== "reply") throw new Error("not a reply");
     expect(
-      checkReply(stale, replyText(text("en"), stale), caseFacts(lifted, row))
+      checkReply(stale, textOf("en", row, stale, lifted), caseFacts(lifted, row))
         .filter((f) => f.code.startsWith("measure_"))
         .map((f) => [f.code, f.subject]),
     ).toEqual([
@@ -105,14 +113,14 @@ describe("the drafted reply after a refusal to forward the client's application"
       expect(brief.clientOptions).toContain("apply_for_removal");
       const draft = generatePlan(7, brief).find((s) => s.type === "draft_reply")!.draft;
       if (draft.kind !== "reply") throw new Error("not a reply");
-      const en = replyLines(text("en"), draft);
-      const ru = replyLines(text("ru"), draft);
+      const en = linesOf("en", row, draft, refused);
+      const ru = linesOf("ru", row, draft, refused);
       expect(en).toContain(`The ground is 161-FZ, art. 9, part ${part}.`);
       expect(en).toContain("We did not forward your removal application to the Bank of Russia: mandatory data are missing (Bank of Russia Directive No. 6748-U, item 1.3).");
       expect(ru).toContain("Мы не передали ваше заявление об исключении сведений в Банк России: в нём нет обязательных сведений (Указание Банка России № 6748-У, п. 1.3).");
       // Not a bare citation as well.
       expect(en.filter((line) => line.includes("6748-U"))).toHaveLength(1);
-      for (const lang of ["ru", "en"] as const) expect(checkReply(draft, replyText(text(lang), draft), caseFacts(refused, row)), `${lang} ${part}`).toEqual([]);
+      for (const lang of ["ru", "en"] as const) expect(checkReply(draft, textOf(lang, row, draft, refused), caseFacts(refused, row)), `${lang} ${part}`).toEqual([]);
     }
     expect(groundCitation(text("en"), "directive_6748_u_1_3")).toBe("Bank of Russia Directive No. 6748-U, item 1.3");
     expect(groundCitation(text("ru"), "directive_6748_u_1_3")).toBe("Указание Банка России № 6748-У, п. 1.3");
@@ -125,15 +133,15 @@ describe("the drafted reply", () => {
     for (const lang of ["ru", "en"] as const)
       for (const row of open) {
         const draft = draftOf(row);
-        const findings = checkReply(draft, replyText(text(lang), draft), caseFacts(store, row));
-        expect(findings, `${lang} row ${row}: ${replyText(text(lang), draft)}`).toEqual([]);
+        const findings = checkReply(draft, textOf(lang, row, draft), caseFacts(store, row));
+        expect(findings, `${lang} row ${row}: ${textOf(lang, row, draft)}`).toEqual([]);
       }
   });
 
   it("the rubric does flag a reply that drops what the draft carries", () => {
     const row = open.find((i) => draftOf(i).clientOptions.length > 0)!;
     const draft = { ...draftOf(row), clientOptions: [], grounds: [] };
-    const codes = checkReply(draft, replyText(text("en"), draft), caseFacts(store, row)).map((f) => f.code);
+    const codes = checkReply(draft, textOf("en", row, draft), caseFacts(store, row)).map((f) => f.code);
     expect(codes).toContain("ground_missing");
     expect(codes).toContain("client_option_missing");
   });
@@ -143,11 +151,22 @@ describe("the drafted reply", () => {
     expect(removal.length).toBeGreaterThan(0);
     for (const row of removal) {
       const part = store.database[row] === Database.ClientDataWithPoliceInformation ? "11.7" : "11.6";
-      expect(replyLines(text("en"), draftOf(row)), `row ${row}`).toContain(`The ground is 161-FZ, art. 9, part ${part}.`);
-      expect(replyLines(text("ru"), draftOf(row)), `row ${row}`).toContain(`Основание: 161-ФЗ, ст. 9, ч. ${part}.`);
+      // Said once, under the restriction it grounds: the suspension's
+      // part, or for the cap the part's second sentence.
+      const capped = store.restriction[row] === Restriction.TransfersCapped;
+      const en = `The ground is 161-FZ, art. 9, part ${part}${capped ? ", sentence 2" : ""}.`;
+      const ru = `Основание: 161-ФЗ, ст. 9, ч. ${part}${capped ? ", предл. 2" : ""}.`;
+      expect(linesOf("en", row).filter((line) => line.startsWith("The ground is 161-FZ, art. 9")), `row ${row}`).toEqual([en]);
+      expect(linesOf("ru", row).filter((line) => line.startsWith("Основание: 161-ФЗ, ст. 9")), `row ${row}`).toEqual([ru]);
+      // The option and the Bank of Russia's term cite their own parts.
+      expect(linesOf("en", row), `row ${row}`).toContain("Provision: 161-FZ, art. 9, part 11.8.");
+      if (store.pathThen[row]! >= 0) expect(linesOf("ru", row), `row ${row}`).toContain("Норма: 161-ФЗ, ст. 9, ч. 11.10.");
+      expect(linesOf("en", row).indexOf(en), `row ${row}`).toBe(linesOf("en", row).indexOf(text("en").t.reply.measure[capped ? "cap_transfers" : "suspend_instrument"]) + 1);
     }
     for (const part of ["11.6", "11.7"])
-      expect(removal.some((row) => replyLines(text("en"), draftOf(row)).includes(`The ground is 161-FZ, art. 9, part ${part}.`)), part).toBe(true);
+      expect(removal.some((row) => linesOf("en", row).some((line) => line.startsWith(`The ground is 161-FZ, art. 9, part ${part}`))), part).toBe(true);
+    // Without the case's provisions the ground is still named, on its own.
+    expect(replyLines(text("en"), draftOf(removal[0]!), NO_CITES).filter((line) => line.startsWith("The ground is"))).toHaveLength(1);
     expect(groundCitation(text("en"), "payment_9_11_7")).toBe("161-FZ, art. 9, part 11.7");
     expect(groundCitation(text("ru"), "payment_9_11_7")).toBe("161-ФЗ, ст. 9, ч. 11.7");
   });
@@ -156,10 +175,10 @@ describe("the drafted reply", () => {
     const clientData = open.filter((i) => store.database[i] !== Database.None);
     expect(clientData.length).toBeGreaterThan(0);
     for (const row of clientData) {
-      expect(replyLines(text("en"), draftOf(row)), `row ${row}`).toContain(
+      expect(linesOf("en", row), `row ${row}`).toContain(
         "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
       );
-      expect(replyLines(text("ru"), draftOf(row)), `row ${row}`).toContain(
+      expect(linesOf("ru", row), `row ${row}`).toContain(
         "Вы можете подать заявление об исключении сведений о вас из базы данных Банка России через наш банк или интернет-приёмную cbr.ru/contactBR/161-FZ.",
       );
     }
@@ -168,7 +187,7 @@ describe("the drafted reply", () => {
     // the letter every option cites.
     const row = clientData[0]!;
     const draft = { ...draftOf(row), clientOptions: draftOf(row).clientOptions.filter((o) => o !== "apply_for_removal") };
-    const missing = checkReply(draft, replyText(text("en"), draft), caseFacts(store, row)).filter((f) => f.code === "client_option_missing");
+    const missing = checkReply(draft, textOf("en", row, draft), caseFacts(store, row)).filter((f) => f.code === "client_option_missing");
     expect(missing.map((f) => [f.subject, f.source])).toEqual([["apply_for_removal", "payment_law_9"]]);
     expect(missing[0]!.reference).toMatch(/^art\. 9 part 11\.8/);
   });
@@ -181,7 +200,7 @@ describe("the drafted reply", () => {
     const en = text("en").t.reply.measure;
     const ru = text("ru").t.reply.measure;
     for (const row of clientData) {
-      const lines = { en: replyLines(text("en"), draftOf(row)), ru: replyLines(text("ru"), draftOf(row)) };
+      const lines = { en: linesOf("en", row), ru: linesOf("ru", row) };
       const cap = store.restriction[row] === Restriction.TransfersCapped;
       expect(lines.en.includes(en.cap_transfers), `row ${row}`).toBe(cap);
       expect(lines.en.includes(en.suspend_instrument), `row ${row}`).toBe(!cap);
@@ -189,27 +208,109 @@ describe("the drafted reply", () => {
       expect(lines.ru.includes(ru.suspend_instrument), `row ${row}`).toBe(!cap);
       expect(lines.en, `row ${row}`).toContain(en.cap_atm_cash);
       expect(lines.ru, `row ${row}`).toContain(ru.cap_atm_cash);
-      if (cap) expect(lines.en, `row ${row}`).toContain("The ground is 161-FZ, art. 9, part 11.6.");
+      if (cap) expect(lines.en, `row ${row}`).toContain("The ground is 161-FZ, art. 9, part 11.6, sentence 2.");
     }
     expect(en.cap_transfers).toBe(
       "Your card and online banking are not suspended. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
     );
-    expect(ru.cap_atm_cash).toBe("На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.");
+    // The ATM cash cap cites its own provision in the line after it, as
+    // the rules give it for the case.
+    expect(ru.cap_atm_cash).toBe("На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц.");
+    const atm = linesOf("ru", clientData[0]!);
+    expect(atm[atm.indexOf(ru.cap_atm_cash) + 1]).toBe("Основание: Закон о банках № 395-1, ст. 30, ч. 16.");
     // A letter that says the card is suspended where the transfers are
     // capped is flagged, on the Bank of Russia's letter No. IN-03-59/11.
     const row = capped[0]!;
     const draft = { ...draftOf(row), measures: ["suspend_instrument" as const, "cap_atm_cash" as const] };
-    const found = checkReply(draft, replyText(text("en"), draft), caseFacts(store, row)).filter((f) => f.code.startsWith("measure_"));
+    const found = checkReply(draft, textOf("en", row, draft), caseFacts(store, row)).filter((f) => f.code.startsWith("measure_"));
     expect(found.map((f) => [f.code, f.subject, f.source])).toEqual([
       ["measure_not_taken", "suspend_instrument", "letter_in_03_59_11"],
       ["measure_missing", "cap_transfers", "letter_in_03_59_11"],
     ]);
   });
 
+  it("cites after each option, deadline and restriction the provision the rules give for the case, and none it does not have", () => {
+    const no = (lines: string[]) => lines.map((l) => l.replace(/[\u00a0\u202f]/g, " "));
+    // The bank chose the transfer cap; the client applied through the
+    // bank, and the Bank of Russia decides by 20 October.
+    const capped = open.find((i) => store.restriction[i] === Restriction.TransfersCapped && store.path[i] === Path.DatabaseRemoval)!;
+    expect(no(linesOf("en", capped)).slice(3)).toEqual([
+      "Your card and online banking are not suspended. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
+      "The ground is 161-FZ, art. 9, part 11.6, sentence 2.",
+      "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there.",
+      "The ground is Banking Law No. 395-1, art. 30, part 16.",
+      "You can apply to remove your data from the Bank of Russia's database through us or its internet reception at cbr.ru/contactBR/161-FZ.",
+      "Provision: 161-FZ, art. 9, part 11.8.",
+      "The decision on your exclusion request is due by Oct 20, 2026.",
+      "Provision: 161-FZ, art. 9, part 11.10.",
+      "If you have questions, reply to this letter or call us.",
+      "You can also apply to the Bank of Russia.",
+      "Provision: Central Bank Law No. 86-FZ, art. 79.3, part 1.",
+    ]);
+    // A refused operation under 115-FZ: the documents, then the
+    // commission, each on its own paragraph; the complaint is a company's,
+    // and 86-FZ art. 79.3 speaks of an individual's complaint only, so the
+    // last line cites nothing.
+    const refused = open.find((i) => store.stream[i] === Stream.Aml && store.reason[i] === 1 && store.applicant[i] === Applicant.LegalEntity)!;
+    const ru = linesOf("ru", refused);
+    expect(ru[ru.indexOf(text("ru").t.reply.option.submit_documents) + 1]).toBe("Норма: 115-ФЗ, ст. 7, п. 13.4, абз. 1.");
+    expect(ru[ru.indexOf(text("ru").t.reply.option.apply_to_commission) + 1]).toBe("Норма: 115-ФЗ, ст. 7, п. 13.5, абз. 1.");
+    expect(ru.at(-1)).toBe(text("ru").t.reply.next.apply_to_bank_of_russia);
+    // The measures for a high-risk client: the commission is art. 7.8's,
+    // with no documents before it, and the sentence says so.
+    const highRisk = open.find((i) => store.stream[i] === Stream.Aml && store.reason[i] === 7)!;
+    const en = linesOf("en", highRisk);
+    const at = en.indexOf(text("en").t.reply.commissionOnMeasures);
+    expect(at).toBeGreaterThan(0);
+    expect(en[at + 1]).toBe("Provision: 115-FZ, art. 7.8, item 1.");
+    expect(en).not.toContain(text("en").t.reply.option.apply_to_commission);
+    expect(no(en)).toContain("Provision: 115-FZ, art. 7.8, item 1, paragraph 2.");
+    // A money claim: the ombudsman, 123-FZ art. 16 part 4.
+    const claim = open.find((i) => draftOf(i).clientOptions.includes("apply_to_ombudsman"))!;
+    const lines = linesOf("ru", claim);
+    expect(lines[lines.indexOf(text("ru").t.reply.option.apply_to_ombudsman) + 1]).toBe("Норма: 123-ФЗ, ст. 16, ч. 4.");
+    // A suspended transfer: the confirmation, art. 8 part 3.6 item 3.
+    const transfer = open.find((i) => draftOf(i).clientOptions.includes("confirm_order"))!;
+    const confirm = linesOf("en", transfer);
+    expect(confirm[confirm.indexOf(text("en").t.reply.option.confirm_order) + 1]).toBe("Provision: 161-FZ, art. 8, part 3.6, item 3.");
+    // Every option, deadline and restriction of every open case's draft
+    // has its provision from the rules, in both languages.
+    for (const row of open) {
+      const draft = draftOf(row);
+      for (const lang of ["ru", "en"] as const) {
+        const cites = replyCites(text(lang), caseFacts(store, row), draft.repliedOn);
+        for (const option of draft.clientOptions) expect(cites.option[option], `${lang} row ${row} ${option}`).toBeTruthy();
+        for (const d of draft.deadlines) expect(cites.deadline[d.kind], `${lang} row ${row} ${d.kind}`).toBeTruthy();
+        for (const measure of draft.measures) expect(cites.measure[measure], `${lang} row ${row} ${measure}`).toBeTruthy();
+        expect(Boolean(cites.next.apply_to_bank_of_russia), `${lang} row ${row}`).toBe(store.applicant[row] === Applicant.Individual);
+      }
+    }
+  });
+
+  it("a finding names the provision of what is missing, beside the source of the duty to state it", () => {
+    // The capped case's draft without its option, its deadline and the
+    // ATM cash cap.
+    const row = open.find((i) => store.restriction[i] === Restriction.TransfersCapped && store.path[i] === Path.DatabaseRemoval)!;
+    const draft = { ...draftOf(row), clientOptions: [], deadlines: [], measures: ["cap_transfers" as const] };
+    const found = checkReply(draft, textOf("en", row, draft), caseFacts(store, row));
+    const said = (lang: Lang) => found.map((f) => findingText(text(lang), f));
+    expect(said("en")).toEqual([
+      "An option the law gives the client is not offered: applying to the Bank of Russia to remove the client's data from its database. Its provision: 161-FZ, art. 9, part 11.8.",
+      "A running deadline is not stated: the decision on the exclusion request. Its provision: 161-FZ, art. 9, part 11.10.",
+      "A restriction that applies is not stated: the cap on cash at ATMs. Its provision: Banking Law No. 395-1, art. 30, part 16.",
+    ]);
+    expect(said("ru").every((line) => / Норма: /.test(line))).toBe(true);
+    expect(said("ru")[0]).toMatch(/Норма: 161-ФЗ, ст\. 9, ч\. 11\.8\.$/);
+    expect(found.map((f) => f.source)).toEqual(["payment_law_9", "cbr_reply_page", "letter_in_03_59_11"]);
+    // A finding about the text has no provision of its own.
+    const long = checkReply(draftOf(row), `${"word ".repeat(30)}.`, caseFacts(store, row)).find((f) => f.code === "sentence_too_long")!;
+    expect(findingText(text("en"), long)).not.toContain("Its provision");
+  });
+
   it("states the decision only as the register holds it: a pending one is left to the reviewer", () => {
     const pending = open.find((i) => draftOf(i).outcome === "pending")!;
-    expect(replyLines(text("en"), draftOf(pending))).toContain("[The decision on the complaint: for the reviewer to state.]");
-    expect(replyLines(text("ru"), draftOf(pending))).toContain("[Решение по жалобе: указывает проверяющий.]");
+    expect(linesOf("en", pending)).toContain("[The decision on the complaint: for the reviewer to state.]");
+    expect(linesOf("ru", pending)).toContain("[Решение по жалобе: указывает проверяющий.]");
   });
 
   it("states the deadlines still running on the day it is dated, for the open cases of the corpus that have them", () => {
@@ -224,7 +325,7 @@ describe("the drafted reply", () => {
       const x = text("en");
       for (const d of draft.deadlines) {
         expect(d.due >= draft.repliedOn, `row ${row}`).toBe(true);
-        expect(replyLines(x, draft), `row ${row}`).toContain(x.t.reply.deadline[d.kind](x.f.date(d.due)));
+        expect(linesOf("en", row, draft), `row ${row}`).toContain(x.t.reply.deadline[d.kind](x.f.date(d.due)));
       }
     }
   });

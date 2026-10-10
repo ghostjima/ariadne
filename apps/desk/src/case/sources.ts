@@ -13,6 +13,7 @@ const NAMES: Record<string, Record<Lang, string>> = {
   decree_1187_2026: { ru: "Постановление Правительства № 1187", en: "Government Decree No. 1187" },
   banking_law_30_1: { ru: "Закон о банках № 395-1", en: "Banking Law No. 395-1" },
   banking_law_30: { ru: "Закон о банках № 395-1", en: "Banking Law No. 395-1" },
+  central_bank_law_79_3: { ru: "Закон о Банке России № 86-ФЗ", en: "Central Bank Law No. 86-FZ" },
   microfinance_law_9_1: { ru: "151-ФЗ", en: "151-FZ" },
   insurance_law_6_2: { ru: "Закон № 4015-1", en: "Law No. 4015-1" },
   securities_law_15_11: { ru: "39-ФЗ", en: "39-FZ" },

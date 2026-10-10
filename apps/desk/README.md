@@ -256,14 +256,32 @@ decisions. The panel says so. For the open case it proposes five steps:
    options and the deadlines the law gives the client (for such a case,
    the right to apply to the Bank of Russia to remove the data, through
    the bank or its internet reception, under part 11.8), and the next
-   steps. The decision on the complaint is the register's; when nobody
+   steps. Each restriction, option and deadline is followed by a line
+   with its own provision, as the rules engine gives it for the case: the
+   confirmation of a suspended order (161-FZ art. 8 part 3.6 item 3), the
+   documents and the commission after a 115-FZ refusal (art. 7 items 13.4
+   and 13.5) or the commission against high-risk measures (art. 7.8 item
+   1, with a sentence of its own, since no documents come first), the
+   ombudsman (123-FZ art. 16 part 4), the transfer cap (161-FZ art. 9
+   part 11.6, sentence 2), the ATM cash cap (Banking Law art. 30 part
+   16), the Bank of Russia's decision on an application (161-FZ art. 9
+   part 11.10). An individual's reply cites 86-FZ art. 79.3 after the
+   line on applying to the Bank of Russia; a company's cites nothing
+   there, that article being about an individual's complaint. The ground
+   of a suspended card is said once, under the suspension, and it is the
+   part the draft names: the rules', unless a person named the other in
+   the register. The decision on the complaint is the register's; when nobody
    has decided, the draft leaves it for the reviewer. Drafting is high
    risk: it always waits for a person, who reads the letter before it is
    written.
 4. **Check the draft** with the rules engine's rubric: grounds named and
    not mixed between 161-FZ and 115-FZ, every option and running deadline
-   stated (a missing right to apply for removal cites 161-FZ art. 9 part
-   11.8 itself), sentences short. The findings are shown, never applied.
+   stated, sentences short. A finding about an option, a deadline, a
+   restriction or a missing ground names the provision of the thing
+   itself after it ("Its provision: 161-FZ, art. 9, part 11.8."), and
+   under it the source of the duty to state it, which stays the Bank of
+   Russia's letter or page (for the right to apply for removal, the
+   statute). The findings are shown, never applied.
 5. **Hand it to legal review.** The assistant never sends a reply; a
    signatory does, after the review.
 
