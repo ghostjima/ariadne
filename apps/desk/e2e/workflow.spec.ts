@@ -6,7 +6,7 @@
 // left. Keyboard first; the focus never falls to the page's body.
 import { expect, test, type Page } from "@playwright/test";
 import { workflowStrings } from "../src/workflow/i18n";
-import { agentUrl, dialog, en, expectPlanState, ready, runSteps } from "./agent-helpers";
+import { agentUrl, confirmation, dialog, en, expectPlanState, openConfirmation, ready, runSteps } from "./agent-helpers";
 import { expectNoSeriousViolations } from "./helpers";
 
 const w = workflowStrings.en;
@@ -134,11 +134,20 @@ test("a handover the person confirmed in the run goes on the case at once", asyn
   await ready(page);
   await page.getByRole("radio", { name: en.autonomy.ask_all }).click();
   await page.getByRole("button", { name: en.plan.run }).click();
-  for (const label of [en.confirm.confirm.change, en.confirm.confirm.request, en.confirm.confirm.reply, en.confirm.confirm.change, en.confirm.confirm.change]) {
-    const alert = await dialog(page);
+  const confirms = [en.confirm.confirm.change, en.confirm.confirm.request, en.confirm.confirm.reply, en.confirm.confirm.change, en.confirm.confirm.change];
+  for (const [k, label] of confirms.entries()) {
+    // Each step's confirmation by its own label, and named for its step.
+    const alert = await openConfirmation(page);
+    await expect(alert.getByRole("heading")).toContainText(`Step ${k + 1}:`);
     await alert.getByRole("button", { name: label }).click();
+    // The next step asks within tens of milliseconds. Once its
+    // confirmation is the one open, this step's has closed: asked of this
+    // dialog, not of "no confirmation is visible", which at that moment
+    // is false and stays false until the next decision.
+    if (k + 1 < confirms.length) await expect(confirmation(page).getByRole("heading")).toContainText(`Step ${k + 2}:`);
     await expect(alert).toBeHidden();
   }
+  await expect(confirmation(page)).toHaveCount(0);
   await expectPlanState(page, "finished");
   await expect(page.locator(".stoa-detail-header__status")).toContainText("Legal review");
   await expect(runSteps(page).nth(4)).toContainText("On the case: “Legal review”");
