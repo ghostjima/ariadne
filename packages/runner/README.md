@@ -128,7 +128,10 @@ A test compares every plan, scenario, segment and stop of seeds 1 to 40
 over the five cases of the test set, and the handler's stream of a
 complete run, with the bytes the engine gave before the proposer
 existed: they are identical, with and without the scripted proposer
-handed in.
+handed in. Those bytes were taken in protocol version 5; the run is
+asked in the current version, and the one number that differs, the
+version `plan.started` repeats, is written as the fixtures' before the
+comparison.
 
 ## Event model
 
