@@ -12,6 +12,7 @@
     --repeats 3                          runs of each item; default 3
     --stops 5                            timed stops per agent; default 5
     --ctx 8192                           the context window, in tokens
+    --timeout 300                        the longest one call may take, in seconds
     --transcripts adversarial            keep whole transcripts of the first
                                          repeat of these sets; default none
     --resume                             go on from the files already there
@@ -67,6 +68,7 @@ await runBench({
   stopTrials: Number(args.get("stops") ?? 5),
   contextTokens,
   modelSeed: 7,
+  callTimeoutMs: Number(args.get("timeout") ?? 300) * 1000,
   outDir,
   stamp: benchStamp(),
   digests,

@@ -41,6 +41,9 @@ export type BenchConfig = {
   contextTokens: number;
   /* The seed every model call runs with */
   modelSeed: number;
+  /* The longest one call to a model may take before it counts as a model
+     that could not answer, in ms */
+  callTimeoutMs: number;
   outDir: string;
   stamp: BenchStamp;
   /* The recorded digest of each model tag, to compare with */
@@ -71,7 +74,7 @@ export type AgentHeader = {
   /* Thinking as the calls ran: what was asked, where the model has the
      switch; null otherwise */
   think: boolean | null;
-  options: { temperature: 0; seed: number; contextTokens: number };
+  options: { temperature: 0; seed: number; contextTokens: number; callTimeoutMs: number };
   /* The call that loaded the model, not measured as a run */
   warmUp: { ms: number; loadMs: number | null; loaded: { name: string; sizeMb: number; vramMb: number }[] | null } | null;
 };
@@ -136,7 +139,7 @@ export async function runOnce(
   agent: AgentSpec,
   item: InboxItem,
   repeat: number,
-  config: Pick<BenchConfig, "clientFor" | "contextTokens" | "modelSeed" | "stamp" | "now">,
+  config: Pick<BenchConfig, "clientFor" | "contextTokens" | "modelSeed" | "callTimeoutMs" | "stamp" | "now">,
   model: ModelStamp | null,
   signal?: AbortSignal,
   onProposal?: (task: ProposalTask, phase: "asked" | "answered") => void,
@@ -163,6 +166,7 @@ export async function runOnce(
       ...(model ? { model } : {}),
       think,
       seed: config.modelSeed,
+      timeoutMs: config.callTimeoutMs,
       stamp: {
         commit: config.stamp.dirty ? `${config.stamp.commit}+changes` : config.stamp.commit,
         build: config.stamp.build,
@@ -295,7 +299,7 @@ export async function runBench(config: BenchConfig): Promise<void> {
         model,
         digestAsRecorded: model?.digest && config.digests[model.model] ? model.digest === config.digests[model.model] : null,
         think: agent.kind === "model" && model?.thinking ? agent.think : null,
-        options: { temperature: 0, seed: config.modelSeed, contextTokens: config.contextTokens },
+        options: { temperature: 0, seed: config.modelSeed, contextTokens: config.contextTokens, callTimeoutMs: config.callTimeoutMs },
         warmUp,
       };
       writeFileSync(path, `${JSON.stringify(header)}\n`);

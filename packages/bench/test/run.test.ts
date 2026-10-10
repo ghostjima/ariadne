@@ -95,6 +95,7 @@ function config(over: Partial<BenchConfig> = {}): BenchConfig {
     stopTrials: 0,
     contextTokens: 8192,
     modelSeed: 7,
+    callTimeoutMs: 60_000,
     outDir: mkdtempSync(join(tmpdir(), "ariadne-bench-")),
     stamp: STAMP,
     digests: { "fake:reader": DIGEST },
@@ -143,7 +144,7 @@ describe("runBench", () => {
       expect(lines.map((l) => l.type), agent.id).toEqual(["header", ...Array.from({ length: 8 }, () => "run"), "footer"]);
       const header = lines[0] as AgentHeader;
       expect(header.stamp).toEqual(STAMP);
-      expect(header.options).toEqual({ temperature: 0, seed: 7, contextTokens: 8192 });
+      expect(header.options).toEqual({ temperature: 0, seed: 7, contextTokens: 8192, callTimeoutMs: 60_000 });
       expect(header.agent).toEqual(agent);
       const runs = runsOf(lines);
       /* Repeat by repeat over the items, so an item's repeats are apart */

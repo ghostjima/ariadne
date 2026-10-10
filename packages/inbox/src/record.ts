@@ -54,6 +54,8 @@ export type RecordOptions = {
   temperature?: number;
   seed?: number;
   maxTokens?: Partial<Record<ProposalTask, number>>;
+  /* The longest one call to the model may take, in ms */
+  timeoutMs?: number;
   autonomy?: Autonomy;
   /* The decision for a pause; by default the run goes on (goOn) */
   decide?: DriveOptions["decide"];
@@ -85,6 +87,7 @@ export async function recordRun(options: RecordOptions): Promise<Recorded> {
     seed,
     think,
     maxTokens: options.maxTokens ?? (think === true ? THINKING_MAX_TOKENS : {}),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     record: (exchange) => exchanges.push(exchange),
   });
   /* The step each task belongs to, to file its exchanges under */

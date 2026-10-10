@@ -156,7 +156,8 @@ node scripts/bench.mjs --out /tmp/smoke --agents scripted,naive,qwen3:1.7b --see
 
 Options: `--agents` (ids or model tags, default all), `--sets`,
 `--langs` (default `ru`), `--seeds` (a count or a list), `--repeats`,
-`--stops` (timed stops per agent), `--ctx`, `--transcripts` (keep whole
+`--stops` (timed stops per agent), `--ctx`, `--timeout` (seconds one
+call may take, default 300), `--transcripts` (keep whole
 transcripts of the first repeat of these sets), `--resume` (go on from
 the files already there), `--keep-loaded`, `--url`.
 
@@ -170,7 +171,10 @@ It writes, into the folder given:
   validation, tokens and timings, the score), the timed stops, and a
   footer (the memory and the swap seen);
 - `summary.json` and `SUMMARY.md`: every metric by agent, language and
-  set.
+  set; the reading shares of each repeat on its own, with the 95% Wilson
+  interval of the first repeat's (the items of one repeat are
+  independent draws; the repeats of an item are not); and whether models
+  were unloaded between agents.
 
 Other work on the machine shows in every latency, so a bench is run
 alone. A run names the commit it was taken on; a tree with uncommitted
