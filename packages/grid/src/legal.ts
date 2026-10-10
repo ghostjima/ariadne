@@ -203,6 +203,22 @@ export function suspensionLiftedOn(store: ColumnStore, row: number): number {
   return journalDay(store, row, "suspension_lifted");
 }
 
+/* The day the client's application to remove the data reached the bank,
+   filed through it (Directive No. 6748-U item 1.2): the register's, for
+   a case that came with one (Path.DatabaseRemoval), or the day it was
+   recorded in the page (database.ts); -1 when there is none */
+export function applicationReceivedOn(store: ColumnStore, row: number): number {
+  if (store.path[row] === Path.DatabaseRemoval && (store.pathOn[row] ?? -1) >= 0) return store.pathOn[row] ?? -1;
+  return journalDay(store, row, "application_received");
+}
+
+/* The Moscow day the bank refused to forward that application to the
+   Bank of Russia, mandatory data missing (item 1.3), from the case's
+   journal (database.ts), or -1 */
+export function forwardingRefusedOn(store: ColumnStore, row: number): number {
+  return journalDay(store, row, "forwarding_refused");
+}
+
 /* The Moscow day of the first entry of an action made in the page, or -1 */
 function journalDay(store: ColumnStore, row: number, action: string): number {
   const entry = (store.journal.get(row) ?? []).find((e) => e.action === action);
@@ -264,14 +280,20 @@ export function caseFacts(store: ColumnStore, i: number): CaseFacts {
       ...(lifted >= 0 ? { suspensionLiftedOn: isoDay(lifted) } : {}),
       policeInformation: database === Database.ClientDataWithPoliceInformation,
     };
-    if (path === Path.DatabaseRemoval && pathOn >= 0) {
-      facts.database.exclusionReceivedByOperatorOn = isoDay(pathOn);
-      if (pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);
+    /* The client's application through the bank: the register's, or one
+       recorded in the page; refused in the page for missing mandatory
+       data, it is not forwarded, and the notice of the refusal is due
+       instead (Directive No. 6748-U items 1.3, 1.4) */
+    const applied = applicationReceivedOn(store, i);
+    if (applied >= 0) {
+      facts.database.exclusionReceivedByOperatorOn = isoDay(applied);
+      if (forwardingRefusedOn(store, i) >= 0) facts.database.exclusionDataMissing = true;
+      else if (path === Path.DatabaseRemoval && pathThen >= 0) facts.database.exclusionReceivedByBankOfRussiaOn = isoDay(pathThen);
     }
     /* The bank's own application to remove the data, from the case's
        journal (database.ts) */
-    const applied = removalAppliedOn(store, i);
-    if (applied >= 0) facts.database.operatorApplicationSentOn = isoDay(applied);
+    const own = removalAppliedOn(store, i);
+    if (own >= 0) facts.database.operatorApplicationSentOn = isoDay(own);
     /* The Bank of Russia's request about the client's application filed
        with it directly, from the journal (database.ts): the bank answers
        in 3 working days */

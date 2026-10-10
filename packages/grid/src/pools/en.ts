@@ -394,6 +394,7 @@ export const labels: Labels = {
     "Contract",
     "161-FZ, art. 9, part 11.6",
     "161-FZ, art. 9, part 11.7",
+    "Bank of Russia Directive No. 6748-U, item 1.3",
   ],
   database: ["None", "The client's data", "The client's data and the police information"],
   restriction: ["None", "Card and online banking suspended", "Transfers to individuals up to RUB 100,000 a month"],
