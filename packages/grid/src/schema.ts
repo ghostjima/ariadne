@@ -269,7 +269,10 @@ export const DATABASE_COUNT = 3;
    which has no cap under that part. ATM cash is capped either way
    (Banking Law art. 30 part 16), from the day the bank received the
    database information, which the register stores (`recordOn`);
-   ariadne-rules adds that measure, the register does not store it. */
+   ariadne-rules adds that measure, the register does not store it. A
+   suspension the bank chose under part 11.6 and lifted in the page
+   (database.ts) leaves an individual with the cap and a legal entity
+   with no restriction of its transfers. */
 export const Restriction = {
   None: 0,
   /* The card or online banking suspended (part 11.6, or 11.7) */

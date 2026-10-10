@@ -4,19 +4,25 @@ import { generateAll } from "../src/generator.js";
 import { isoDay } from "../src/days.js";
 import { caseFacts, queryAnsweredOn, queryReceivedOn, removalAppliedOn } from "../src/legal.js";
 import { selfActor } from "../src/history.js";
-import { CORPUS_CHUNK, CORPUS_ROWS, DEFAULT_SEED, Database, Path, Stream } from "../src/schema.js";
+import { Applicant, CORPUS_CHUNK, CORPUS_ROWS, DEFAULT_SEED, Database, Path, Restriction, Stream } from "../src/schema.js";
 import { AS_OF_DAY } from "../src/store.js";
 import { caseJournal, deskNow } from "../src/workflow.js";
 import {
   ANSWER_REASON_MIN,
+  LIFT_REASON_MAX,
+  LIFT_REASON_MIN,
   REMOVAL_REASON_MAX,
   REMOVAL_REASON_MIN,
   answerQuery,
   applyForRemoval,
+  checkLift,
   checkQueryAnswer,
   checkQueryIntake,
   checkRemoval,
   isClientDataCase,
+  liftAllowed,
+  liftSuspension,
+  liftedOn,
   queryAnswerOf,
   recordQuery,
 } from "../src/database.js";
@@ -130,3 +136,71 @@ describe("the Bank of Russia's request on an application the client filed with i
   });
 });
 
+
+describe("lifting a suspension the bank chose under 161-FZ art. 9 part 11.6", () => {
+  const WHY = "The client explained the transfer; antifraud agreed to the cap instead.";
+  const suspended = (s: ReturnType<typeof fresh>, applicant: number) =>
+    rows(s, (i) => s.database[i] === Database.ClientData && s.restriction[i] === Restriction.InstrumentSuspended && s.applicant[i] === applicant)[0]!;
+
+  it("ends the suspension that day, starts an individual's transfer cap on a conservative reading, keeps the ATM cash cap, and is journaled with the bank's reasons", () => {
+    const store = fresh();
+    const row = suspended(store, Applicant.Individual);
+    expect(liftedOn(store, row)).toBe(-1);
+    expect(liftAllowed(store, row)).toBe(true);
+    const stage = store.stage[row];
+    const before = clock(caseFacts(store, row));
+    expect(before.measures.find((m) => m.kind === "suspend_instrument")).toMatchObject({ until: null });
+    expect(liftSuspension(store, row, { role: "reviewer", actor: selfActor("reviewer"), at: NOW, reason: ` ${WHY} ` })).toBeNull();
+    expect(store.stage[row]).toBe(stage);
+    expect(caseJournal(store, row).at(-1)).toMatchObject({ action: "suspension_lifted", from: stage, to: stage, comment: WHY, actor: { kind: "person", role: "reviewer" } });
+    expect(liftedOn(store, row)).toBe(AS_OF_DAY);
+    // The register shows the cap from now on; the facts keep the history.
+    expect(store.restriction[row]).toBe(Restriction.TransfersCapped);
+    const facts = caseFacts(store, row);
+    expect(facts.database).toMatchObject({ instrumentSuspendedOn: isoDay(store.opOn[row]!), suspensionLiftedOn: isoDay(AS_OF_DAY) });
+    expect(facts.database?.transfersCappedOn).toBeUndefined();
+    const c = clock(facts);
+    expect(c.refusals).toEqual([]);
+    const today = isoDay(AS_OF_DAY);
+    expect(c.measures.find((m) => m.kind === "suspend_instrument")).toMatchObject({ on: isoDay(store.opOn[row]!), until: today });
+    const cap = c.measures.filter((m) => m.kind === "cap_transfers").at(-1)!;
+    expect([cap.on, cap.until, cap.basis.source, cap.basis.part, cap.basis.reading]).toEqual([today, null, "payment_law_9", "11.6, sentence 2", "conservative"]);
+    expect(c.measures.find((m) => m.kind === "cap_atm_cash")).toMatchObject({ on: isoDay(store.recordOn[row]!), until: null });
+    // Once only.
+    expect(liftSuspension(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, reason: WHY })).toEqual({ code: "lift-already-lifted" });
+  });
+
+  it("leaves a legal entity with no restriction of its transfers: the cap is an individual's", () => {
+    const store = fresh();
+    const row = suspended(store, Applicant.LegalEntity);
+    expect(liftSuspension(store, row, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, reason: WHY })).toBeNull();
+    expect(store.restriction[row]).toBe(Restriction.None);
+    const c = clock(caseFacts(store, row));
+    expect(c.measures.map((m) => [m.kind, m.until])).toEqual([
+      ["suspend_instrument", isoDay(AS_OF_DAY)],
+      ["cap_atm_cash", null],
+    ]);
+    expect(c.warnings).toContain("transfer_cap_for_individuals_only");
+  });
+
+  it("is refused by the rules where the suspension is a duty (part 11.7), where the bank chose the cap, for any other case, for the operator and the signatory, and without reasons", () => {
+    const store = fresh();
+    const police = rows(store, (i) => store.database[i] === Database.ClientDataWithPoliceInformation)[0]!;
+    const capped = rows(store, (i) => store.restriction[i] === Restriction.TransfersCapped)[0]!;
+    const block = rows(store, (i) => store.stream[i] === Stream.Antifraud && store.database[i] === Database.None)[0]!;
+    const row = suspended(store, Applicant.Individual);
+    expect(liftAllowed(store, police)).toBe(false);
+    expect(checkLift(store, police, "supervisor", WHY)).toEqual({ code: "lift-not-allowed" });
+    expect(liftAllowed(store, capped)).toBe(false);
+    expect(checkLift(store, capped, "supervisor", WHY)).toEqual({ code: "lift-not-suspended" });
+    expect(checkLift(store, block, "supervisor", WHY)).toEqual({ code: "lift-not-client-data" });
+    for (const role of ["operator", "signatory"] as const) expect(checkLift(store, row, role, WHY)).toEqual({ code: "lift-role" });
+    expect(checkLift(store, row, "supervisor", "too short")).toEqual({ code: "lift-reason-required", min: LIFT_REASON_MIN });
+    const long = "x".repeat(LIFT_REASON_MAX + 1);
+    expect(checkLift(store, row, "supervisor", long)).toEqual({ code: "lift-reason-too-long", max: LIFT_REASON_MAX, length: LIFT_REASON_MAX + 1 });
+    expect(liftSuspension(store, police, { role: "supervisor", actor: selfActor("supervisor"), at: NOW, reason: WHY })).toEqual({ code: "lift-not-allowed" });
+    expect(store.journal.get(police)).toBeUndefined();
+    expect(store.restriction[police]).toBe(Restriction.InstrumentSuspended);
+    expect(caseFacts(store, police).database?.suspensionLiftedOn).toBeUndefined();
+  });
+});
