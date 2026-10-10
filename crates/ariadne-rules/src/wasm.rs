@@ -199,6 +199,10 @@ pub struct CaseInput {
     /// client's own data in the Bank of Russia's database.
     #[wasm_bindgen(js_name = instrumentSuspendedOn)]
     pub instrument_suspended_on: Option<String>,
+    /// The day the organisation lifted a suspension it had chosen under
+    /// 161-FZ art. 9 part 11.6, the data still in the database.
+    #[wasm_bindgen(js_name = suspensionLiftedOn)]
+    pub suspension_lifted_on: Option<String>,
     /// The day the client's transfers to individuals were capped at
     /// 100,000 roubles a month instead of the suspension.
     #[wasm_bindgen(js_name = transfersCappedOn)]
@@ -272,6 +276,7 @@ impl CaseInput {
             refund_claim_received_on: None,
             information_received_on: None,
             instrument_suspended_on: None,
+            suspension_lifted_on: None,
             transfers_capped_on: None,
             police_information: false,
             data_removed_on: None,
@@ -389,6 +394,7 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
     let database = clock::DatabaseFacts {
         information_received_on: opt_date(&i.information_received_on)?,
         instrument_suspended_on: opt_date(&i.instrument_suspended_on)?,
+        suspension_lifted_on: opt_date(&i.suspension_lifted_on)?,
         transfers_capped_on: opt_date(&i.transfers_capped_on)?,
         police_information: i.police_information,
         data_removed_on: opt_date(&i.data_removed_on)?,
@@ -403,6 +409,7 @@ fn to_case(i: &CaseInput) -> Result<Case, Error> {
     };
     let any_database = database.information_received_on.is_some()
         || database.instrument_suspended_on.is_some()
+        || database.suspension_lifted_on.is_some()
         || database.transfers_capped_on.is_some()
         || database.data_removed_on.is_some()
         || database.exclusion_received_by_operator_on.is_some()
@@ -1130,6 +1137,55 @@ mod tests {
         assert!(rubric_pure(&r, &i).unwrap().is_empty());
         r.measures = vec!["cap_everything".into()];
         assert_eq!(rubric_pure(&r, &i).unwrap_err(), Error::UnknownCode);
+    }
+
+    #[test]
+    fn a_lifted_suspension_crosses_whole() {
+        // Suspended under part 11.6 on Saturday 9 May 2026 and lifted on
+        // Wednesday 13 May: the suspension ends that day and the transfer
+        // cap starts, on a conservative reading of the part's second
+        // sentence. With the Ministry of Internal Affairs' information the
+        // lift is refused. A lift with no suspension is incomplete.
+        let mut i = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        i.information_received_on = Some("2026-05-09".into());
+        i.instrument_suspended_on = Some("2026-05-09".into());
+        i.suspension_lifted_on = Some("2026-05-13".into());
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        let m: Vec<_> = out
+            .measures
+            .iter()
+            .map(|m| {
+                (
+                    m.kind.as_str(),
+                    m.on.as_str(),
+                    m.until.as_deref(),
+                    m.basis.reading.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            m,
+            [
+                (
+                    "suspend_instrument",
+                    "2026-05-09",
+                    Some("2026-05-13"),
+                    "text"
+                ),
+                ("cap_transfers", "2026-05-13", None, "conservative"),
+                ("cap_atm_cash", "2026-05-09", None, "text")
+            ]
+        );
+        assert!(out.refusals.is_empty());
+        i.police_information = true;
+        let out = to_output(&clock::clock(&to_case(&i).unwrap()).unwrap());
+        assert_eq!(out.refusals, ["suspension_lift_not_allowed"]);
+        assert!(out.measures.iter().all(|m| m.until.is_none()));
+        let mut alone = CaseInput::new(StreamCode::Antifraud, "2026-05-12".into());
+        alone.suspension_lifted_on = Some("2026-05-13".into());
+        let case = to_case(&alone).unwrap();
+        assert!(case.database.is_some());
+        assert_eq!(clock::clock(&case), Err(Error::MissingDate));
     }
 
     #[test]

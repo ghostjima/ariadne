@@ -233,6 +233,7 @@ fn a_suspended_card_rests_on_part_11_6_or_with_the_police_information_on_11_7() 
         case.database = Some(DatabaseFacts {
             information_received_on: None,
             instrument_suspended_on: Some(Date::parse("2026-05-09").unwrap()),
+            suspension_lifted_on: None,
             transfers_capped_on: None,
             police_information: police,
             data_removed_on: None,

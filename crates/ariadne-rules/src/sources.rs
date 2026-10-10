@@ -173,7 +173,7 @@ pub const PAYMENT_LAW_9: Source = Source {
     title: "Федеральный закон от 27.06.2011 N 161-ФЗ «О национальной платежной системе», статья 9",
     url: "https://www.consultant.ru/document/cons_doc_LAW_115625/b0062cfb1c3cae710d57f0557303e78760a31d16/",
     revision: "2026-08-04",
-    checked: "2026-10-09",
+    checked: "2026-10-10",
 };
 
 /// The Bank of Russia's letter on counting the terms of art. 8 of the
