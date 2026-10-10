@@ -121,7 +121,9 @@ export class ModelProposer implements Proposer {
     const limit = new AbortController();
     const timer = setTimeout(() => limit.abort(), this.#timeoutMs);
     const stop = () => limit.abort(signal.reason);
-    signal.addEventListener("abort", stop, { once: true });
+    /* Stopped between two calls: the second is not made */
+    if (signal.aborted) stop();
+    else signal.addEventListener("abort", stop, { once: true });
     try {
       response = await this.#client.chat(chat, limit.signal);
     } catch (error) {

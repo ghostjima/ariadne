@@ -35,6 +35,10 @@ export class FakeModel implements ModelClient {
 
   chat(request: ChatRequest, signal: AbortSignal): Promise<ChatResponse> {
     this.requests.push(request);
+    if (signal.aborted) {
+      this.aborted += 1;
+      return Promise.reject(signal.reason);
+    }
     const next = this.answers.shift();
     if (next === undefined) return Promise.reject(new ModelError("no answer scripted"));
     if (typeof next === "object" && "fail" in next) return Promise.reject(new ModelError(next.fail));

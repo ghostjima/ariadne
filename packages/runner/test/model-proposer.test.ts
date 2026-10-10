@@ -92,6 +92,24 @@ describe("ModelProposer", () => {
     expect(before.model.requests).toHaveLength(0);
   });
 
+  it("a stop that lands between the first answer and the repair rejects too: the repair is not left to run", async () => {
+    const stop = new AbortController();
+    /* The first answer does not validate; the person stops as it arrives */
+    const { model, exchanges, proposer } = proposerWith([
+      () => {
+        stop.abort();
+        return "{}";
+      },
+      scriptedAnswer(classify),
+    ]);
+    await expect(proposer.propose(classify, stop.signal)).rejects.toBe(stop.signal.reason);
+    expect(model.aborted).toBe(1);
+    expect(exchanges.map((e) => [e.call, e.failure])).toEqual([
+      [1, null],
+      [2, "aborted"],
+    ]);
+  });
+
   it("a call that takes too long is a model that could not answer, not a stop", async () => {
     const model = new FakeModel([{ hang: true }]);
     const exchanges: Exchange[] = [];
