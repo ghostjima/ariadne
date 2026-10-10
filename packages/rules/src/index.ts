@@ -462,8 +462,15 @@ export type Finding = {
   subject: string | null;
   sentence: number | null;
   words: number | null;
+  /* The source of the duty to state what the finding is about, and where
+     in it */
   source: string;
   reference: string;
+  /* The provision of the thing itself: the article and part that give
+     the client a missing option, set a deadline or ground a restriction;
+     for a ground left out, the complaint article's part on what a reply
+     contains; null for the findings about the text */
+  provision: Basis | null;
 };
 
 /* The rubric's findings for a reply to a case; the module computes the
@@ -487,12 +494,62 @@ export function rubric(reply: Reply, facts: CaseFacts): Finding[] {
           words: f.words ?? null,
           source: f.source,
           reference: f.reference,
+          provision: f.provision ? basis(f.provision) : null,
         };
         f.free();
         return finding;
       });
     } finally {
       r.free();
+      input.free();
+    }
+  });
+}
+
+/* Provisions */
+
+/* An option, a deadline or a restriction a reply states, by its code,
+   with the provision it cites */
+export type Provision = { code: string; basis: Basis };
+
+/* The provision behind everything a reply to a case states on a day: the
+   client's options, the running deadlines that concern the client, the
+   restrictions in force for the client's own data in the Bank of
+   Russia's database, what a reply must contain (the sector's complaint
+   article), and behind telling the client that a complaint may also go
+   to the Bank of Russia (null for a legal entity, for which no provision
+   was found) */
+export type ReplyProvisions = {
+  options: Provision[];
+  deadlines: Provision[];
+  measures: Provision[];
+  content: Basis;
+  complaintToBankOfRussia: Basis | null;
+};
+
+/* The provisions a reply to the case cites, going out on `repliedOn`. */
+export function replyProvisions(facts: CaseFacts, repliedOn: Day): ReplyProvisions {
+  return call(() => {
+    const input = caseInput(facts);
+    try {
+      const p = wasm.replyProvisions(input, repliedOn);
+      const list = (items: wasm.ProvisionOutput[]): Provision[] =>
+        items.map((x) => {
+          const provision: Provision = { code: x.code, basis: basis(x.basis) };
+          x.free();
+          return provision;
+        });
+      const bank = p.complaintToBankOfRussia;
+      const out: ReplyProvisions = {
+        options: list(p.options),
+        deadlines: list(p.deadlines),
+        measures: list(p.measures),
+        content: basis(p.content),
+        complaintToBankOfRussia: bank ? basis(bank) : null,
+      };
+      p.free();
+      return out;
+    } finally {
       input.free();
     }
   });

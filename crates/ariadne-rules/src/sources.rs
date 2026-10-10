@@ -88,6 +88,19 @@ pub const BANKING_LAW_30: Source = Source {
     checked: "2026-10-10",
 };
 
+/// Central Bank Law, art. 79.3: an individual's complaint to the Bank of
+/// Russia about a financial organisation, which the Bank of Russia
+/// forwards to that organisation within seven working days of registering
+/// it. The provision behind a reply's line that the client may also apply
+/// to the Bank of Russia; it speaks of "обращение физического лица" only.
+pub const CENTRAL_BANK_LAW_79_3: Source = Source {
+    id: "central_bank_law_79_3",
+    title: "Федеральный закон от 10.07.2002 N 86-ФЗ «О Центральном банке Российской Федерации (Банке России)», статья 79.3",
+    url: "https://www.consultant.ru/document/cons_doc_LAW_37570/c4827642ed856c50f320069b374f29e6c66f1439/",
+    revision: "2026-08-04",
+    checked: "2026-10-10",
+};
+
 /// Microfinance Law, art. 9.1: how a microfinance organisation handles
 /// complaints.
 pub const MICROFINANCE_LAW_9_1: Source = Source {
@@ -326,6 +339,7 @@ pub const ALL: &[Source] = &[
     DECREE_2027,
     BANKING_LAW_30_1,
     BANKING_LAW_30,
+    CENTRAL_BANK_LAW_79_3,
     MICROFINANCE_LAW_9_1,
     INSURANCE_LAW_6_2,
     SECURITIES_LAW_15_11,
