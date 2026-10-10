@@ -55,6 +55,7 @@ const GROUNDS_IN_ORDER = [
   "161-FZ, art. 8, part 3.10",
   "161-FZ, art. 9, part 11.6",
   "161-FZ, art. 9, part 11.7",
+  "Bank of Russia Directive No. 6748-U, item 1.3",
   "115-FZ, art. 7, item 11",
   "115-FZ, art. 7, item 5.2, paragraph 2",
   "115-FZ, art. 7, item 5.2, paragraph 3",
@@ -245,8 +246,8 @@ test("a reply about removing the client's data rests on 161-FZ art. 9: with the 
   await expect(letter(page)).toContainText("The ground is 161-FZ, art. 9, part 11.7.");
   await expect(letter(page)).not.toContainText("part 11.6");
   await expect(letter(page)).not.toContainText("art. 8");
-  // The grounds in reading order: 161-FZ by article and part, then 115-FZ,
-  // then the contract.
+  // The grounds in reading order: 161-FZ by article and part, the
+  // directive under it, then 115-FZ, then the contract.
   const select = letterPanel(page).locator(".stoa-select").filter({ has: page.locator(".stoa-field__label", { hasText: "Ground" }) }).locator(".stoa-select__button");
   await select.click();
   const list = page.getByRole("listbox");

@@ -66,6 +66,9 @@ pub enum Act {
     OtherLaw,
     /// The contract with the client, which has no article.
     Contract,
+    /// A directive or regulation of the Bank of Russia, numbered in items:
+    /// it has no articles, and a reply names its item.
+    BankOfRussiaAct,
 }
 
 /// A legal ground the reply names.
@@ -181,7 +184,8 @@ pub struct Reply {
 pub enum FindingCode {
     /// No legal ground named.
     GroundMissing,
-    /// A law named without an article.
+    /// A law named without an article, or a Bank of Russia directive
+    /// without its item.
     GroundWithoutArticle,
     /// Grounds or reasons from both 161-FZ and 115-FZ.
     GroundsMixed,
@@ -446,11 +450,13 @@ pub fn rubric(reply: &Reply, case: &Case, clock: &Clock) -> Vec<Finding> {
     if reply.grounds.is_empty() {
         out.push(Finding::of(FindingCode::GroundMissing));
     }
-    if reply
-        .grounds
-        .iter()
-        .any(|g| g.act != Act::Contract && g.article.trim().is_empty())
-    {
+    // A law is named with its article; a Bank of Russia directive has
+    // items only, and is named with its item; the contract has neither.
+    if reply.grounds.iter().any(|g| match g.act {
+        Act::Contract => false,
+        Act::BankOfRussiaAct => g.part.trim().is_empty(),
+        _ => g.article.trim().is_empty(),
+    }) {
         out.push(Finding::of(FindingCode::GroundWithoutArticle));
     }
     let names = |act: Act| reply.grounds.iter().any(|g| g.act == act);

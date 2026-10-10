@@ -128,7 +128,10 @@ A test compares every plan, scenario, segment and stop of seeds 1 to 40
 over the five cases of the test set, and the handler's stream of a
 complete run, with the bytes the engine gave before the proposer
 existed: they are identical, with and without the scripted proposer
-handed in.
+handed in. Those bytes were taken in protocol version 5; the run is
+asked in the current version, and the one number that differs, the
+version `plan.started` repeats, is written as the fixtures' before the
+comparison.
 
 ## Event model
 
@@ -184,9 +187,9 @@ application leaves it for the reviewer to state.
 
 ### Versions
 
-The protocol has a version, `PROTOCOL_VERSION` (5): the plan payload
+The protocol has a version, `PROTOCOL_VERSION` (6): the plan payload
 carries it as `v` and `plan.started` repeats it as `protocol`. A payload
-without `v: 5` is refused with `unsupported_version`. A brief that does
+without `v: 6` is refused with `unsupported_version`. A brief that does
 not validate is refused with `invalid_case`.
 
 A version names the closed lists of codes a brief, an event and a log
@@ -233,14 +236,26 @@ call it an invalid case rather than another version.
   case. A reader of version 4 would drop a field it does not know and
   draft a reply that does not say which restriction applies, so the
   version tells them apart before the brief is read. Nothing else in the
+  payload, the events or the decisions changed. It is no longer served.
+- Version 6 adds one ground a brief and a reply draft may name
+  (`GROUND_CODES`), at the end so the list keeps the register's code
+  order: `directive_6748_u_1_3`, the item of the Bank of Russia's
+  Directive No. 6748-U (revision of 19.01.2026) on which a bank refuses
+  to forward to the Bank of Russia a client's application to remove the
+  client's data that lacks mandatory data (item 1.3). The desk's brief
+  names it, after the part of 161-FZ art. 9 the suspension or the cap
+  rests on, for a case whose application was refused. The engine carries
+  it as it carries every ground, from the brief to the draft. A reader of
+  version 5 would refuse the code as an invalid case, so the version
+  tells the two apart before the brief is read. Nothing else in the
   payload, the events or the decisions changed.
 
 The exported session log has a version of its own, 2, for its shape,
 which is unchanged; its `protocol` field names the version its entries
-were received in, now 5; the brief it carries is the protocol's. A page
-left open across a deployment may speak version 4 to the new Service
+were received in, now 6; the brief it carries is the protocol's. A page
+left open across a deployment may speak version 5 to the new Service
 Worker and is refused with `unsupported_version`, which the desk shows;
-a reload brings the page of version 5.
+a reload brings the page of version 6.
 
 ## API
 

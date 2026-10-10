@@ -29,7 +29,7 @@ import {
 } from "../src/index.js";
 import { AML, BRIEF, CAPPED, PLAIN, REMOVAL } from "./briefs.js";
 import { payloadFor } from "./helpers.js";
-import { CASES, completeRunStream, ENGINE, SEEDS, streamDigests, streamLines, type Engine } from "./stream-bytes.js";
+import { CASES, completeRunStream, ENGINE, FIXTURE_PROTOCOL, SEEDS, streamDigests, streamLines, type Engine } from "./stream-bytes.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/stream-v5.json", import.meta.url), "utf8")) as {
   protocol: number;
@@ -49,6 +49,10 @@ function engineWith(proposer: ImmediateProposer): Engine {
 
 describe("the event stream is byte-identical to the one before the proposer", () => {
   it("covers every seed and case of the test set", () => {
+    /* The fixtures' version; the run is asked in the current one, and
+       only the number plan.started repeats is written as the fixtures' */
+    expect(fixture.protocol).toBe(FIXTURE_PROTOCOL);
+    expect(stream).toContain(`"protocol":${FIXTURE_PROTOCOL}}`);
     expect(Object.keys(fixture.digests)).toHaveLength(SEEDS.length * CASES.length);
     let lines = 0;
     for (const seed of SEEDS) for (const [, brief] of CASES) lines += streamLines(seed, brief).length;

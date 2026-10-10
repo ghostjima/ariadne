@@ -45,7 +45,7 @@ describe("caseBrief", () => {
   it("decodes as a valid brief for every case of the corpus", () => {
     for (const row of rows) {
       const brief = caseBrief(store, row);
-      const payload = { v: 5 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
+      const payload = { v: 6 as const, seed: 7, autonomy: "high_only" as const, brief, steps: [{ id: "s1", askFirst: false }] };
       expect(decodePlanPayload(encodePlanPayload(payload)), `row ${row}`).toEqual({ ok: true, payload });
     }
   });

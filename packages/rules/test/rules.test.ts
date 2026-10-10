@@ -278,6 +278,9 @@ describe("through the WebAssembly build", () => {
       ["payment_8_3_10", "payment_law_8", "8", "3.10"],
       ["payment_9_11_6", "payment_law_9", "9", "11.6"],
       ["payment_9_11_7", "payment_law_9", "9", "11.7"],
+      // A refusal to forward an incomplete application: the directive's
+      // item, with no article.
+      ["directive_6748_u_1_3", "directive_6748_u", "", "1.3"],
     ]);
     expect(paymentGrounds()).toBe(grounds);
   });

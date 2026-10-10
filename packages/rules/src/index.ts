@@ -424,7 +424,8 @@ export function amlReasons(): readonly AmlReason[] {
 }
 
 /* The 161-FZ grounds, in the order of their codes: art. 8 parts 3.4 and
-   3.10, art. 9 parts 11.6 and 11.7. */
+   3.10, art. 9 parts 11.6 and 11.7, and item 1.3 of the Bank of Russia's
+   Directive No. 6748-U under art. 9 (it has no article). */
 export function paymentGrounds(): readonly PaymentGround[] {
   paymentList ??= call(() =>
     wasm.paymentGrounds().map((g) => {

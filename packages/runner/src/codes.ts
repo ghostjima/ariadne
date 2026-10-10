@@ -20,9 +20,11 @@
    version 3 the complaint before the client's option to apply for the
    removal of the client's data from the Bank of Russia's database (161-FZ
    art. 9 part 11.8); version 4 the brief and the draft before the
-   restrictions they state for those data (MEASURE_CODES). None is
-   served. */
-export const PROTOCOL_VERSION = 5;
+   restrictions they state for those data (MEASURE_CODES); version 5 the
+   grounds before the item of the Bank of Russia's Directive No. 6748-U
+   on which a bank refuses to forward an incomplete application to
+   remove those data (item 1.3). None is served. */
+export const PROTOCOL_VERSION = 6;
 
 /* What a step does for the complaint */
 export const ACTION_TYPES = [
@@ -157,6 +159,7 @@ export const GROUND_CODES = [
   "contract",
   "payment_9_11_6",
   "payment_9_11_7",
+  "directive_6748_u_1_3",
 ] as const;
 export type GroundCode = (typeof GROUND_CODES)[number];
 

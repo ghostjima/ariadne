@@ -1138,9 +1138,18 @@ fn the_operator_forwards_an_application_or_refuses_it_with_a_notice() {
     case.database = Some(f);
     let c = clock(&case).unwrap();
     assert_eq!(due(&c, K::ExclusionRefusalNotice), "2026-05-18");
+    let notice = c.deadline(K::ExclusionRefusalNotice).unwrap();
     assert_eq!(
-        c.deadline(K::ExclusionRefusalNotice).unwrap().basis.part,
-        "1.4"
+        (notice.basis.source, notice.basis.part, notice.count),
+        (sources::DIRECTIVE_6748_U, "1.4", Count::WorkingDays(5))
+    );
+    assert_eq!(notice.from, d("2026-05-08"));
+    // The notice binds the operator, and the refusal itself rests on item
+    // 1.3, which a reply names as its ground.
+    assert!(!K::ExclusionRefusalNotice.is_for_others());
+    assert_eq!(
+        ariadne_rules::reasons::PaymentGround::ForwardingRefused.basis(),
+        (sources::DIRECTIVE_6748_U, "", "1.3")
     );
     assert!(c.deadline(K::ExclusionForwarding).is_none());
     // The Bank of Russia cannot receive it before the bank did.

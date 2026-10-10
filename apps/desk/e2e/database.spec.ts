@@ -9,7 +9,11 @@
 // suspension the bank chose under 161-FZ art. 9 part 11.6, lifted by the
 // legal reviewer or the supervisor with the bank's reasons after a
 // confirmation: journaled, the card's measures and the register's column
-// follow; never where the suspension is a duty (part 11.7).
+// follow; never where the suspension is a duty (part 11.7). And the
+// client's application through the bank (Directive No. 6748-U items 1.2
+// to 1.5): recorded the day it arrives with the day to forward it by, and
+// refused for missing mandatory data after a confirmation that shows the
+// notice, with the notice's 5 working days from the rules engine.
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { workflowStrings } from "../src/workflow/i18n";
@@ -37,6 +41,10 @@ const RECEIVED_EARLIER = "C-001063";
  * suspension. */
 const CAPPED = "C-001011";
 const WHY = "The client explained the transfers; antifraud agreed to the cap instead.";
+/** A case about an individual's own data, with the Ministry's information,
+ * waiting for facts, with no application through the bank; another
+ * operator's. */
+const NO_APPLICATION = "C-001199";
 
 const panel = (page: Page) => page.locator(".database-panel");
 /** The flags of one day on the card, by the day's heading. */
@@ -172,6 +180,9 @@ test("on a phone the database panel fits without sideways scroll, with the appli
       if (id === DIRECT) {
         await panel(page).getByRole("button", { name: workflowStrings[lang].database.recordQuery }).click();
         await expect(panel(page).getByRole("button", { name: workflowStrings[lang].database.answer })).toBeVisible();
+        // And the client's application with the form of what it lacks.
+        await panel(page).getByRole("button", { name: workflowStrings[lang].database.recordApplication }).click();
+        await expect(panel(page).getByRole("button", { name: workflowStrings[lang].database.refuse })).toBeVisible();
       }
       const sideways = await page.evaluate(() => {
         const region = document.querySelector(".stoa-page-shell__scroll")!;
@@ -344,4 +355,120 @@ for (const lang of ["ru", "en"] as const)
       await expect(confirmation(page)).toBeHidden();
       await expect(panel(page).getByRole("button", { name: words.lift })).toHaveCount(0);
       await expectNoSeriousViolations(page, "suspension lifted", { lang, theme });
+    });
+
+test("the client's application through the bank: recorded the day it arrives, then refused for missing mandatory data, with the notice and its 5 working days", async ({ page }) => {
+  await openAs(page, NO_APPLICATION, "supervisor");
+  await expect(panel(page)).toContainText(b.applicationHelp);
+  await panel(page).getByRole("button", { name: b.recordApplication }).click();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.applicationRecorded(NO_APPLICATION));
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  // Tuesday 6 October 2026: forwarded by Wednesday 7 October (item 1.5).
+  await expect(panel(page)).toContainText(b.applicationReceived("Oct 6, 2026"));
+  await expect(panel(page)).toContainText(b.forwardBy("Oct 7, 2026", "Bank of Russia Directive No. 6748-U, item 1.5"));
+  await expect(lastEntry(page)).toContainText(w.action.application_received);
+  const flags = page.getByRole("region", { name: "Flags" });
+  await expect(flags).toContainText("The application goes to the Bank of Russia, with the bank's view");
+  // An application through the bank goes on with the bank's view: no
+  // request of the Bank of Russia is recorded meanwhile.
+  await expect(panel(page)).toContainText(b.queryThroughBank);
+  // Nothing ticked: it is not refused.
+  await panel(page).getByRole("button", { name: b.refuse }).click();
+  await expect(panel(page).getByRole("alert")).toHaveText(b.applicationErrors["application-data-required"]);
+  await expect(confirmation(page)).toBeHidden();
+  // What the directive asks of an individual (item 1.1.1), and no INN.
+  const group = panel(page).getByRole("group", { name: b.missing });
+  await expect(group.getByRole("checkbox")).toHaveCount(4);
+  await expect(group).not.toContainText(b.data.inn);
+  await group.getByText(b.data.accounts, { exact: true }).click();
+  await group.getByText(b.data.operators, { exact: true }).click();
+  await panel(page).getByRole("button", { name: b.refuse }).click();
+  // The confirmation shows the notice the client gets.
+  const confirm = confirmation(page);
+  await expect(confirm).toContainText(b.refuseConfirmText);
+  await expect(confirm).toContainText("We have not forwarded it to the Bank of Russia: it lacks mandatory data (Bank of Russia Directive No. 6748-U, item 1.3).");
+  await expect(confirm).toContainText(
+    "Missing: the banks from which you learned of the inclusion (names or BIC); the numbers of your accounts, cards or electronic means of payment.",
+  );
+  await expect(confirm.getByRole("button", { name: b.refuseKeep })).toBeFocused();
+  await confirm.getByRole("button", { name: b.refuseConfirm, exact: true }).click();
+  await expect(confirm).toBeHidden();
+  await expect(page.locator(".stoa-toast-region")).toContainText(b.refusedToast(NO_APPLICATION));
+  // The form has gone with the refusal; the focus is on the panel.
+  await expect(panel(page).getByRole("button", { name: b.refuse })).toHaveCount(0);
+  await expect(panel(page).locator(".stoa-panel__title")).toBeFocused();
+  expect(await bodyHasFocus(page)).toBe(false);
+  await expect(panel(page)).toContainText(b.refused("Oct 6, 2026", `${b.data.operators}; ${b.data.accounts}`));
+  // 7, 8, 9, 12 and 13 October (item 1.4).
+  await expect(panel(page)).toContainText(b.noticeDue("Oct 13, 2026", "Bank of Russia Directive No. 6748-U, item 1.4"));
+  const notice = panel(page).getByRole("figure", { name: b.notice });
+  await expect(notice).toContainText("On Oct 6, 2026 we received your application to remove your data from the Bank of Russia's database.");
+  await expect(notice).toContainText("You can apply again with these data, through us or through the Bank of Russia's internet reception at cbr.ru/contactBR/161-FZ.");
+  await expect(lastEntry(page)).toContainText(w.action.forwarding_refused);
+  await expect(lastEntry(page)).toContainText(b.missingSaid(`${b.data.operators}; ${b.data.accounts}`));
+  // The card: the notice's term instead of the forwarding's.
+  await expect(flags).toContainText("The refusal to forward the application is due to the client");
+  await expect(flags).toContainText("Ground: Bank of Russia Directive No. 6748-U, item 1.4");
+  await expect(flags).not.toContainText("The application goes to the Bank of Russia, with the bank's view");
+  // The client may now apply to the Bank of Russia directly: its request
+  // is taken again.
+  await expect(panel(page).getByRole("button", { name: b.recordQuery })).toBeVisible();
+  // The export for an inspection keeps both entries.
+  const download = page.waitForEvent("download");
+  await page.locator(".dispatch-panel").getByRole("button", { name: w.dispatch.exportText }).click();
+  const body = await readFile((await (await download).path())!, "utf8");
+  expect(body).toContain(w.action.application_received);
+  expect(body).toContain(w.action.forwarding_refused);
+  expect(body).toContain(b.missingSaid(`${b.data.operators}; ${b.data.accounts}`));
+});
+
+test("an application already forwarded is not refused; the legal reviewer and the signatory see who takes the step; in Russian the notice cites the directive's item", async ({ page }) => {
+  // The register's own application: received on 5 October, with the Bank
+  // of Russia on 6 October.
+  await openAs(page, CLIENT_DATA, "supervisor");
+  await expect(panel(page)).toContainText(b.applicationReceived("Oct 5, 2026"));
+  await expect(panel(page)).toContainText(b.forwarded("Oct 6, 2026"));
+  await expect(panel(page).getByRole("button", { name: b.refuse })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: b.recordApplication })).toHaveCount(0);
+  for (const role of ["reviewer", "signatory"]) {
+    await openAs(page, NO_APPLICATION, role);
+    await expect(panel(page)).toContainText(b.applicationWhoMay);
+    await expect(panel(page).getByRole("button", { name: b.recordApplication })).toHaveCount(0);
+  }
+  // Another operator's case: this operator does not take the step.
+  await openAs(page, NO_APPLICATION, "operator");
+  await expect(panel(page).getByRole("button", { name: b.recordApplication })).toHaveCount(0);
+  const ru = workflowStrings.ru.database;
+  await openAs(page, NO_APPLICATION, "supervisor", "lang=ru");
+  await panel(page).getByRole("button", { name: ru.recordApplication }).click();
+  await expect(panel(page)).toContainText("(Указание Банка России № 6748-У, п. 1.5)");
+  await panel(page).getByRole("group", { name: ru.missing }).getByText(ru.data.identity_documents, { exact: true }).click();
+  await panel(page).getByRole("button", { name: ru.refuse }).click();
+  await confirmation(page).getByRole("button", { name: ru.refuseConfirm, exact: true }).click();
+  const notice = panel(page).getByRole("figure", { name: ru.notice });
+  await expect(notice).toContainText("Мы не передали его в Банк России: в нём нет обязательных сведений (Указание Банка России № 6748-У, п. 1.3).");
+  await expect(notice).toContainText("Не хватает: серии и номера документов, удостоверяющих личность.");
+  await expect(panel(page)).toContainText("(Указание Банка России № 6748-У, п. 1.4)");
+  await expect(lastEntry(page)).toContainText(workflowStrings.ru.action.forwarding_refused);
+});
+
+for (const lang of ["ru", "en"] as const)
+  for (const theme of ["light", "dark"])
+    test(`axe: the client's application recorded, its refusal without data, the confirmation with the notice, and refused (${lang}, ${theme})`, async ({ page }) => {
+      const words = workflowStrings[lang].database;
+      await openAs(page, NO_APPLICATION, "supervisor", `lang=${lang}&theme=${theme}`);
+      await panel(page).getByRole("button", { name: words.recordApplication }).click();
+      await expect(panel(page).getByRole("button", { name: words.refuse })).toBeVisible();
+      await expectNoSeriousViolations(page, "client's application recorded", { lang, theme });
+      await panel(page).getByRole("button", { name: words.refuse }).click();
+      await expect(panel(page).getByRole("alert")).toBeVisible();
+      await expectNoSeriousViolations(page, "forwarding refusal without data", { lang, theme });
+      await panel(page).getByRole("group", { name: words.missing }).getByText(words.data.accounts, { exact: true }).click();
+      await panel(page).getByRole("button", { name: words.refuse }).click();
+      await expect(confirmation(page)).toBeVisible();
+      await expectNoSeriousViolations(page, "forwarding refusal confirmation", { lang, theme });
+      await confirmation(page).getByRole("button", { name: words.refuseConfirm, exact: true }).click();
+      await expect(confirmation(page)).toBeHidden();
+      await expect(panel(page).getByRole("figure", { name: words.notice })).toBeVisible();
+      await expectNoSeriousViolations(page, "forwarding refused with its notice", { lang, theme });
     });

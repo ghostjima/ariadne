@@ -7,11 +7,19 @@
   line. The digest of those bytes is what test/fixtures/stream-v5.json
   holds for each seed and case, taken on the engine before a proposer
   existed; proposer.test.ts compares the engine with them.
+
+  The fixtures were taken in protocol version 5. A version that only adds
+  a code to a list a brief may draw from (version 6: the ground of a
+  refusal to forward an application) changes one thing in these bytes: the
+  number plan.started repeats. The run is asked in the current version,
+  and that number is written as the fixtures' before the bytes are
+  compared, so the comparison still says the rest is what it was.
 */
 
 import { createHash } from "node:crypto";
 import {
   AUTONOMIES,
+  PROTOCOL_VERSION,
   createAgentHandler,
   encodeDecisions,
   encodePlanPayload,
@@ -28,6 +36,15 @@ import {
   type Scenario,
 } from "../src/index.js";
 import { AML, BRIEF, CAPPED, PLAIN, REMOVAL } from "./briefs.js";
+
+/* The protocol version the fixtures were taken in */
+export const FIXTURE_PROTOCOL = 5;
+
+/* An item of a run with the version plan.started repeats written as the
+   fixtures' */
+function asInFixtures(item: RunItem): RunItem {
+  return item.kind === "event" && item.event.type === "plan.started" ? { ...item, event: { ...item.event, protocol: FIXTURE_PROTOCOL } } : item;
+}
 
 /* The seeds and the cases of the engine's test set (vocabulary.test.ts
    runs seeds 1 to 40 over these five cases) */
@@ -74,7 +91,7 @@ function items(engine: Engine, payload: PlanPayload, decisions: readonly Decisio
       timeScale: 1,
       now: () => 1000,
     }),
-  ];
+  ].map(asInFixtures);
 }
 
 /* Every line of the run of one seed and one case */
@@ -87,7 +104,7 @@ export function streamLines(seed: number, brief: CaseBrief, engine: Engine = ENG
   for (const autonomy of AUTONOMIES) {
     for (const askFirst of ASK_FIRST) {
       const payload: PlanPayload = {
-        v: 5,
+        v: PROTOCOL_VERSION,
         seed,
         autonomy,
         brief,
@@ -110,7 +127,7 @@ export function streamLines(seed: number, brief: CaseBrief, engine: Engine = ENG
   }
   /* A stop placed after every event of the run that asks for the least */
   const payload: PlanPayload = {
-    v: 5,
+    v: PROTOCOL_VERSION,
     seed,
     autonomy: "ask_none",
     brief,
@@ -142,7 +159,7 @@ export function streamDigests(engine: Engine = ENGINE): Record<string, string> {
    request with the whole decision log */
 export async function completeRunStream(seed: number, brief: CaseBrief, engine: Engine = ENGINE): Promise<string> {
   const payload: PlanPayload = {
-    v: 5,
+    v: PROTOCOL_VERSION,
     seed,
     autonomy: "high_only",
     brief,
@@ -159,5 +176,10 @@ export async function completeRunStream(seed: number, brief: CaseBrief, engine: 
   }
   const handler = createAgentHandler({ sleep: async () => {}, now: () => 1000 });
   const url = `https://app.test/api/agent?plan=${encodePlanPayload(payload)}&decisions=${encodeDecisions(log)}`;
-  return handler(new Request(url))!.text();
+  const text = await handler(new Request(url))!.text();
+  /* plan.started, once, with the current version: written as the
+     fixtures' */
+  return text.replace(`"type":"plan.started","at":1000,"total":${payload.steps.length},"protocol":${PROTOCOL_VERSION}}`, (line) =>
+    line.replace(`"protocol":${PROTOCOL_VERSION}}`, `"protocol":${FIXTURE_PROTOCOL}}`),
+  );
 }
