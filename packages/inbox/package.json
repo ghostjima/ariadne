@@ -1,0 +1,40 @@
+{
+  "name": "@ariadne/inbox",
+  "version": "0.1.0",
+  "description": "What an assistant reads about a complaint: the case brief of codes from the register and ariadne-rules, seeded complaint texts in Russian and English in three sets (clean, hard, adversarial), and the ground truth of each",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./brief": {
+      "types": "./dist/brief.d.ts",
+      "default": "./dist/brief.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ariadne/grid": "workspace:*",
+    "@ariadne/rules": "workspace:*",
+    "@ariadne/runner": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "6.0.3",
+    "vitest": "5.0.2"
+  }
+}
