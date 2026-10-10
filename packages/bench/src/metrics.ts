@@ -61,6 +61,20 @@ export type Spread = { median: number | null; p95: number | null; min: number | 
 
 export const share = (count: number, of: number): Share => ({ share: of === 0 ? null : count / of, count, of });
 
+/* The 95% Wilson score interval of a share: where the true share lies
+   with that confidence if the runs were independent draws. The repeats of
+   an item are not independent, so an interval is given over the items of
+   one repeat. */
+export function wilson(count: number, of: number): { low: number; high: number } | null {
+  if (of === 0) return null;
+  const z = 1.959964;
+  const p = count / of;
+  const centre = p + (z * z) / (2 * of);
+  const margin = z * Math.sqrt((p * (1 - p)) / of + (z * z) / (4 * of * of));
+  const denominator = 1 + (z * z) / of;
+  return { low: Math.max(0, (centre - margin) / denominator), high: Math.min(1, (centre + margin) / denominator) };
+}
+
 /* Nearest-rank percentile of a sample */
 export function percentile(values: readonly number[], p: number): number | null {
   if (values.length === 0) return null;

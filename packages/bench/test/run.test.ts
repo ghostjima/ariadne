@@ -23,6 +23,7 @@ import {
   stopWhileStepRuns,
   summarise,
   summaryMarkdown,
+  wilson,
   type AgentFooter,
   type AgentHeader,
   type AgentLine,
@@ -239,6 +240,15 @@ describe("runBench", () => {
     const released: string[] = [];
     await runBench(config({ release: (model) => Promise.resolve(void released.push(model)), repeats: 1, seeds: [1] }));
     expect(released).toEqual(["fake:reader"]);
+    /* And the files say whether it did */
+    const told = config({ agents: [MATRIX[0]!, READER], release: () => Promise.resolve(), repeats: 1, seeds: [1], sets: ["clean"] });
+    await runBench(told);
+    expect([(linesOf(told, MATRIX[0]!).at(-1) as AgentFooter).released, (linesOf(told, READER).at(-1) as AgentFooter).released]).toEqual([false, true]);
+    expect(summaryMarkdown(summarise(readResults(told.outDir, told.agents), told.agents, told))).toContain("Each model was unloaded from ollama when its runs were done");
+    const kept = config({ agents: [READER], repeats: 1, seeds: [1], sets: ["clean"] });
+    await runBench(kept);
+    expect((linesOf(kept, READER).at(-1) as AgentFooter).released).toBe(false);
+    expect(summaryMarkdown(summarise(readResults(kept.outDir, kept.agents), kept.agents, kept))).toContain("Models were left loaded in ollama between agents.");
   });
 });
 
@@ -282,6 +292,8 @@ describe("the summary", () => {
     expect(model!.ground_declared_not_cited_share.count).toBeGreaterThan(0);
     expect(model!.repeat_agreement_classify).toEqual(share(6, 6));
     expect(summary.agents[2]!.metrics.ru!.adversarial!.injection_executed).toEqual({ ask_all: 0, high_only: 0, ask_none: 0 });
+    expect(Object.keys(summary.agents[2]!.by_repeat.ru!)).toEqual(["1", "2"]);
+    expect(summary.agents[2]!.by_repeat.ru!["1"]!.stream_accuracy).toEqual(share(6, 6));
     const md = summaryMarkdown(summary);
     for (const name of ["proposal_schema_valid_first", "proposal_schema_valid_after_repair", "stream_accuracy", "ground_accuracy", "fact_unit_accuracy", "rubric_findings_per_reply", "reply_clean_share", "citation_outside_case_share", "injection_followed", "injection_executed", "consent_stops", "latency_classify_ms", "latency_draft_ms", "answer_tokens_per_second", "ollama_peak_rss_mb", "stop_to_quiet_ms", "repeat_agreement_classify"]) {
       expect(md, name).toContain(name);
@@ -290,6 +302,8 @@ describe("the summary", () => {
     expect(md).toContain(`\`${DIGEST}\``);
     expect(md).toContain("## Russian");
     expect(md).toContain("## English");
+    expect(md).toContain("stream, repeat 2");
+    expect(md).toContain("61 to 100%");
     expect(md).not.toMatch(/undefined|NaN/);
   });
 
@@ -301,6 +315,12 @@ describe("the summary", () => {
     expect(percentile([1, 2], 50)).toBe(1);
     expect(percentile([], 50)).toBeNull();
     expect(spread([4, 2, 6])).toEqual({ median: 4, p95: 6, min: 2, max: 6, n: 3 });
+    /* Wilson's interval: 24 of 30 is 80%, between about 63% and 90% */
+    const w = wilson(24, 30)!;
+    expect([Math.round(w.low * 100), Math.round(w.high * 100)]).toEqual([63, 90]);
+    expect(wilson(30, 30)!.high).toBe(1);
+    expect(Math.round(wilson(30, 30)!.low * 100)).toBe(89);
+    expect(wilson(0, 0)).toBeNull();
   });
 
   it("a run of one agent on one item is scored whoever the agent is", async () => {

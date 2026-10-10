@@ -95,6 +95,10 @@ export type AgentFooter = {
   runs: number;
   wallMs: number;
   memory: MemoryWatch | null;
+  /* Whether the bench told ollama it was done with the agent's model when
+     its runs ended (an empty request with keep_alive 0), so the next
+     agent's model does not share memory with it */
+  released: boolean;
   /* Set when the agent was stopped before its runs were done, with why */
   dropped: { reason: "swapped" | "memory_pressure_critical"; afterRuns: number; swapoutsGrew: number | null; pressureMax: number | null } | null;
 };
@@ -333,7 +337,8 @@ export async function runBench(config: BenchConfig): Promise<void> {
       }
     }
     const memory = watch ? await watch.stop() : null;
-    const footer: AgentFooter = { type: "footer", agent: agent.id, runs, wallMs: now() - started, memory, dropped };
+    const released = agent.kind === "model" && config.release !== undefined;
+    const footer: AgentFooter = { type: "footer", agent: agent.id, runs, wallMs: now() - started, memory, released, dropped };
     appendFileSync(path, `${JSON.stringify(footer)}\n`);
     if (agent.kind === "model") await config.release?.(agent.model);
     log(`${agent.id}: ${runs} runs in ${Math.round((now() - started) / 1000)} s${dropped ? `, dropped: ${dropped.reason}` : ""}`);

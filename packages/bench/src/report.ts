@@ -6,15 +6,21 @@
 import { INSTRUCTIONS, type InboxSet, type Lang } from "@ariadne/inbox";
 import { AUTONOMIES } from "@ariadne/runner";
 import type { AgentSpec } from "./agents.js";
-import { metricsBySet, spread, type Metrics, type RunRecord, type SetGroup, type Share, type Spread } from "./metrics.js";
+import { metricsBySet, metricsOf, spread, wilson, type Metrics, type RunRecord, type SetGroup, type Share, type Spread } from "./metrics.js";
 import type { AgentFooter, AgentHeader, AgentLine, StopTrial } from "./run.js";
 import type { BenchStamp } from "./system.js";
+
+/* The shares that say how well an agent read and wrote, for one repeat */
+export type RepeatShares = Pick<Metrics, "stream_accuracy" | "ground_accuracy" | "fact_unit_accuracy" | "reply_passes_every_check_share" | "injection_followed">;
 
 export type AgentSummary = {
   agent: AgentSpec;
   header: AgentHeader | null;
   footer: AgentFooter | null;
   metrics: Partial<Record<Lang, Partial<Record<SetGroup, Metrics>>>>;
+  /* The same shares for each repeat on its own, over every set: how far
+     one pass over the items differs from another */
+  by_repeat: Partial<Record<Lang, Record<string, RepeatShares>>>;
   /* stop_to_quiet_ms: from Stop to the run's last event, over the timed
      stops that came while the agent worked: median, p95, extremes */
   stop_to_quiet_ms: Spread;
@@ -35,15 +41,30 @@ export function summarise(results: ReadonlyMap<string, AgentLine[]>, agents: rea
     const runs = lines.filter((l): l is { type: "run" } & RunRecord => l.type === "run");
     const stops = lines.filter((l): l is StopTrial => l.type === "stop");
     const metrics: AgentSummary["metrics"] = {};
+    const by_repeat: AgentSummary["by_repeat"] = {};
     for (const lang of plan.langs) {
       const of = runs.filter((r) => r.lang === lang);
-      if (of.length > 0) metrics[lang] = metricsBySet(of);
+      if (of.length === 0) continue;
+      metrics[lang] = metricsBySet(of);
+      const repeats: Record<string, RepeatShares> = {};
+      for (const repeat of [...new Set(of.map((r) => r.repeat))].sort((a, b) => a - b)) {
+        const m = metricsOf(of.filter((r) => r.repeat === repeat));
+        repeats[String(repeat)] = {
+          stream_accuracy: m.stream_accuracy,
+          ground_accuracy: m.ground_accuracy,
+          fact_unit_accuracy: m.fact_unit_accuracy,
+          reply_passes_every_check_share: m.reply_passes_every_check_share,
+          injection_followed: m.injection_followed,
+        };
+      }
+      by_repeat[lang] = repeats;
     }
     out.push({
       agent,
       header: lines.find((l): l is AgentHeader => l.type === "header") ?? null,
       footer: lines.find((l): l is AgentFooter => l.type === "footer") ?? null,
       metrics,
+      by_repeat,
       stop_to_quiet_ms: spread(stops.filter((s) => s.during !== "nothing").map((s) => s.stopToQuietMs)),
       stop_trials: stops,
     });
@@ -70,6 +91,19 @@ export function summaryMarkdown(summary: Summary): string {
     );
   }
   out.push(`Plan: sets ${plan.sets.join(", ")}; languages ${plan.langs.join(", ")}; seeds ${plan.seeds.join(", ")}; ${plan.repeats} repeat(s) of each item.`, "");
+
+  const models = summary.agents.filter((a) => a.agent.kind === "model" && a.footer);
+  if (models.length > 0) {
+    const released = models.filter((a) => a.footer!.released).length;
+    out.push(
+      released === models.length
+        ? "Each model was unloaded from ollama when its runs were done (a request with keep_alive 0 for that model only), before the next agent started."
+        : released === 0
+          ? "Models were left loaded in ollama between agents."
+          : `${released} of ${models.length} models were unloaded from ollama when their runs were done.`,
+      "",
+    );
+  }
 
   out.push("## Agents", "");
   out.push(
@@ -120,6 +154,32 @@ export function summaryMarkdown(summary: Summary): string {
           const m = a.metrics[lang]![s];
           return [pct(m?.stream_accuracy), pct(m?.ground_accuracy), pct(m?.fact_unit_accuracy)];
         })]),
+      ),
+      "",
+    );
+
+    out.push("Each repeat on its own, over every set, with the 95% Wilson interval of the first repeat's share (the items of one repeat are independent draws; the repeats of an item are not):", "");
+    const interval = (s: Share | undefined): string => {
+      const w = s && s.share !== null ? wilson(s.count, s.of) : null;
+      return w ? `${(w.low * 100).toFixed(0)} to ${(w.high * 100).toFixed(0)}%` : "n/a";
+    };
+    const repeats = [...new Set(of.flatMap((a) => Object.keys(a.by_repeat[lang] ?? {})))].sort();
+    out.push(
+      table(
+        ["agent", ...repeats.map((r) => `stream, repeat ${r}`), "stream, interval", ...repeats.map((r) => `ground, repeat ${r}`), "ground, interval", ...repeats.map((r) => `fact unit, repeat ${r}`), "fact unit, interval"],
+        of.map((a) => {
+          const by = a.by_repeat[lang] ?? {};
+          const first = by[repeats[0] ?? ""];
+          return [
+            a.agent.id,
+            ...repeats.map((r) => pct(by[r]?.stream_accuracy)),
+            interval(first?.stream_accuracy),
+            ...repeats.map((r) => pct(by[r]?.ground_accuracy)),
+            interval(first?.ground_accuracy),
+            ...repeats.map((r) => pct(by[r]?.fact_unit_accuracy)),
+            interval(first?.fact_unit_accuracy),
+          ];
+        }),
       ),
       "",
     );
