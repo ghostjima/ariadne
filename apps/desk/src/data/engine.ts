@@ -134,6 +134,7 @@ export class DeskEngine {
         breach: new Uint8Array(n),
         copies: new Uint8Array(n),
         rules: new Uint8Array(n),
+        restriction: new Uint8Array(n),
         updatedAt: new Float64Array(n),
         notes: notes ? [] : undefined,
       };
@@ -148,10 +149,11 @@ export class DeskEngine {
         msg.breach[k] = store.breach[row] ?? 0;
         msg.copies[k] = store.copies[row] ?? 0;
         msg.rules[k] = store.rules[row] ?? 0;
+        msg.restriction[k] = store.restriction[row] ?? 0;
         msg.updatedAt[k] = store.updatedAt[row] ?? 0;
         msg.notes?.push(getNote(store, row));
       }
-      const buffers = [msg.rows, msg.stage, msg.outcome, msg.ground, msg.extension, msg.assignee, msg.sentOn, msg.breach, msg.copies, msg.rules, msg.updatedAt];
+      const buffers = [msg.rows, msg.stage, msg.outcome, msg.ground, msg.extension, msg.assignee, msg.sentOn, msg.breach, msg.copies, msg.rules, msg.restriction, msg.updatedAt];
       this.post(msg, buffers.map((b) => b.buffer as ArrayBuffer));
     } else {
       this.local?.rowsEdited(rows);

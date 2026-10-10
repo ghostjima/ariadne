@@ -18,6 +18,7 @@ export function applySync(store: ColumnStore, msg: SyncRequest): void {
     store.breach[row] = msg.breach[k] ?? 0;
     store.copies[row] = msg.copies[k] ?? 0;
     store.rules[row] = msg.rules[k] ?? 0;
+    store.restriction[row] = msg.restriction[k] ?? 0;
     const note = msg.notes?.[k];
     if (note) writeNote(store, row, note, 0);
     store.updatedAt[row] = msg.updatedAt[k] ?? 0;

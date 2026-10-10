@@ -717,7 +717,7 @@ const en: Strings = {
     measure: {
       suspend_instrument: "We suspended your card and online banking while your data are in the Bank of Russia's database.",
       cap_transfers:
-        "We did not suspend your card or online banking. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
+        "Your card and online banking are not suspended. Your transfers to individuals are limited to RUB 100,000 a month while your data are in the Bank of Russia's database.",
       cap_atm_cash: "Cash withdrawals at ATMs are limited to RUB 100,000 a month while your data are there, under the Banking Law, art. 30, part 16.",
     },
     ground: (citation) => `The ground is ${citation}.`,
@@ -1159,7 +1159,7 @@ const ruStrings: Strings = {
     measure: {
       suspend_instrument: "Мы приостановили использование вашей карты и онлайн-банка, пока сведения о вас есть в базе данных Банка России.",
       cap_transfers:
-        "Мы не приостанавливали вашу карту и онлайн-банк. Пока сведения о вас есть в базе данных Банка России, переводы физическим лицам ограничены суммой 100 000 ₽ в месяц.",
+        "Ваша карта и онлайн-банк не приостановлены. Пока сведения о вас есть в базе данных Банка России, переводы физическим лицам ограничены суммой 100 000 ₽ в месяц.",
       cap_atm_cash: "На то же время выдача наличных в банкоматах ограничена суммой 100 000 ₽ в месяц по ч. 16 ст. 30 Закона о банках.",
     },
     ground: (citation) => `Основание: ${citation}.`,
